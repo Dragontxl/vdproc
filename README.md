@@ -1,184 +1,119 @@
-# AI Video Generator
+# AI Video Processing System
 
-基于Cloudflare生态和GitHub Actions构建的分布式AI视频处理系统。
+基于Cloudflare Workers和GitHub Actions的分布式AI视频处理系统。
 
 ## 功能特性
 
-- 视频抽帧（支持自定义帧率）
-- AI图生图（支持Stable Diffusion等模型）
-- 视频合成（将处理后的帧重新合成为视频）
-- 多账户负载均衡（GitHub和AI账户池）
-- 任务队列管理
-- 实时进度监控
-- 错误重试机制
-- 成本跟踪
+- 🎬 **视频抽帧**: 将视频分解为高质量帧图像
+- 🖼️ **AI图生图**: 使用AI模型处理每一帧
+- 🎞️ **视频合成**: 将处理后的帧合成为最终视频
+- 🔄 **并发控制**: GitHub账户池 + AI账户池智能调度
+- 🔒 **安全认证**: JWT + RBAC权限控制
+- 📊 **实时监控**: 任务进度、账户状态、系统指标
 
-## 技术栈
+## 系统架构
 
-### 后端
-- Cloudflare Workers
-- Cloudflare D1（SQLite数据库）
-- Cloudflare R2（对象存储）
-- Hono（Web框架）
-- TypeScript
+```
+┌─────────────┐     ┌─────────────────┐     ┌──────────────┐
+│   前端      │────▶│  Cloudflare     │────▶│  GitHub       │
+│  (React)   │◀────│  Workers        │◀────│  Actions      │
+└─────────────┘     └─────────────────┘     └──────────────┘
+                            │                        │
+                            ▼                        ▼
+                    ┌───────────────┐         ┌─────────────┐
+                    │  D1数据库     │         │   Docker    │
+                    │  R2存储       │         │  处理环境   │
+                    │  KV缓存       │         └─────────────┘
+                    └───────────────┘
+```
 
-### 前端
-- React 18
-- Ant Design
-- React Router
-- Axios
+## 快速开始
 
-### 处理流程
-- GitHub Actions（CI/CD）
-- Docker（环境隔离）
-- FFmpeg（视频处理）
-- Stable Diffusion API（AI图像生成）
+### 1. 部署后端服务
+
+```bash
+cd backend
+npm install
+npm run deploy
+```
+
+### 2. 配置GitHub Secrets
+
+在GitHub仓库 Settings → Secrets and variables → Actions 中添加以下Secrets:
+
+| Secret Name | Description |
+|-------------|-------------|
+| `R2_ACCESS_KEY_ID` | Cloudflare R2访问密钥ID |
+| `R2_SECRET_ACCESS_KEY` | Cloudflare R2访问密钥 |
+| `R2_ENDPOINT_URL` | R2端点URL |
+| `R2_BUCKET_NAME` | R2存储桶名称 |
+| `AI_API_KEY` | AI模型API密钥 |
+| `AI_BASE_URL` | AI API端点URL |
+| `CALLBACK_URL` | Workers回调URL |
+| `CALLBACK_SECRET` | 回调签名密钥 |
+| `BACKEND_API_KEY` | 后端API密钥 |
+
+### 3. 启用GitHub Actions
+
+在GitHub仓库 Actions 页面启用工作流。
+
+## 默认账户
+
+- **用户名**: `admin`
+- **密码**: `admin123`
+
+## API端点
+
+### 后端地址
+`https://ai-video-worker.tangsong-001.workers.dev`
+
+### 前端地址
+`https://b4272ef7.ai-video-frontend-c9p.pages.dev`
+
+### 主要API
+
+| 方法 | 路径 | 描述 |
+|------|------|------|
+| POST | `/api/v1/auth/login` | 用户登录 |
+| GET | `/api/v1/tasks` | 获取任务列表 |
+| POST | `/api/v1/tasks` | 创建新任务 |
+| POST | `/api/v1/tasks/:id/start` | 启动任务 |
+| GET | `/api/admin/accounts/github` | 获取GitHub账户列表 |
+| POST | `/api/admin/accounts/github` | 添加GitHub账户 |
+| GET | `/api/admin/accounts/ai` | 获取AI账户列表 |
+| POST | `/api/admin/accounts/ai` | 添加AI账户 |
 
 ## 项目结构
 
 ```
-ai-video-generator/
-├── backend/                    # Cloudflare Workers后端
+├── backend/                 # Cloudflare Workers后端
 │   ├── src/
-│   │   ├── index.ts            # 主入口
-│   │   ├── routes/             # API路由
-│   │   │   ├── public/         # 公开路由
-│   │   │   └── admin/          # 管理路由
-│   │   ├── services/           # 业务逻辑
-│   │   ├── middleware/         # 中间件
-│   │   ├── database/           # 数据库Schema
-│   │   ├── types/              # TypeScript类型
-│   │   └── scheduled.ts        # 定时任务
-│   ├── wrangler.toml           # Cloudflare配置
-│   └── package.json
-├── frontend/                   # React前端
+│   │   ├── routes/        # API路由
+│   │   ├── services/     # 业务服务
+│   │   ├── middleware/   # 中间件
+│   │   └── types/        # 类型定义
+│   └── wrangler.toml    # Workers配置
+│
+├── frontend/               # React前端
 │   ├── src/
-│   │   ├── components/         # 组件
-│   │   ├── pages/              # 页面
-│   │   ├── api/                # API客户端
-│   │   ├── App.tsx             # 主应用
-│   │   └── main.tsx            # 入口文件
-│   └── package.json
-├── docker/                     # Docker配置
-│   ├── Dockerfile              # 处理环境镜像
-│   └── scripts/                # 处理脚本
-│       ├── extract-frames.sh   # 抽帧脚本
-│       ├── img2img.sh          # 图生图脚本
-│       └── compose-video.sh    # 合成脚本
-├── .github/workflows/          # GitHub Actions工作流
-├── docker-compose.yml          # Docker Compose配置
-└── package.json                # 根配置
+│   │   ├── pages/        # 页面组件
+│   │   ├── components/   # 公共组件
+│   │   └── api/         # API调用
+│   └── vite.config.ts   # Vite配置
+│
+├── docker/                 # Docker处理环境
+│   └── scripts/          # 处理脚本
+│
+└── .github/workflows/     # GitHub Actions
 ```
 
-## 部署步骤
+## 技术栈
 
-### 1. 初始化项目
+- **后端**: Cloudflare Workers, Hono, D1, R2, KV
+- **前端**: React, Ant Design, Vite, TypeScript
+- **CI/CD**: GitHub Actions, Docker
+- **AI**: Stability AI / OpenAI / 其他兼容API
 
-```bash
-npm install
-cd backend && npm install
-cd ../frontend && npm install
-```
-
-### 2. 配置Cloudflare
-
-```bash
-# 登录Cloudflare
-npx wrangler login
-
-# 创建D1数据库
-npx wrangler d1 create ai-video-db
-
-# 创建R2存储桶
-npx wrangler r2 bucket create ai-video-bucket
-
-# 创建KV命名空间
-npx wrangler kv:namespace create AI_VIDEO_KV
-```
-
-### 3. 配置环境变量
-
-复制并修改 `backend/wrangler.toml` 中的占位符：
-
-- `ADMIN_API_KEY`: 管理员API密钥
-- `CALLBACK_SECRET`: 回调签名密钥
-- `ENCRYPTION_KEY`: 加密密钥（32字节）
-- `JWT_SECRET`: JWT签名密钥
-- `D1_DATABASE_ID`: D1数据库ID
-- `KV_ID`: KV命名空间ID
-
-### 4. 设置GitHub Actions Secrets
-
-在GitHub仓库的Settings -> Secrets中添加：
-
-- `AWS_ACCESS_KEY_ID`: R2访问密钥
-- `AWS_SECRET_ACCESS_KEY`: R2秘密密钥
-- `AWS_ENDPOINT_URL`: R2端点URL
-- `AWS_BUCKET_NAME`: R2存储桶名称
-- `CALLBACK_URL`: Worker回调URL
-- `CALLBACK_SECRET`: 回调签名密钥
-- `AI_API_KEYS`: AI账户API密钥JSON
-
-### 5. 部署后端
-
-```bash
-cd backend
-npm run deploy
-```
-
-### 6. 部署前端
-
-```bash
-cd frontend
-npm run build
-npx wrangler pages deploy build
-```
-
-## API接口
-
-### 任务管理
-
-```
-GET    /api/v1/tasks          # 获取任务列表
-GET    /api/v1/tasks/:id      # 获取任务详情
-POST   /api/v1/tasks          # 创建任务
-PUT    /api/v1/tasks/:id      # 更新任务
-DELETE /api/v1/tasks/:id      # 删除任务
-POST   /api/v1/tasks/:id/start    # 启动任务
-POST   /api/v1/tasks/:id/cancel   # 取消任务
-POST   /api/v1/tasks/:id/retry    # 重试任务
-```
-
-### 账户管理（需要认证）
-
-```
-GET    /api/admin/accounts/github    # 获取GitHub账户列表
-POST   /api/admin/accounts/github    # 创建GitHub账户
-PUT    /api/admin/accounts/github/:id    # 更新GitHub账户
-DELETE /api/admin/accounts/github/:id    # 删除GitHub账户
-
-GET    /api/admin/accounts/ai       # 获取AI账户列表
-POST   /api/admin/accounts/ai       # 创建AI账户
-PUT    /api/admin/accounts/ai/:id       # 更新AI账户
-DELETE /api/admin/accounts/ai/:id       # 删除AI账户
-```
-
-### 回调接口
-
-```
-POST   /api/v1/callback/github    # GitHub Actions回调
-POST   /api/v1/callback/progress  # 进度更新回调
-POST   /api/v1/callback/complete  # 任务完成回调
-POST   /api/v1/callback/error     # 错误回调
-```
-
-## 使用说明
-
-1. 在前端管理界面添加GitHub和AI账户
-2. 创建任务并上传视频
-3. 启动任务，系统会自动调度处理
-4. 查看任务进度和结果
-
-## 许可证
+## License
 
 MIT
