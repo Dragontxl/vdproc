@@ -1,0 +1,161 @@
+name: Video Processing Workflow
+
+on:
+  repository_dispatch:
+    types: [video-processing-extract, video-processing-img2img, video-processing-compose]
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: 'Task ID'
+        required: true
+      phase:
+        description: 'Processing phase'
+        required: true
+        type: choice
+        options:
+          - EXTRACT
+          - IMG2IMG
+          - COMPOSE
+      gh_account_id:
+        description: 'GitHub Account ID'
+        required: true
+      ai_account_id:
+        description: 'AI Account ID'
+        required: false
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    concurrency:
+      group: ${{ inputs.task_id || github.event.client_payload.task_id }}-${{ inputs.phase || github.event.client_payload.phase }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build -t ai-video-processor ./docker
+
+      - name: Run extraction phase
+        if: ${{ inputs.phase == 'EXTRACT' || github.event.client_payload.phase == 'EXTRACT' }}
+        env:
+          TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
+          GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
+          VIDEO_PATH: ${{ inputs.video_path || github.event.client_payload.video_path }}
+          FPS: ${{ inputs.fps || github.event.client_payload.fps || 30 }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          CALLBACK_URL: ${{ secrets.CALLBACK_URL }}
+          CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
+          BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
+        run: |
+          docker run --rm \
+            -e TASK_ID="$TASK_ID" \
+            -e GH_ACCOUNT_ID="$GH_ACCOUNT_ID" \
+            -e VIDEO_PATH="$VIDEO_PATH" \
+            -e FPS="$FPS" \
+            -e R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+            -e R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+            -e R2_ENDPOINT_URL="$R2_ENDPOINT_URL" \
+            -e R2_BUCKET_NAME="$R2_BUCKET_NAME" \
+            -e CALLBACK_URL="$CALLBACK_URL" \
+            -e CALLBACK_SECRET="$CALLBACK_SECRET" \
+            -e BACKEND_API_KEY="$BACKEND_API_KEY" \
+            ai-video-processor \
+            bash /scripts/extract-frames.sh
+
+      - name: Run image-to-image phase
+        if: ${{ inputs.phase == 'IMG2IMG' || github.event.client_payload.phase == 'IMG2IMG' }}
+        env:
+          TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
+          GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
+          AI_ACCOUNT_ID: ${{ inputs.ai_account_id || github.event.client_payload.ai_account_id }}
+          PROMPT: ${{ inputs.prompt || github.event.client_payload.prompt }}
+          COOLDOWN_SECONDS: ${{ inputs.cooldown_seconds || github.event.client_payload.cooldown_seconds || 1 }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          CALLBACK_URL: ${{ secrets.CALLBACK_URL }}
+          CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
+          BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
+        run: |
+          docker run --rm \
+            -e TASK_ID="$TASK_ID" \
+            -e GH_ACCOUNT_ID="$GH_ACCOUNT_ID" \
+            -e AI_ACCOUNT_ID="$AI_ACCOUNT_ID" \
+            -e PROMPT="$PROMPT" \
+            -e COOLDOWN_SECONDS="$COOLDOWN_SECONDS" \
+            -e R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+            -e R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+            -e R2_ENDPOINT_URL="$R2_ENDPOINT_URL" \
+            -e R2_BUCKET_NAME="$R2_BUCKET_NAME" \
+            -e CALLBACK_URL="$CALLBACK_URL" \
+            -e CALLBACK_SECRET="$CALLBACK_SECRET" \
+            -e BACKEND_API_KEY="$BACKEND_API_KEY" \
+            -e AI_API_KEY="$AI_API_KEY" \
+            -e AI_BASE_URL="$AI_BASE_URL" \
+            ai-video-processor \
+            bash /scripts/img2img.sh
+
+      - name: Run composition phase
+        if: ${{ inputs.phase == 'COMPOSE' || github.event.client_payload.phase == 'COMPOSE' }}
+        env:
+          TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
+          GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
+          OUTPUT_FPS: ${{ inputs.output_fps || github.event.client_payload.output_fps || 30 }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          CALLBACK_URL: ${{ secrets.CALLBACK_URL }}
+          CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
+          BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
+        run: |
+          docker run --rm \
+            -e TASK_ID="$TASK_ID" \
+            -e GH_ACCOUNT_ID="$GH_ACCOUNT_ID" \
+            -e OUTPUT_FPS="$OUTPUT_FPS" \
+            -e R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+            -e R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+            -e R2_ENDPOINT_URL="$R2_ENDPOINT_URL" \
+            -e R2_BUCKET_NAME="$R2_BUCKET_NAME" \
+            -e CALLBACK_URL="$CALLBACK_URL" \
+            -e CALLBACK_SECRET="$CALLBACK_SECRET" \
+            -e BACKEND_API_KEY="$BACKEND_API_KEY" \
+            ai-video-processor \
+            bash /scripts/compose-video.sh
+
+      - name: Notify completion
+        if: always()
+        env:
+          TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
+          STATUS: ${{ job.status }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+          CALLBACK_URL: ${{ secrets.CALLBACK_URL }}
+          CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
+          PHASE: ${{ inputs.phase || github.event.client_payload.phase }}
+        run: |
+          RESPONSE=$(curl -s -X POST \
+            "$CALLBACK_URL/github" \
+            -H "Content-Type: application/json" \
+            -H "X-Callback-Signature: $CALLBACK_SECRET" \
+            -d "{
+              \"task_id\": \"$TASK_ID\",
+              \"status\": \"$STATUS\",
+              \"run_id\": \"$RUN_ID\",
+              \"run_number\": \"$RUN_NUMBER\",
+              \"phase\": \"$PHASE\"
+            }")
+          echo "Callback response: $RESPONSE"

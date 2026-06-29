@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  ai-video-processor:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
+    volumes:
+      - ./docker/scripts:/scripts
+      - /tmp:/tmp
+    environment:
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_ENDPOINT_URL=${R2_ENDPOINT_URL}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - AI_API_KEY=${AI_API_KEY}
+      - AI_BASE_URL=${AI_BASE_URL}
+      - CALLBACK_URL=${CALLBACK_URL}
+      - CALLBACK_SECRET=${CALLBACK_SECRET}
+      - BACKEND_API_KEY=${BACKEND_API_KEY}
+    restart: unless-stopped

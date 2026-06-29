@@ -1,0 +1,3998 @@
+完整项目方案：AI视频生成处理系统
+一、项目概述
+1.1 项目背景
+基于Cloudflare生态和GitHub Actions构建的分布式AI视频处理系统，实现视频抽帧→AI图生图→视频合成的全自动化流水线。
+
+1.2 核心技术栈
+前端：React + TypeScript + Ant Design + Cloudflare Pages
+
+后端API：Cloudflare Workers + D1数据库
+
+存储：Cloudflare R2（兼容S3）
+
+计算：GitHub Actions + Docker（多账户池）
+
+监控：自建日志系统 + 健康检查
+
+1.3 项目特性
+✅ 全异步处理，支持长时间任务
+
+✅ 多GitHub账户池，突破免费配额限制
+
+✅ 多AI账户池，智能负载均衡
+
+✅ 可视化Web管理界面
+
+✅ 完整的任务生命周期管理
+
+✅ 成本近乎为零（个人/小团队场景）
+
+二、项目结构
+text
+ai-video-generator/
+├── frontend/                      # 前端管理界面
+│   ├── public/
+│   ├── src/
+│   │   ├── api/                  # API调用封装
+│   │   ├── components/           # 通用组件
+│   │   │   ├── Layout/
+│   │   │   ├── Dashboard/
+│   │   │   ├── TaskManagement/
+│   │   │   ├── AccountManagement/
+│   │   │   └── Monitoring/
+│   │   ├── pages/                # 页面
+│   │   │   ├── Dashboard/
+│   │   │   ├── Tasks/
+│   │   │   ├── GitHubAccounts/
+│   │   │   ├── AIAccounts/
+│   │   │   └── Settings/
+│   │   ├── hooks/                # 自定义Hooks
+│   │   ├── utils/                # 工具函数
+│   │   ├── types/                # TypeScript类型定义
+│   │   ├── App.tsx
+│   │   └── index.tsx
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── vite.config.ts
+│
+├── backend/                       # Worker后端
+│   ├── src/
+│   │   ├── index.ts              # 主入口
+│   │   ├── routes/               # 路由
+│   │   │   ├── public.ts         # 公开API
+│   │   │   └── admin.ts          # 管理API
+│   │   ├── handlers/             # 请求处理器
+│   │   │   ├── task.ts
+│   │   │   ├── callback.ts
+│   │   │   ├── github.ts
+│   │   │   └── ai.ts
+│   │   ├── services/             # 业务逻辑
+│   │   │   ├── TaskService.ts
+│   │   │   ├── GitHubService.ts
+│   │   │   ├── AIService.ts
+│   │   │   └── StorageService.ts
+│   │   ├── database/             # 数据库
+│   │   │   ├── schema.sql
+│   │   │   └── migrations/
+│   │   ├── middleware/           # 中间件
+│   │   │   ├── auth.ts
+│   │   │   └── logger.ts
+│   │   ├── utils/                # 工具
+│   │   │   ├── crypto.ts
+│   │   │   ├── logger.ts
+│   │   │   └── validators.ts
+│   │   └── types/                # 类型定义
+│   ├── wrangler.toml             # Cloudflare配置
+│   └── package.json
+│
+├── docker/                        # Docker相关
+│   ├── Dockerfile                # 基础镜像
+│   ├── scripts/
+│   │   ├── extract-frames.sh     # 抽帧脚本
+│   │   ├── img2img.sh           # 图生图脚本
+│   │   └── compose-video.sh     # 合成视频脚本
+│   └── entrypoint.sh            # 容器入口
+│
+├── github-actions/               # GitHub Actions
+│   ├── workflow.yml             # 主工作流
+│   └── action.yml               # Action定义
+│
+├── docs/                         # 文档
+│   ├── API.md
+│   ├── DEPLOYMENT.md
+│   └── USER_GUIDE.md
+│
+├── scripts/                      # 部署脚本
+│   ├── deploy-worker.sh
+│   ├── deploy-frontend.sh
+│   └── init-database.sh
+│
+├── docker-compose.yml           # 本地开发
+├── .env.example
+└── README.md
+三、数据库设计（D1）
+3.1 完整Schema
+sql
+-- ==================== 核心表 ====================
+
+-- 任务表
+CREATE TABLE tasks (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    title TEXT,
+    status TEXT NOT NULL DEFAULT 'PENDING',
+    -- PENDING, EXTRACTING, EXTRACTED, IMG2IMGING, IMG2IMGED, COMPOSING, COMPLETED, FAILED, CANCELLED
+    
+    -- 输入参数
+    video_path TEXT NOT NULL,
+    fps INTEGER DEFAULT 30,
+    prompt TEXT,
+    output_fps INTEGER DEFAULT 30,
+    
+    -- 调度信息
+    github_account_id INTEGER,
+    ai_account_id INTEGER,
+    current_run_id TEXT,
+    current_phase TEXT,
+    
+    -- 文件路径
+    origin_frames_path TEXT,
+    ai_frames_path TEXT,
+    final_video_path TEXT,
+    final_video_url TEXT,
+    
+    -- 统计信息
+    total_frames INTEGER DEFAULT 0,
+    processed_frames INTEGER DEFAULT 0,
+    failed_frames INTEGER DEFAULT 0,
+    
+    -- 重试
+    retry_count INTEGER DEFAULT 0,
+    max_retries INTEGER DEFAULT 3,
+    
+    -- 时间戳
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    expires_at TIMESTAMP,
+    
+    -- 错误信息
+    error_msg TEXT,
+    error_stack TEXT,
+    
+    -- 元数据
+    tags TEXT,
+    priority INTEGER DEFAULT 0
+);
+
+-- 创建索引
+CREATE INDEX idx_tasks_status ON tasks(status);
+CREATE INDEX idx_tasks_created_at ON tasks(created_at);
+CREATE INDEX idx_tasks_user_id ON tasks(user_id);
+
+-- ==================== GitHub账户管理 ====================
+
+CREATE TABLE github_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    username TEXT,
+    token_encrypted TEXT NOT NULL,
+    
+    -- 配额统计
+    monthly_used_minutes INTEGER DEFAULT 0,
+    total_used_minutes INTEGER DEFAULT 0,
+    monthly_limit INTEGER DEFAULT 2000,
+    last_reset_date DATE DEFAULT CURRENT_DATE,
+    
+    -- 状态
+    is_active BOOLEAN DEFAULT TRUE,
+    is_limited BOOLEAN DEFAULT FALSE,
+    limit_reason TEXT,
+    
+    -- 性能指标
+    success_rate DECIMAL(5,2) DEFAULT 100.00,
+    avg_job_duration INTEGER,  -- 平均任务耗时（秒）
+    total_jobs INTEGER DEFAULT 0,
+    failed_jobs INTEGER DEFAULT 0,
+    
+    -- 时间戳
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP
+);
+
+CREATE INDEX idx_github_accounts_active ON github_accounts(is_active);
+CREATE INDEX idx_github_accounts_monthly_used ON github_accounts(monthly_used_minutes);
+
+-- ==================== AI账户管理 ====================
+
+CREATE TABLE ai_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_alias TEXT NOT NULL,
+    api_key_encrypted TEXT NOT NULL,
+    base_url TEXT,
+    model_name TEXT,
+    
+    -- 配置
+    max_concurrent INTEGER DEFAULT 1,
+    priority_weight INTEGER DEFAULT 50,  -- 1-100
+    cooldown_seconds INTEGER DEFAULT 0,
+    
+    -- 状态
+    is_active BOOLEAN DEFAULT TRUE,
+    cooldown_until TIMESTAMP,
+    is_healthy BOOLEAN DEFAULT TRUE,
+    health_check_msg TEXT,
+    
+    -- 使用统计
+    daily_usage INTEGER DEFAULT 0,
+    total_usage INTEGER DEFAULT 0,
+    daily_limit INTEGER DEFAULT 1000,
+    success_rate DECIMAL(5,2) DEFAULT 100.00,
+    avg_response_time INTEGER,  -- 毫秒
+    total_calls INTEGER DEFAULT 0,
+    failed_calls INTEGER DEFAULT 0,
+    
+    -- 时间戳
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP,
+    last_health_check TIMESTAMP
+);
+
+CREATE INDEX idx_ai_accounts_active ON ai_accounts(is_active);
+CREATE INDEX idx_ai_accounts_priority ON ai_accounts(priority_weight DESC);
+
+-- ==================== 操作日志 ====================
+
+CREATE TABLE operation_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT,
+    phase TEXT,
+    level TEXT NOT NULL,  -- INFO, WARN, ERROR, DEBUG
+    message TEXT NOT NULL,
+    metadata TEXT,  -- JSON格式
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_logs_task_id ON operation_logs(task_id);
+CREATE INDEX idx_logs_created_at ON operation_logs(created_at);
+
+-- ==================== 系统配置 ====================
+
+CREATE TABLE system_config (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    description TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by TEXT
+);
+
+-- 初始化默认配置
+INSERT INTO system_config (key, value, description) VALUES
+    ('max_concurrent_tasks', '5', '最大并发任务数'),
+    ('default_fps', '30', '默认抽帧帧率'),
+    ('callback_timeout', '300', '回调超时时间（秒）'),
+    ('github_api_timeout', '30', 'GitHub API超时时间（秒）'),
+    ('ai_api_timeout', '120', 'AI API超时时间（秒）'),
+    ('default_cooldown', '60', 'AI账户默认冷却时间（秒）'),
+    ('max_retry_count', '3', '最大重试次数'),
+    ('task_expire_days', '7', '任务过期天数');
+
+-- ==================== 用户管理（可选） ====================
+
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    email TEXT,
+    role TEXT DEFAULT 'USER',  -- ADMIN, USER
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login_at TIMESTAMP,
+    api_key TEXT UNIQUE
+);
+
+-- 初始化管理员账户（密码请使用强密码）
+INSERT INTO users (username, password_hash, role)
+VALUES ('admin', '$2a$10$...', 'ADMIN');
+
+-- ==================== 并发控制与任务队列 ====================
+
+-- 任务队列表（管理GitHub Actions任务调度）
+CREATE TABLE task_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    github_account_id INTEGER NOT NULL,
+    phase TEXT NOT NULL,  -- EXTRACT, IMG2IMG, COMPOSE
+    priority INTEGER DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'PENDING',  -- PENDING, RUNNING, COMPLETED, FAILED
+    retry_count INTEGER DEFAULT 0,
+    max_retries INTEGER DEFAULT 3,
+    scheduled_at TIMESTAMP,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    run_id TEXT,  -- GitHub Actions Run ID
+    error_msg TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id),
+    FOREIGN KEY (github_account_id) REFERENCES github_accounts(id)
+);
+
+CREATE INDEX idx_task_queue_status ON task_queue(status);
+CREATE INDEX idx_task_queue_scheduled ON task_queue(scheduled_at);
+CREATE INDEX idx_task_queue_priority ON task_queue(priority DESC);
+
+-- AI账户限流记录
+CREATE TABLE ai_rate_limits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ai_account_id INTEGER NOT NULL,
+    window_start TIMESTAMP NOT NULL,
+    window_end TIMESTAMP NOT NULL,
+    request_count INTEGER DEFAULT 0,
+    success_count INTEGER DEFAULT 0,
+    failure_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ai_account_id) REFERENCES ai_accounts(id)
+);
+
+CREATE INDEX idx_ai_rate_limits_account ON ai_rate_limits(ai_account_id);
+CREATE INDEX idx_ai_rate_limits_window ON ai_rate_limits(window_start, window_end);
+
+-- 帧处理任务表（用于并行处理）
+CREATE TABLE frame_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    frame_index INTEGER NOT NULL,
+    frame_path TEXT NOT NULL,
+    ai_account_id INTEGER,
+    status TEXT NOT NULL DEFAULT 'PENDING',  -- PENDING, PROCESSING, COMPLETED, FAILED
+    retry_count INTEGER DEFAULT 0,
+    max_retries INTEGER DEFAULT 3,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    output_path TEXT,
+    error_msg TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id),
+    FOREIGN KEY (ai_account_id) REFERENCES ai_accounts(id)
+);
+
+CREATE INDEX idx_frame_tasks_task ON frame_tasks(task_id);
+CREATE INDEX idx_frame_tasks_status ON frame_tasks(status);
+
+-- 监控指标表
+CREATE TABLE metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    metric_name TEXT NOT NULL,
+    metric_value REAL NOT NULL,
+    labels TEXT,  -- JSON格式: {"account_id":"1","phase":"extract"}
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_metrics_name ON metrics(metric_name);
+CREATE INDEX idx_metrics_timestamp ON metrics(timestamp);
+
+-- 告警规则表
+CREATE TABLE alert_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    metric_name TEXT NOT NULL,
+    condition TEXT NOT NULL,  -- JSON格式: {"operator": ">", "threshold": 0.1, "duration": 300}
+    severity TEXT DEFAULT 'WARNING',  -- INFO, WARNING, ERROR, CRITICAL
+    is_active BOOLEAN DEFAULT TRUE,
+    cooldown_seconds INTEGER DEFAULT 3600,  -- 告警冷却时间
+    last_triggered_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 告警历史表
+CREATE TABLE alert_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    rule_id INTEGER,
+    message TEXT NOT NULL,
+    severity TEXT,
+    labels TEXT,
+    triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMP,
+    FOREIGN KEY (rule_id) REFERENCES alert_rules(id)
+);
+
+CREATE INDEX idx_alert_history_triggered ON alert_history(triggered_at);
+
+-- 任务检查点表（用于断点续传）
+CREATE TABLE task_checkpoints (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    phase TEXT NOT NULL,
+    checkpoint_data TEXT NOT NULL,  -- JSON格式存储检查点数据
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id)
+);
+
+CREATE INDEX idx_checkpoints_task ON task_checkpoints(task_id);
+
+-- 系统配置表添加新配置
+INSERT INTO system_config (key, value, description) VALUES
+    ('max_concurrent_jobs_per_github_account', '2', '每个GitHub账户最大并发任务数'),
+    ('ai_rate_limit_window', '60', 'AI账户限流窗口（秒）'),
+    ('ai_rate_limit_max_requests', '100', 'AI账户限流窗口内最大请求数'),
+    ('frame_batch_size', '10', '帧处理批次大小'),
+    ('enable_parallel_processing', 'true', '启用帧并行处理'),
+    ('max_parallel_jobs', '5', '最大并行处理任务数'),
+    ('checkpoint_interval', '30', '检查点保存间隔（秒）'),
+    ('alert_check_interval', '60', '告警检查间隔（秒）'),
+    ('enable_cost_tracking', 'true', '启用成本跟踪'),
+    ('ai_cost_per_request', '0.02', '每次AI请求预估成本（美元）');
+四、后端API设计（Workers）
+4.1 公开API接口
+typescript
+// src/types/api.ts
+
+// ========== 任务管理 ==========
+
+// 创建任务
+POST /api/v1/tasks
+Request:
+{
+    videoPath: string;        // R2视频路径
+    fps?: number;             // 抽帧帧率，默认30
+    prompt: string;           // 图生图提示词
+    outputFps?: number;       // 输出视频帧率，默认30
+    title?: string;           // 任务标题
+    userId?: string;          // 用户标识
+}
+
+Response:
+{
+    code: 0;
+    data: {
+        taskId: string;
+        status: string;
+        createdAt: string;
+    };
+    msg: string;
+}
+
+// 查询任务状态
+GET /api/v1/tasks/:taskId
+Response:
+{
+    code: 0;
+    data: {
+        id: string;
+        status: string;
+        title: string;
+        videoPath: string;
+        fps: number;
+        prompt: string;
+        outputFps: number;
+        totalFrames: number;
+        processedFrames: number;
+        failedFrames: number;
+        originFramesPath: string;
+        aiFramesPath: string;
+        finalVideoUrl: string;
+        createdAt: string;
+        updatedAt: string;
+        completedAt: string;
+        errorMsg: string;
+        progress: number;  // 0-100
+    };
+    msg: string;
+}
+
+// 任务列表
+GET /api/v1/tasks?page=1&limit=20&status=PENDING&userId=xxx
+Response:
+{
+    code: 0;
+    data: {
+        tasks: Task[];
+        total: number;
+        page: number;
+        limit: number;
+    };
+    msg: string;
+}
+
+// 取消任务
+POST /api/v1/tasks/:taskId/cancel
+Response:
+{
+    code: 0;
+    data: null;
+    msg: string;
+}
+
+// 重试任务
+POST /api/v1/tasks/:taskId/retry
+Response:
+{
+    code: 0;
+    data: null;
+    msg: string;
+}
+
+// ========== 回调接口 ==========
+
+// GitHub Actions回调
+POST /api/v1/callback/github
+Headers:
+    X-Callback-Signature: string  // HMAC签名
+Request:
+{
+    taskId: string;
+    phase: 'EXTRACT' | 'IMG2IMG' | 'COMPOSE';
+    status: 'SUCCESS' | 'FAILED';
+    data?: {
+        frames?: string[];        // 帧路径列表
+        videoUrl?: string;        // 视频URL
+        processedCount?: number;
+        totalCount?: number;
+    };
+    error?: string;
+    logs?: string;               // 压缩后的日志
+}
+
+Response:
+{
+    code: 0;
+    data: null;
+    msg: string;
+}
+4.2 管理API接口
+typescript
+// ========== GitHub账户管理 ==========
+
+// 列表
+GET /api/admin/github-accounts
+Response:
+{
+    code: 0;
+    data: {
+        accounts: {
+            id: number;
+            name: string;
+            username: string;
+            monthlyUsedMinutes: number;
+            monthlyLimit: number;
+            isActive: boolean;
+            successRate: number;
+            totalJobs: number;
+            lastUsedAt: string;
+        }[];
+    };
+    msg: string;
+}
+
+// 添加
+POST /api/admin/github-accounts
+Request:
+{
+    name: string;
+    token: string;
+    monthlyLimit?: number;  // 默认2000
+}
+
+// 测试
+POST /api/admin/github-accounts/:id/test
+
+// 更新
+PUT /api/admin/github-accounts/:id
+Request:
+{
+    name?: string;
+    token?: string;
+    isActive?: boolean;
+    monthlyLimit?: number;
+}
+
+// 删除
+DELETE /api/admin/github-accounts/:id
+
+// 刷新配额统计
+POST /api/admin/github-accounts/:id/refresh-stats
+
+// ========== AI账户管理 ==========
+
+// 列表
+GET /api/admin/ai-accounts
+Response:
+{
+    code: 0;
+    data: {
+        accounts: {
+            id: number;
+            alias: string;
+            baseUrl: string;
+            modelName: string;
+            isActive: boolean;
+            isHealthy: boolean;
+            successRate: number;
+            totalUsage: number;
+            dailyUsage: number;
+            avgResponseTime: number;
+            priorityWeight: number;
+            cooldownUntil: string;
+            lastUsedAt: string;
+        }[];
+    };
+    msg: string;
+}
+
+// 添加
+POST /api/admin/ai-accounts
+Request:
+{
+    alias: string;
+    apiKey: string;
+    baseUrl?: string;
+    modelName?: string;
+    maxConcurrent?: number;
+    priorityWeight?: number;
+    cooldownSeconds?: number;
+}
+
+// 批量导入
+POST /api/admin/ai-accounts/batch-import
+Request:
+{
+    accounts: {
+        alias: string;
+        apiKey: string;
+        baseUrl?: string;
+        modelName?: string;
+    }[];
+}
+
+// 测试
+POST /api/admin/ai-accounts/:id/test
+
+// 更新
+PUT /api/admin/ai-accounts/:id
+Request:
+{
+    alias?: string;
+    apiKey?: string;
+    isActive?: boolean;
+    priorityWeight?: number;
+    // ...其他字段
+}
+
+// 删除
+DELETE /api/admin/ai-accounts/:id
+
+// ========== 系统监控 ==========
+
+// 仪表盘统计
+GET /api/admin/dashboard/stats
+Response:
+{
+    code: 0;
+    data: {
+        todayTasks: number;
+        totalTasks: number;
+        runningTasks: number;
+        completedTasks: number;
+        failedTasks: number;
+        avgTaskDuration: number;  // 秒
+        githubAccounts: {
+            total: number;
+            active: number;
+            availableMinutes: number;  // 剩余可用分钟数
+        };
+        aiAccounts: {
+            total: number;
+            active: number;
+            healthy: number;
+            todayCalls: number;
+        };
+        recentTasks: Task[];
+    };
+    msg: string;
+}
+
+// 账户使用统计
+GET /api/admin/stats/accounts
+
+// 任务趋势
+GET /api/admin/stats/trends?days=7
+
+// ========== 系统配置 ==========
+
+// 获取配置
+GET /api/admin/config
+
+// 更新配置
+PUT /api/admin/config
+Request: {
+    key: string;
+    value: string;
+}
+
+// ========== 日志管理 ==========
+
+// 获取任务日志
+GET /api/admin/tasks/:taskId/logs?offset=0&limit=100
+
+// 获取系统日志
+GET /api/admin/system/logs?level=ERROR&limit=50
+
+// ========== 并发控制管理 ==========
+
+// 获取任务队列状态
+GET /api/admin/queue/status
+Response:
+{
+    code: 0;
+    data: {
+        pendingJobs: number;
+        runningJobs: number;
+        completedJobs: number;
+        failedJobs: number;
+        queueLength: number;
+        avgWaitTime: number;  // 平均等待时间（秒）
+    };
+    msg: string;
+}
+
+// 调整任务优先级
+PUT /api/admin/queue/tasks/:taskId/priority
+Request:
+{
+    priority: number;  // 0-100
+}
+
+// 清理队列
+POST /api/admin/queue/cleanup
+Request:
+{
+    status: 'FAILED';  // 清理失败的任务
+    olderThan: string;  // ISO时间戳
+}
+
+// ========== 帧处理管理 ==========
+
+// 获取帧处理进度
+GET /api/admin/tasks/:taskId/frames
+Response:
+{
+    code: 0;
+    data: {
+        totalFrames: number;
+        pendingFrames: number;
+        processingFrames: number;
+        completedFrames: number;
+        failedFrames: number;
+        frameDetails: {
+            frameIndex: number;
+            status: string;
+            aiAccountId: number;
+            startedAt: string;
+            completedAt: string;
+            errorMsg: string;
+        }[];
+    };
+    msg: string;
+}
+
+// 重试失败的帧
+POST /api/admin/tasks/:taskId/frames/retry
+Request:
+{
+    frameIndexes?: number[];  // 不指定则重试所有失败帧
+}
+
+// ========== 监控与告警 ==========
+
+// 获取监控指标
+GET /api/admin/metrics?name=task_duration&startTime=xxx&endTime=xxx
+Response:
+{
+    code: 0;
+    data: {
+        metrics: {
+            name: string;
+            value: number;
+            labels: object;
+            timestamp: string;
+        }[];
+        aggregated: {
+            avg: number;
+            min: number;
+            max: number;
+            count: number;
+        };
+    };
+    msg: string;
+}
+
+// 获取告警规则
+GET /api/admin/alerts/rules
+
+// 创建告警规则
+POST /api/admin/alerts/rules
+Request:
+{
+    name: string;
+    description: string;
+    metricName: string;
+    condition: {
+        operator: '>' | '<' | '>=' | '<=' | '==';
+        threshold: number;
+        duration?: number;  // 持续时间（秒）
+    };
+    severity: 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
+    cooldownSeconds: number;
+}
+
+// 更新告警规则
+PUT /api/admin/alerts/rules/:id
+Request:
+{
+    isActive?: boolean;
+    condition?: object;
+    // ...其他字段
+}
+
+// 删除告警规则
+DELETE /api/admin/alerts/rules/:id
+
+// 获取告警历史
+GET /api/admin/alerts/history?severity=ERROR&limit=50
+
+// 确认告警
+POST /api/admin/alerts/:id/acknowledge
+
+// ========== 成本管理 ==========
+
+// 获取成本统计
+GET /api/admin/costs/stats?period=day|week|month
+Response:
+{
+    code: 0;
+    data: {
+        period: string;
+        totalCost: number;  // 美元
+        breakdown: {
+            aiApiCalls: number;
+            storage: number;
+            bandwidth: number;
+        };
+        byTask: {
+            taskId: string;
+            frames: number;
+            cost: number;
+        }[];
+        byAiAccount: {
+            accountId: number;
+            accountAlias: string;
+            calls: number;
+            cost: number;
+        }[];
+    };
+    msg: string;
+}
+
+// 设置预算
+PUT /api/admin/costs/budget
+Request:
+{
+    dailyLimit: number;  // 每日预算上限（美元）
+    monthlyLimit: number;  // 月度预算上限（美元）
+    alertThreshold: number;  // 告警阈值（百分比）
+}
+
+// ========== 断点续传 ==========
+
+// 获取检查点
+GET /api/admin/tasks/:taskId/checkpoint
+
+// 恢复任务从检查点
+POST /api/admin/tasks/:taskId/resume
+Request:
+{
+    checkpointId?: string;  // 不指定则使用最新检查点
+}
+五、Worker核心代码实现
+5.1 主入口（index.ts）
+typescript
+// src/index.ts
+
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { prettyJSON } from 'hono/pretty-json';
+import { taskRoutes } from './routes/public/tasks';
+import { callbackRoutes } from './routes/public/callback';
+import { adminRoutes } from './routes/admin';
+import { authMiddleware } from './middleware/auth';
+import { loggerMiddleware } from './middleware/logger';
+import { errorHandler } from './middleware/error';
+
+type Bindings = {
+    DB: D1Database;
+    R2: R2Bucket;
+    GITHUB_TOKEN: string;
+    ADMIN_API_KEY: string;
+    CALLBACK_SECRET: string;
+    ENVIRONMENT: 'development' | 'production';
+};
+
+const app = new Hono<{ Bindings: Bindings }>();
+
+// 全局中间件
+app.use('*', cors({
+    origin: ['http://localhost:3000', 'https://your-domain.com'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
+    maxAge: 86400,
+}));
+app.use('*', prettyJSON());
+app.use('*', loggerMiddleware);
+app.use('*', errorHandler);
+
+// 健康检查
+app.get('/health', (c) => {
+    return c.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        environment: c.env.ENVIRONMENT,
+    });
+});
+
+// 公开API（无需认证）
+app.route('/api/v1/tasks', taskRoutes);
+app.route('/api/v1/callback', callbackRoutes);
+
+// 管理API（需要认证）
+app.use('/api/admin/*', authMiddleware);
+app.route('/api/admin', adminRoutes);
+
+// 404处理
+app.notFound((c) => {
+    return c.json({ code: 404, msg: 'Not Found' }, 404);
+});
+
+export default app;
+5.2 任务服务（TaskService.ts）
+typescript
+// src/services/TaskService.ts
+
+import { v4 as uuidv4 } from 'uuid';
+import { GitHubService } from './GitHubService';
+import { AIService } from './AIService';
+import { StorageService } from './StorageService';
+
+export class TaskService {
+    constructor(private env: Bindings) {}
+
+    // 创建任务
+    async createTask(params: {
+        videoPath: string;
+        prompt: string;
+        fps?: number;
+        outputFps?: number;
+        title?: string;
+        userId?: string;
+    }): Promise<{ taskId: string }> {
+        const taskId = `task_${Date.now()}_${uuidv4().slice(0, 8)}`;
+        const now = new Date().toISOString();
+
+        // 选择GitHub账户
+        const githubAccount = await this.selectGitHubAccount();
+        if (!githubAccount) {
+            throw new Error('No available GitHub account');
+        }
+
+        // 选择AI账户
+        const aiAccount = await this.selectAIAccount();
+        if (!aiAccount) {
+            throw new Error('No available AI account');
+        }
+
+        // 插入数据库
+        await this.env.DB.prepare(`
+            INSERT INTO tasks (
+                id, user_id, title, video_path, fps, prompt, output_fps,
+                github_account_id, ai_account_id, status, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+            taskId,
+            params.userId || 'anonymous',
+            params.title || '',
+            params.videoPath,
+            params.fps || 30,
+            params.prompt,
+            params.outputFps || 30,
+            githubAccount.id,
+            aiAccount.id,
+            'PENDING',
+            now,
+            now
+        ).run();
+
+        // 触发第一阶段
+        await this.triggerPhase(taskId, 'EXTRACT');
+
+        return { taskId };
+    }
+
+    // 并发控制：选择可用的GitHub账户
+    private async selectAvailableGitHubAccount(): Promise<any> {
+        // 获取配置的最大并发数
+        const config = await this.env.DB.prepare(
+            "SELECT value FROM system_config WHERE key = 'max_concurrent_jobs_per_github_account'"
+        ).first();
+        const maxConcurrent = parseInt(config?.value || '2');
+
+        // 查询账户及其当前运行任务数
+        const accounts = await this.env.DB.prepare(`
+            SELECT
+                ga.*,
+                COUNT(tq.id) as running_jobs
+            FROM github_accounts ga
+            LEFT JOIN task_queue tq ON ga.id = tq.github_account_id
+                AND tq.status = 'RUNNING'
+            WHERE ga.is_active = TRUE
+                AND ga.is_limited = FALSE
+                AND ga.monthly_used_minutes < ga.monthly_limit
+            GROUP BY ga.id
+            HAVING running_jobs < ?
+            ORDER BY ga.monthly_used_minutes ASC, ga.total_jobs ASC
+            LIMIT 1
+        `).bind(maxConcurrent).first();
+
+        return accounts;
+    }
+
+    // AI账户限流控制
+    private async checkAIRateLimit(aiAccountId: number): Promise<boolean> {
+        // 获取限流配置
+        const config = await this.env.DB.prepare(`
+            SELECT key, value FROM system_config
+            WHERE key IN ('ai_rate_limit_window', 'ai_rate_limit_max_requests')
+        `).all();
+
+        const configs = config.results.reduce((acc, cfg) => {
+            acc[cfg.key] = parseInt(cfg.value);
+            return acc;
+        }, {} as any);
+
+        const windowSeconds = configs.ai_rate_limit_window || 60;
+        const maxRequests = configs.ai_rate_limit_max_requests || 100;
+
+        // 检查当前窗口请求数
+        const windowStart = new Date(Date.now() - windowSeconds * 1000).toISOString();
+        const result = await this.env.DB.prepare(`
+            SELECT COUNT(*) as count
+            FROM ai_rate_limits
+            WHERE ai_account_id = ?
+                AND window_start > ?
+        `).bind(aiAccountId, windowStart).first();
+
+        return (result?.count || 0) < maxRequests;
+    }
+
+    // 记录AI请求
+    private async recordAIRequest(
+        aiAccountId: number,
+        success: boolean
+    ): Promise<void> {
+        const now = new Date();
+        const windowStart = new Date(now.getTime() - 60000); // 1分钟窗口
+
+        await this.env.DB.prepare(`
+            INSERT INTO ai_rate_limits (
+                ai_account_id, window_start, window_end,
+                request_count, success_count, failure_count
+            ) VALUES (?, ?, ?, 1, ?, ?)
+        `).bind(
+            aiAccountId,
+            windowStart.toISOString(),
+            now.toISOString(),
+            success ? 1 : 0,
+            success ? 0 : 1
+        ).run();
+    }
+
+    // 保存检查点（断点续传）
+    async saveCheckpoint(taskId: string, phase: string, data: any): Promise<void> {
+        await this.env.DB.prepare(`
+            INSERT INTO task_checkpoints (task_id, phase, checkpoint_data)
+            VALUES (?, ?, ?)
+        `).bind(taskId, phase, JSON.stringify(data)).run();
+    }
+
+    // 从检查点恢复
+    async loadLatestCheckpoint(taskId: string): Promise<any> {
+        const result = await this.env.DB.prepare(`
+            SELECT checkpoint_data
+            FROM task_checkpoints
+            WHERE task_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+        `).bind(taskId).first();
+
+        return result ? JSON.parse(result.checkpoint_data) : null;
+    }
+
+    // 选择GitHub账户（轮询+最少使用）
+    private async selectGitHubAccount() {
+        const accounts = await this.env.DB.prepare(`
+            SELECT * FROM github_accounts
+            WHERE is_active = TRUE 
+                AND is_limited = FALSE
+                AND monthly_used_minutes < monthly_limit
+            ORDER BY monthly_used_minutes ASC, total_jobs ASC
+            LIMIT 1
+        `).all();
+
+        if (!accounts.results || accounts.results.length === 0) {
+            return null;
+        }
+
+        return accounts.results[0];
+    }
+
+    // 选择AI账户（加权随机，严格串行，原子预留）
+    // 设计原则：每个AI账户每次只处理一个任务，严格串行执行
+    // 理由：
+    // 1. AI平台普遍有限流策略（如Stability AI免费套餐150请求/小时）
+    // 2. 并发调用会触发429 Too Many Requests，导致任务失败
+    // 3. 过度并发可能被判定为滥用，导致账户封禁
+    // 4. 账户数量由用户动态添加，系统自动适配，无需硬编码
+    // 5. 使用cooldown_until实现原子预留，防止竞态条件
+    private async selectAIAccount(taskId?: string): Promise<any> {
+        // 使用cooldown_until实现原子预留：
+        // 1. 查询可用账户（cooldown_until为NULL或已过期）
+        // 2. 选择账户后立即更新cooldown_until为当前时间+预留时间
+        // 3. 这样其他并发请求就会看到该账户正在冷却中，不会重复选择
+
+        const accounts = await this.env.DB.prepare(`
+            SELECT aa.*
+            FROM ai_accounts aa
+            WHERE is_active = TRUE 
+                AND is_healthy = TRUE
+                AND (cooldown_until IS NULL OR cooldown_until < CURRENT_TIMESTAMP)
+                AND daily_usage < daily_limit
+            ORDER BY priority_weight DESC, total_usage ASC
+        `).all();
+
+        if (!accounts.results || accounts.results.length === 0) {
+            return null;
+        }
+
+        // 加权随机选择
+        const totalWeight = accounts.results.reduce((sum, acc) => sum + acc.priority_weight, 0);
+        let random = Math.random() * totalWeight;
+        let selectedAccount: any = null;
+        
+        for (const account of accounts.results) {
+            random -= account.priority_weight;
+            if (random <= 0) {
+                selectedAccount = account;
+                break;
+            }
+        }
+
+        if (!selectedAccount) {
+            selectedAccount = accounts.results[0];
+        }
+
+        // 原子预留：立即更新cooldown_until，防止其他请求选择同一账户
+        // 设置10分钟预留时间，足够完成一轮帧处理
+        const reservationExpiry = new Date(Date.now() + 10 * 60 * 1000);
+        
+        const result = await this.env.DB.prepare(`
+            UPDATE ai_accounts
+            SET cooldown_until = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+                AND (cooldown_until IS NULL OR cooldown_until < CURRENT_TIMESTAMP)
+        `).bind(reservationExpiry.toISOString(), selectedAccount.id).run();
+
+        // 检查是否成功预留（如果已被其他请求抢先，则result.changes为0）
+        if (result.changes === 0) {
+            // 账户已被其他请求预留，递归重试
+            return await this.selectAIAccount(taskId);
+        }
+
+        return selectedAccount;
+    }
+
+    // 释放AI账户预留
+    async releaseAIAccount(accountId: number): Promise<void> {
+        await this.env.DB.prepare(`
+            UPDATE ai_accounts
+            SET cooldown_until = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).bind(accountId).run();
+    }
+
+    // 触发阶段
+    async triggerPhase(taskId: string, phase: 'EXTRACT' | 'IMG2IMG' | 'COMPOSE') {
+        const task = await this.getTask(taskId);
+        if (!task) {
+            throw new Error('Task not found');
+        }
+
+        const githubService = new GitHubService(this.env);
+        const runId = await githubService.triggerWorkflow({
+            taskId,
+            jobType: phase,
+            videoPath: task.video_path,
+            fps: task.fps,
+            prompt: task.prompt,
+            outputFps: task.output_fps,
+            aiAccountId: task.ai_account_id,
+            githubAccountId: task.github_account_id,
+        });
+
+        // 更新任务状态
+        await this.env.DB.prepare(`
+            UPDATE tasks 
+            SET status = ?,
+                current_phase = ?,
+                current_run_id = ?,
+                started_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).bind(
+            this.getPhaseStatus(phase),
+            phase,
+            runId,
+            taskId
+        ).run();
+    }
+
+    private getPhaseStatus(phase: string): string {
+        const map = {
+            'EXTRACT': 'EXTRACTING',
+            'IMG2IMG': 'IMG2IMGING',
+            'COMPOSE': 'COMPOSING'
+        };
+        return map[phase] || 'PENDING';
+    }
+
+    // 处理回调
+    async handleCallback(params: {
+        taskId: string;
+        phase: string;
+        status: 'SUCCESS' | 'FAILED';
+        data?: any;
+        error?: string;
+        logs?: string;
+    }) {
+        const task = await this.getTask(params.taskId);
+        if (!task) {
+            throw new Error('Task not found');
+        }
+
+        // 幂等性检查
+        if (task.status === 'COMPLETED' || task.status === 'FAILED') {
+            return { alreadyProcessed: true };
+        }
+
+        // 保存日志
+        if (params.logs) {
+            await this.saveLogs(params.taskId, params.phase, params.logs);
+        }
+
+        if (params.status === 'FAILED') {
+            // 处理失败
+            await this.handleTaskFailure(params.taskId, params.error);
+            return { success: false };
+        }
+
+        // 处理成功
+        const nextPhase = this.getNextPhase(params.phase);
+        
+        if (nextPhase === 'COMPLETED') {
+            // 所有阶段完成
+            await this.completeTask(params.taskId, params.data);
+        } else {
+            // 进入下一阶段
+            await this.triggerPhase(params.taskId, nextPhase);
+        }
+
+        return { success: true };
+    }
+
+    private getNextPhase(phase: string): string | 'COMPLETED' {
+        const map = {
+            'EXTRACT': 'IMG2IMG',
+            'IMG2IMG': 'COMPOSE',
+            'COMPOSE': 'COMPLETED'
+        };
+        return map[phase] || 'COMPLETED';
+    }
+
+    // 完成任务
+    private async completeTask(taskId: string, data: any) {
+        await this.env.DB.prepare(`
+            UPDATE tasks 
+            SET status = 'COMPLETED',
+                final_video_path = ?,
+                final_video_url = ?,
+                completed_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).bind(
+            data.videoPath || '',
+            data.videoUrl || '',
+            taskId
+        ).run();
+
+        // 设置R2文件过期
+        if (data.videoPath) {
+            await this.env.R2.head(data.videoPath);
+            // R2暂不支持直接设置过期，可通过生命周期规则
+        }
+    }
+
+    // 处理任务失败
+    private async handleTaskFailure(taskId: string, error: string) {
+        const task = await this.getTask(taskId);
+        
+        if (task.retry_count < task.max_retries) {
+            // 重试
+            await this.env.DB.prepare(`
+                UPDATE tasks 
+                SET retry_count = retry_count + 1,
+                    status = 'PENDING',
+                    error_msg = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `).bind(error, taskId).run();
+
+            // 重新触发
+            const phase = task.current_phase || 'EXTRACT';
+            await this.triggerPhase(taskId, phase);
+        } else {
+            // 标记为最终失败
+            await this.env.DB.prepare(`
+                UPDATE tasks 
+                SET status = 'FAILED',
+                    error_msg = ?,
+                    completed_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `).bind(error, taskId).run();
+        }
+    }
+
+    // 获取任务信息
+    async getTask(taskId: string) {
+        const result = await this.env.DB.prepare('SELECT * FROM tasks WHERE id = ?')
+            .bind(taskId)
+            .first();
+        return result;
+    }
+
+    // 保存日志
+    private async saveLogs(taskId: string, phase: string, logs: string) {
+        // 解码base64日志
+        const decodedLogs = Buffer.from(logs, 'base64').toString('utf-8');
+        
+        await this.env.DB.prepare(`
+            INSERT INTO operation_logs (task_id, phase, level, message, metadata)
+            VALUES (?, ?, ?, ?, ?)
+        `).bind(
+            taskId,
+            phase,
+            'INFO',
+            'Phase execution logs',
+            JSON.stringify({ logs: decodedLogs })
+        ).run();
+    }
+}
+5.3 GitHub服务（GitHubService.ts）
+typescript
+// src/services/GitHubService.ts
+
+export class GitHubService {
+    constructor(private env: Bindings) {}
+
+    async triggerWorkflow(params: {
+        taskId: string;
+        jobType: string;
+        videoPath: string;
+        fps: number;
+        prompt: string;
+        outputFps: number;
+        aiAccountId: number;
+        githubAccountId: number;
+    }): Promise<string> {
+        // 获取GitHub账户Token
+        const account = await this.getGitHubAccount(params.githubAccountId);
+        if (!account) {
+            throw new Error('GitHub account not found');
+        }
+
+        // 解密Token（实际使用中需要解密）
+        const token = account.token_encrypted;
+
+        const response = await fetch(
+            `https://api.github.com/repos/${process.env.GITHUB_REPO}/actions/workflows/${process.env.GITHUB_WORKFLOW_ID}/dispatches`,
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    ref: 'main',
+                    inputs: {
+                        task_id: params.taskId,
+                        job_type: params.jobType,
+                        video_path: params.videoPath,
+                        fps: String(params.fps),
+                        prompt: params.prompt,
+                        output_fps: String(params.outputFps),
+                        ai_account_id: String(params.aiAccountId),
+                        callback_url: `${process.env.WORKER_URL}/api/v1/callback/github`,
+                        callback_signature: this.generateSignature(params.taskId),
+                    }
+                })
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error(`GitHub API error: ${response.status}`);
+        }
+
+        // 获取Run ID（从响应头Location中提取）
+        const location = response.headers.get('Location');
+        const runId = location ? location.split('/').pop() : null;
+
+        // 更新账户使用统计
+        await this.updateAccountUsage(params.githubAccountId);
+
+        return runId || 'unknown';
+    }
+
+    private generateSignature(taskId: string): string {
+        const crypto = require('crypto');
+        return crypto
+            .createHmac('sha256', this.env.CALLBACK_SECRET)
+            .update(taskId)
+            .digest('hex');
+    }
+
+    private async getGitHubAccount(accountId: number) {
+        const result = await this.env.DB.prepare(
+            'SELECT * FROM github_accounts WHERE id = ?'
+        ).bind(accountId).first();
+        return result;
+    }
+
+    private async updateAccountUsage(accountId: number) {
+        await this.env.DB.prepare(`
+            UPDATE github_accounts 
+            SET monthly_used_minutes = monthly_used_minutes + 1,
+                total_used_minutes = total_used_minutes + 1,
+                total_jobs = total_jobs + 1,
+                last_used_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).bind(accountId).run();
+    }
+}
+5.4 存储服务（StorageService.ts）
+typescript
+// src/services/StorageService.ts
+
+export class StorageService {
+    constructor(private env: Bindings) {}
+
+// 5.5 错误处理服务（ErrorHandlerService.ts）
+typescript
+// src/services/ErrorHandlerService.ts
+
+export class ErrorHandlerService {
+    constructor(private env: Bindings) {}
+
+    // 处理任务失败
+    async handleTaskFailure(
+        taskId: string,
+        phase: string,
+        error: Error,
+        retryable: boolean = true
+    ): Promise<void> {
+        const task = await this.getTask(taskId);
+        if (!task) return;
+
+        // 记录错误日志
+        await this.logError(taskId, phase, error);
+
+        // 判断是否可重试
+        if (retryable && task.retry_count < task.max_retries) {
+            // 延迟重试（指数退避）
+            const delaySeconds = Math.pow(2, task.retry_count) * 60;
+            const scheduledAt = new Date(Date.now() + delaySeconds * 1000);
+
+            await this.scheduleRetry(taskId, phase, scheduledAt);
+        } else {
+            // 标记任务失败
+            await this.markTaskFailed(taskId, error);
+        }
+    }
+
+    // 调度重试
+    private async scheduleRetry(
+        taskId: string,
+        phase: string,
+        scheduledAt: Date
+    ): Promise<void> {
+        await this.env.DB.prepare(`
+            UPDATE tasks
+            SET retry_count = retry_count + 1,
+                status = 'PENDING',
+                error_msg = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).bind(taskId).run();
+
+        await this.env.DB.prepare(`
+            INSERT INTO task_queue (
+                task_id, github_account_id, phase,
+                priority, status, scheduled_at
+            )
+            SELECT id, github_account_id, ?, 10, 'PENDING', ?
+            FROM tasks WHERE id = ?
+        `).bind(phase, scheduledAt.toISOString(), taskId).run();
+    }
+
+    // 标记任务失败
+    private async markTaskFailed(taskId: string, error: Error): Promise<void> {
+        await this.env.DB.prepare(`
+            UPDATE tasks
+            SET status = 'FAILED',
+                error_msg = ?,
+                error_stack = ?,
+                completed_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).bind(error.message, error.stack, taskId).run();
+
+        // 触发告警
+        await this.triggerAlert('task_failure', {
+            taskId,
+            error: error.message,
+        });
+    }
+
+    // 记录错误日志
+    private async logError(
+        taskId: string,
+        phase: string,
+        error: Error
+    ): Promise<void> {
+        await this.env.DB.prepare(`
+            INSERT INTO operation_logs (
+                task_id, phase, level, message, metadata
+            ) VALUES (?, ?, 'ERROR', ?, ?)
+        `).bind(
+            taskId,
+            phase,
+            error.message,
+            JSON.stringify({
+                stack: error.stack,
+                timestamp: new Date().toISOString(),
+            })
+        ).run();
+    }
+
+    // 触发告警
+    private async triggerAlert(
+        alertType: string,
+        data: any
+    ): Promise<void> {
+        // 查询匹配的告警规则
+        const rules = await this.env.DB.prepare(`
+            SELECT * FROM alert_rules
+            WHERE metric_name = ? AND is_active = TRUE
+        `).bind(alertType).all();
+
+        for (const rule of rules.results) {
+            // 检查冷却时间
+            if (rule.last_triggered_at) {
+                const cooldownEnd = new Date(
+                    new Date(rule.last_triggered_at).getTime() +
+                    rule.cooldown_seconds * 1000
+                );
+                if (new Date() < cooldownEnd) continue;
+            }
+
+            // 记录告警历史
+            await this.env.DB.prepare(`
+                INSERT INTO alert_history (
+                    rule_id, message, severity, labels
+                ) VALUES (?, ?, ?, ?)
+            `).bind(
+                rule.id,
+                `${rule.name}: ${JSON.stringify(data)}`,
+                rule.severity,
+                JSON.stringify(data)
+            ).run();
+
+            // 更新规则触发时间
+            await this.env.DB.prepare(`
+                UPDATE alert_rules
+                SET last_triggered_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `).bind(rule.id).run();
+
+            // 发送通知（邮件/webhook等）
+            await this.sendAlertNotification(rule, data);
+        }
+    }
+
+    // 发送告警通知
+    private async sendAlertNotification(
+        rule: any,
+        data: any
+    ): Promise<void> {
+        // 实现邮件或Webhook通知
+        // 示例：调用外部通知服务
+        console.log(`Alert: ${rule.name}`, data);
+    }
+
+    private async getTask(taskId: string) {
+        return await this.env.DB.prepare(
+            'SELECT * FROM tasks WHERE id = ?'
+        ).bind(taskId).first();
+    }
+}
+
+// 5.6 监控服务（MonitoringService.ts）
+typescript
+// src/services/MonitoringService.ts
+
+export class MonitoringService {
+    constructor(private env: Bindings) {}
+
+    // 记录指标
+    async recordMetric(
+        name: string,
+        value: number,
+        labels: Record<string, string> = {}
+    ): Promise<void> {
+        await this.env.DB.prepare(`
+            INSERT INTO metrics (metric_name, metric_value, labels)
+            VALUES (?, ?, ?)
+        `).bind(name, value, JSON.stringify(labels)).run();
+    }
+
+    // 批量记录指标
+    async recordMetrics(metrics: Array<{
+        name: string;
+        value: number;
+        labels?: Record<string, string>;
+    }>): Promise<void> {
+        const stmt = this.env.DB.prepare(`
+            INSERT INTO metrics (metric_name, metric_value, labels)
+            VALUES (?, ?, ?)
+        `);
+
+        for (const metric of metrics) {
+            await stmt.bind(
+                metric.name,
+                metric.value,
+                JSON.stringify(metric.labels || {})
+            ).run();
+        }
+    }
+
+    // 查询指标
+    async queryMetrics(
+        name: string,
+        startTime: Date,
+        endTime: Date,
+        labels?: Record<string, string>
+    ): Promise<any[]> {
+        let query = `
+            SELECT * FROM metrics
+            WHERE metric_name = ?
+                AND timestamp >= ?
+                AND timestamp <= ?
+        `;
+        const params: any[] = [name, startTime.toISOString(), endTime.toISOString()];
+
+        if (labels) {
+            for (const [key, value] of Object.entries(labels)) {
+                query += ` AND labels LIKE ?`;
+                params.push(`%"${key}":"${value}"%`);
+            }
+        }
+
+        query += ` ORDER BY timestamp DESC`;
+
+        const result = await this.env.DB.prepare(query).bind(...params).all();
+        return result.results;
+    }
+
+    // 聚合指标
+    async aggregateMetrics(
+        name: string,
+        startTime: Date,
+        endTime: Date
+    ): Promise<{
+        avg: number;
+        min: number;
+        max: number;
+        count: number;
+    }> {
+        const result = await this.env.DB.prepare(`
+            SELECT
+                AVG(metric_value) as avg,
+                MIN(metric_value) as min,
+                MAX(metric_value) as max,
+                COUNT(*) as count
+            FROM metrics
+            WHERE metric_name = ?
+                AND timestamp >= ?
+                AND timestamp <= ?
+        `).bind(name, startTime.toISOString(), endTime.toISOString()).first();
+
+        return result || { avg: 0, min: 0, max: 0, count: 0 };
+    }
+
+    // 检查告警规则
+    async checkAlertRules(): Promise<void> {
+        const rules = await this.env.DB.prepare(
+            "SELECT * FROM alert_rules WHERE is_active = TRUE"
+        ).all();
+
+        for (const rule of rules.results) {
+            const condition = JSON.parse(rule.condition);
+            const endTime = new Date();
+            const startTime = new Date(
+                endTime.getTime() - (condition.duration || 300) * 1000
+            );
+
+            const aggregation = await this.aggregateMetrics(
+                rule.metric_name,
+                startTime,
+                endTime
+            );
+
+            let shouldAlert = false;
+            switch (condition.operator) {
+                case '>':
+                    shouldAlert = aggregation.avg > condition.threshold;
+                    break;
+                case '<':
+                    shouldAlert = aggregation.avg < condition.threshold;
+                    break;
+                case '>=':
+                    shouldAlert = aggregation.avg >= condition.threshold;
+                    break;
+                case '<=':
+                    shouldAlert = aggregation.avg <= condition.threshold;
+                    break;
+                case '==':
+                    shouldAlert = aggregation.avg === condition.threshold;
+                    break;
+            }
+
+            if (shouldAlert) {
+                // 检查冷却时间
+                if (rule.last_triggered_at) {
+                    const cooldownEnd = new Date(
+                        new Date(rule.last_triggered_at).getTime() +
+                        rule.cooldown_seconds * 1000
+                    );
+                    if (new Date() < cooldownEnd) continue;
+                }
+
+                // 记录告警
+                await this.env.DB.prepare(`
+                    INSERT INTO alert_history (
+                        rule_id, message, severity, labels
+                    ) VALUES (?, ?, ?, ?)
+                `).bind(
+                    rule.id,
+                    `Alert: ${rule.name} - Value: ${aggregation.avg}, Threshold: ${condition.threshold}`,
+                    rule.severity,
+                    JSON.stringify({ aggregation, condition })
+                ).run();
+
+                // 更新触发时间
+                await this.env.DB.prepare(`
+                    UPDATE alert_rules
+                    SET last_triggered_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `).bind(rule.id).run();
+            }
+        }
+    }
+
+    // 清理过期指标
+    async cleanupOldMetrics(daysToKeep: number = 30): Promise<void> {
+        const cutoffDate = new Date(
+            Date.now() - daysToKeep * 24 * 60 * 60 * 1000
+        );
+
+        await this.env.DB.prepare(`
+            DELETE FROM metrics
+            WHERE timestamp < ?
+        `).bind(cutoffDate.toISOString()).run();
+    }
+}
+
+// 5.7 成本跟踪服务（CostTrackingService.ts）
+typescript
+// src/services/CostTrackingService.ts
+
+export class CostTrackingService {
+    constructor(private env: Bindings) {}
+
+    // 记录AI API调用成本
+    async recordAICall(
+        taskId: string,
+        aiAccountId: number,
+        success: boolean
+    ): Promise<void> {
+        // 获取单次调用成本
+        const config = await this.env.DB.prepare(
+            "SELECT value FROM system_config WHERE key = 'ai_cost_per_request'"
+        ).first();
+
+        const cost = parseFloat(config?.value || '0.02');
+
+        // 记录指标
+        await this.env.DB.prepare(`
+            INSERT INTO metrics (metric_name, metric_value, labels)
+            VALUES ('ai_cost', ?, ?)
+        `).bind(
+            success ? cost : 0,
+            JSON.stringify({
+                task_id: taskId,
+                ai_account_id: aiAccountId.toString(),
+                success: success.toString(),
+            })
+        ).run();
+    }
+
+    // 获取成本统计
+    async getCostStats(
+        period: 'day' | 'week' | 'month'
+    ): Promise<{
+        totalCost: number;
+        breakdown: {
+            aiApiCalls: number;
+            storage: number;
+            bandwidth: number;
+        };
+        byTask: any[];
+        byAiAccount: any[];
+    }> {
+        const now = new Date();
+        let startDate: Date;
+
+        switch (period) {
+            case 'day':
+                startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                break;
+            case 'week':
+                startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                break;
+            case 'month':
+                startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                break;
+        }
+
+        // AI API成本
+        const aiCostResult = await this.env.DB.prepare(`
+            SELECT SUM(metric_value) as total
+            FROM metrics
+            WHERE metric_name = 'ai_cost'
+                AND timestamp >= ?
+        `).bind(startDate.toISOString()).first();
+
+        const aiApiCalls = aiCostResult?.total || 0;
+
+        // 存储和带宽成本（简化估算）
+        const storageCost = await this.estimateStorageCost();
+        const bandwidthCost = await this.estimateBandwidthCost();
+
+        const totalCost = aiApiCalls + storageCost + bandwidthCost;
+
+        // 按任务分组
+        const byTaskResult = await this.env.DB.prepare(`
+            SELECT
+                JSON_EXTRACT(labels, '$.task_id') as task_id,
+                SUM(metric_value) as cost,
+                COUNT(*) as calls
+            FROM metrics
+            WHERE metric_name = 'ai_cost'
+                AND timestamp >= ?
+            GROUP BY task_id
+            ORDER BY cost DESC
+            LIMIT 50
+        `).bind(startDate.toISOString()).all();
+
+        // 按AI账户分组
+        const byAccountResult = await this.env.DB.prepare(`
+            SELECT
+                JSON_EXTRACT(labels, '$.ai_account_id') as account_id,
+                SUM(metric_value) as cost,
+                COUNT(*) as calls
+            FROM metrics
+            WHERE metric_name = 'ai_cost'
+                AND timestamp >= ?
+            GROUP BY account_id
+            ORDER BY cost DESC
+        `).bind(startDate.toISOString()).all();
+
+        return {
+            totalCost,
+            breakdown: {
+                aiApiCalls,
+                storage: storageCost,
+                bandwidth: bandwidthCost,
+            },
+            byTask: byTaskResult.results,
+            byAiAccount: byAccountResult.results,
+        };
+    }
+
+    // 估算存储成本
+    private async estimateStorageCost(): Promise<number> {
+        // R2定价: $0.015/GB/月
+        // 简化：假设平均存储10GB
+        return 10 * 0.015;
+    }
+
+    // 估算带宽成本
+    private async estimateBandwidthCost(): Promise<number> {
+        // Cloudflare Workers免费，带宽免费
+        // R2 Class A: $0.005/万次请求
+        // 简化估算
+        return 0;
+    }
+
+    // 检查预算
+    async checkBudget(): Promise<{
+        withinBudget: boolean;
+        dailyUsed: number;
+        dailyLimit: number;
+        monthlyUsed: number;
+        monthlyLimit: number;
+    }> {
+        // 获取预算配置
+        const configs = await this.env.DB.prepare(`
+            SELECT key, value FROM system_config
+            WHERE key IN ('daily_budget_limit', 'monthly_budget_limit')
+        `).all();
+
+        const budget = configs.results.reduce((acc, cfg) => {
+            acc[cfg.key] = parseFloat(cfg.value);
+            return acc;
+        }, {} as any);
+
+        // 获取今日和本月成本
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+        const dailyCost = await this.getCostForPeriod(today, new Date());
+        const monthlyCost = await this.getCostForPeriod(monthStart, new Date());
+
+        return {
+            withinBudget: dailyCost <= (budget.daily_budget_limit || 100) &&
+                         monthlyCost <= (budget.monthly_budget_limit || 1000),
+            dailyUsed: dailyCost,
+            dailyLimit: budget.daily_budget_limit || 100,
+            monthlyUsed: monthlyCost,
+            monthlyLimit: budget.monthly_budget_limit || 1000,
+        };
+    }
+
+    private async getCostForPeriod(
+        startDate: Date,
+        endDate: Date
+    ): Promise<number> {
+        const result = await this.env.DB.prepare(`
+            SELECT SUM(metric_value) as total
+            FROM metrics
+            WHERE metric_name = 'ai_cost'
+                AND timestamp >= ?
+                AND timestamp < ?
+        `).bind(startDate.toISOString(), endDate.toISOString()).first();
+
+        return result?.total || 0;
+    }
+}
+
+// 生成预签名上传URL
+
+    // 生成预签名上传URL
+    async generateUploadUrl(key: string, expiresIn: number = 3600): Promise<string> {
+        // Cloudflare R2支持S3兼容的预签名URL
+        const url = await this.env.R2.createUploadUrl(key, {
+            expiresIn: expiresIn,
+        });
+        return url;
+    }
+
+    // 生成下载URL
+    async generateDownloadUrl(key: string, expiresIn: number = 3600): Promise<string> {
+        const url = await this.env.R2.createDownloadUrl(key, {
+            expiresIn: expiresIn,
+        });
+        return url;
+    }
+
+    // 获取文件信息
+    async getFileInfo(key: string) {
+        const object = await this.env.R2.head(key);
+        if (!object) {
+            return null;
+        }
+        return {
+            key: key,
+            size: object.size,
+            lastModified: object.uploaded,
+            etag: object.etag,
+            contentType: object.httpMetadata?.contentType,
+        };
+    }
+
+    // 删除文件
+    async deleteFile(key: string): Promise<void> {
+        await this.env.R2.delete(key);
+    }
+
+    // 批量删除
+    async deleteFiles(keys: string[]): Promise<void> {
+        await Promise.all(keys.map(key => this.env.R2.delete(key)));
+    }
+
+    // 列出文件
+    async listFiles(prefix: string, limit: number = 1000) {
+        const objects = await this.env.R2.list({
+            prefix: prefix,
+            limit: limit,
+        });
+        return objects.objects.map(obj => ({
+            key: obj.key,
+            size: obj.size,
+            lastModified: obj.uploaded,
+        }));
+    }
+}
+六、GitHub Actions工作流
+6.1 主工作流（.github/workflows/main.yml）
+yaml
+name: AI Video Processing Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: 'Task ID'
+        required: true
+        type: string
+      job_type:
+        description: 'Job Type'
+        required: true
+        type: choice
+        options:
+          - extract
+          - img2img
+          - compose
+      video_path:
+        description: 'Video Path in R2'
+        required: true
+        type: string
+      fps:
+        description: 'FPS for extraction/composition'
+        required: false
+        default: '30'
+        type: string
+      prompt:
+        description: 'AI prompt for img2img'
+        required: false
+        default: ''
+        type: string
+      output_fps:
+        description: 'Output video FPS'
+        required: false
+        default: '30'
+        type: string
+      ai_account_id:
+        description: 'AI Account ID'
+        required: false
+        default: '0'
+        type: string
+      callback_url:
+        description: 'Callback URL'
+        required: true
+        type: string
+      callback_signature:
+        description: 'Callback Signature'
+        required: true
+        type: string
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6小时
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v2
+        
+      - name: Pull Docker image
+        run: |
+          docker pull your-docker-registry/ai-video-processor:latest
+          
+      - name: Run processing
+        env:
+          TASK_ID: ${{ github.event.inputs.task_id }}
+          JOB_TYPE: ${{ github.event.inputs.job_type }}
+          VIDEO_PATH: ${{ github.event.inputs.video_path }}
+          FPS: ${{ github.event.inputs.fps }}
+          PROMPT: ${{ github.event.inputs.prompt }}
+          OUTPUT_FPS: ${{ github.event.inputs.output_fps }}
+          AI_ACCOUNT_ID: ${{ github.event.inputs.ai_account_id }}
+          CALLBACK_URL: ${{ github.event.inputs.callback_url }}
+          CALLBACK_SIGNATURE: ${{ github.event.inputs.callback_signature }}
+          # R2配置
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          AWS_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          AWS_REGION: ${{ secrets.R2_REGION }}
+          # AI配置（从D1获取，通过环境变量注入）
+          AI_API_KEYS: ${{ secrets.AI_API_KEYS }}
+        run: |
+          docker run \
+            -e TASK_ID \
+            -e JOB_TYPE \
+            -e VIDEO_PATH \
+            -e FPS \
+            -e PROMPT \
+            -e OUTPUT_FPS \
+            -e AI_ACCOUNT_ID \
+            -e CALLBACK_URL \
+            -e CALLBACK_SIGNATURE \
+            -e AWS_ACCESS_KEY_ID \
+            -e AWS_SECRET_ACCESS_KEY \
+            -e AWS_ENDPOINT_URL \
+            -e AWS_BUCKET_NAME \
+            -e AWS_REGION \
+            -e AI_API_KEYS \
+            -v /tmp:/tmp \
+            your-docker-registry/ai-video-processor:latest \
+            /scripts/entrypoint.sh
+6.2 Docker镜像（Dockerfile）
+dockerfile
+FROM ubuntu:24.04
+
+# 安装依赖
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    awscli \
+    curl \
+    jq \
+    ca-certificates \
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# 安装Python依赖（用于图生图调用）
+RUN pip3 install requests pillow
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制脚本
+COPY scripts/ /scripts/
+COPY entrypoint.sh /entrypoint.sh
+
+# 设置执行权限
+RUN chmod +x /scripts/*.sh /entrypoint.sh
+
+# 设置环境变量
+ENV AWS_DEFAULT_REGION=auto
+ENV AWS_S3_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+ENTRYPOINT ["/entrypoint.sh"]
+6.3 容器入口脚本（entrypoint.sh）
+bash
+#!/bin/bash
+
+set -e
+
+echo "Starting AI Video Processing Pipeline"
+echo "Task ID: $TASK_ID"
+echo "Job Type: $JOB_TYPE"
+
+# 检查必需的AWS配置
+if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+    echo "Error: AWS credentials not set"
+    exit 1
+fi
+
+# 配置AWS CLI
+aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
+aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
+aws configure set default.region "$AWS_REGION"
+
+# 构建R2端点URL
+if [ -n "$R2_ACCOUNT_ID" ]; then
+    AWS_ENDPOINT_URL="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+fi
+
+# 执行对应的脚本
+case $JOB_TYPE in
+    extract)
+        echo "Executing frame extraction..."
+        /scripts/extract-frames.sh
+        ;;
+    img2img)
+        echo "Executing image-to-image generation..."
+        /scripts/img2img.sh
+        ;;
+    compose)
+        echo "Executing video composition..."
+        /scripts/compose-video.sh
+        ;;
+    *)
+        echo "Unknown job type: $JOB_TYPE"
+        exit 1
+        ;;
+esac
+
+# 回调Worker
+if [ -n "$CALLBACK_URL" ]; then
+    echo "Sending callback to Worker..."
+    
+    # 构建回调数据
+    if [ -f "/tmp/result.json" ]; then
+        RESULT_DATA=$(cat /tmp/result.json)
+    else
+        RESULT_DATA='{}'
+    fi
+    
+    curl -X POST "$CALLBACK_URL" \
+        -H "Content-Type: application/json" \
+        -H "X-Callback-Signature: $CALLBACK_SIGNATURE" \
+        -d "{
+            \"taskId\": \"$TASK_ID\",
+            \"phase\": \"$JOB_TYPE\",
+            \"status\": \"SUCCESS\",
+            \"data\": $RESULT_DATA,
+            \"logs\": \"$(base64 -w0 /tmp/execution.log 2>/dev/null || echo '')\"
+        }"
+fi
+
+echo "Job completed successfully"
+6.4 抽帧脚本（extract-frames.sh）
+bash
+#!/bin/bash
+
+set -e
+
+echo "=== Phase 1: Frame Extraction ==="
+echo "Task ID: $TASK_ID"
+echo "Video Path: $VIDEO_PATH"
+echo "FPS: $FPS"
+
+# 创建工作目录
+WORK_DIR="/tmp/$TASK_ID"
+mkdir -p "$WORK_DIR"
+cd "$WORK_DIR"
+
+# 日志文件
+LOG_FILE="/tmp/execution.log"
+exec 1> >(tee -a "$LOG_FILE")
+exec 2>&1
+
+# 下载视频
+echo "Downloading video from R2..."
+START_TIME=$(date +%s)
+
+aws s3 cp "s3://$AWS_BUCKET_NAME/$VIDEO_PATH" ./input.mp4 \
+    --endpoint-url "$AWS_ENDPOINT_URL"
+
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to download video"
+    exit 1
+fi
+
+DOWNLOAD_TIME=$(($(date +%s) - START_TIME))
+echo "Download completed in ${DOWNLOAD_TIME}s"
+
+# 获取视频信息
+echo "Video information:"
+ffprobe -v quiet -print_format json -show_format -show_streams ./input.mp4
+
+# 抽取帧
+echo "Extracting frames at ${FPS}fps..."
+START_TIME=$(date +%s)
+
+# 使用管道边抽取边上传统，避免磁盘占满
+ffmpeg -i ./input.mp4 \
+    -vf "fps=$FPS" \
+    -f image2pipe \
+    -vcodec mjpeg \
+    -q:v 2 \
+    - | aws s3 cp - "s3://$AWS_BUCKET_NAME/${TASK_ID}/origin_frames/frame_%06d.jpg" \
+    --endpoint-url "$AWS_ENDPOINT_URL" \
+    --content-type image/jpeg
+
+EXTRACT_TIME=$(($(date +%s) - START_TIME))
+echo "Frame extraction completed in ${EXTRACT_TIME}s"
+
+# 统计帧数
+FRAME_COUNT=$(aws s3 ls "s3://$AWS_BUCKET_NAME/${TASK_ID}/origin_frames/" \
+    --endpoint-url "$AWS_ENDPOINT_URL" | wc -l)
+echo "Total frames extracted: $FRAME_COUNT"
+
+# 生成结果文件
+cat > /tmp/result.json <<EOF
+{
+    "frames": [],
+    "totalCount": $FRAME_COUNT,
+    "processedCount": $FRAME_COUNT,
+    "path": "${TASK_ID}/origin_frames/"
+}
+EOF
+
+echo "Phase 1 completed successfully"
+6.5 图生图脚本（img2img.sh）
+bash
+#!/bin/bash
+
+set -e
+
+echo "=== Phase 2: Image-to-Image Generation ==="
+echo "Task ID: $TASK_ID"
+echo "AI Account ID: $AI_ACCOUNT_ID"
+
+WORK_DIR="/tmp/$TASK_ID"
+mkdir -p "$WORK_DIR"
+cd "$WORK_DIR"
+
+LOG_FILE="/tmp/execution.log"
+exec 1> >(tee -a "$LOG_FILE")
+exec 2>&1
+
+# 解析AI账号配置（从环境变量中获取）
+# AI_API_KEYS格式: {"1":"key1","2":"key2",...}
+if [ -z "$AI_API_KEYS" ]; then
+    echo "Error: AI_API_KEYS not set"
+    exit 1
+fi
+
+# 使用jq提取对应的API Key
+AI_API_KEY=$(echo "$AI_API_KEYS" | jq -r ".\"$AI_ACCOUNT_ID\"")
+if [ -z "$AI_API_KEY" ] || [ "$AI_API_KEY" = "null" ]; then
+    echo "Error: AI account $AI_ACCOUNT_ID not found"
+    exit 1
+fi
+
+echo "Using AI account: $AI_ACCOUNT_ID"
+
+# 列出所有原始帧
+echo "Listing original frames..."
+aws s3 ls "s3://$AWS_BUCKET_NAME/${TASK_ID}/origin_frames/" \
+    --endpoint-url "$AWS_ENDPOINT_URL" \
+    | awk '{print $4}' > /tmp/frames_list.txt
+
+FRAME_COUNT=$(wc -l < /tmp/frames_list.txt)
+echo "Processing $FRAME_COUNT frames..."
+
+# 创建AI帧目录
+mkdir -p ./ai_frames
+
+# 处理每一帧
+PROCESSED=0
+FAILED=0
+
+while IFS= read -r FRAME_FILE; do
+    if [ -z "$FRAME_FILE" ]; then
+        continue
+    fi
+    
+    echo "Processing frame: $FRAME_FILE"
+    
+    # 下载原始帧
+    aws s3 cp "s3://$AWS_BUCKET_NAME/${TASK_ID}/origin_frames/$FRAME_FILE" "./input.jpg" \
+        --endpoint-url "$AWS_ENDPOINT_URL"
+    
+    # 调用AI API（这里以Stable Diffusion为例）
+    echo "Calling AI API..."
+    RESPONSE=$(curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $AI_API_KEY" \
+        -d "{
+            \"prompt\": \"$PROMPT\",
+            \"init_image\": \"$(base64 -w0 ./input.jpg)\",
+            \"strength\": 0.75,
+            \"num_inference_steps\": 30
+        }" \
+        "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/image-to-image")
+    
+    # 检查API响应
+    if [ $? -ne 0 ]; then
+        echo "Error: AI API call failed for frame $FRAME_FILE"
+        FAILED=$((FAILED + 1))
+        continue
+    fi
+    
+    # 解析响应并保存图片
+    echo "$RESPONSE" | jq -r '.artifacts[0].base64' | base64 -d > "./ai_frames/$FRAME_FILE"
+    
+    # 上传到R2
+    aws s3 cp "./ai_frames/$FRAME_FILE" \
+        "s3://$AWS_BUCKET_NAME/${TASK_ID}/ai_frames/$FRAME_FILE" \
+        --endpoint-url "$AWS_ENDPOINT_URL" \
+        --content-type image/jpeg
+    
+    PROCESSED=$((PROCESSED + 1))
+    echo "Progress: $PROCESSED / $FRAME_COUNT"
+    
+    # 清理临时文件
+    rm -f ./input.jpg
+    
+    # 添加小延迟，避免API限流
+    sleep 0.5
+    
+done < /tmp/frames_list.txt
+
+echo "Phase 2 completed: $PROCESSED processed, $FAILED failed"
+
+# 生成结果文件
+cat > /tmp/result.json <<EOF
+{
+    "frames": [],
+    "totalCount": $FRAME_COUNT,
+    "processedCount": $PROCESSED,
+    "failedCount": $FAILED,
+    "path": "${TASK_ID}/ai_frames/"
+}
+EOF
+6.6 合成视频脚本（compose-video.sh）
+bash
+#!/bin/bash
+
+set -e
+
+echo "=== Phase 3: Video Composition ==="
+echo "Task ID: $TASK_ID"
+echo "Output FPS: $OUTPUT_FPS"
+
+WORK_DIR="/tmp/$TASK_ID"
+mkdir -p "$WORK_DIR"
+cd "$WORK_DIR"
+
+LOG_FILE="/tmp/execution.log"
+exec 1> >(tee -a "$LOG_FILE")
+exec 2>&1
+
+# 列出所有AI处理的帧
+echo "Listing AI frames..."
+aws s3 ls "s3://$AWS_BUCKET_NAME/${TASK_ID}/ai_frames/" \
+    --endpoint-url "$AWS_ENDPOINT_URL" \
+    | awk '{print $4}' > /tmp/ai_frames_list.txt
+
+FRAME_COUNT=$(wc -l < /tmp/ai_frames_list.txt)
+echo "Total frames to compose: $FRAME_COUNT"
+
+if [ $FRAME_COUNT -eq 0 ]; then
+    echo "Error: No AI frames found"
+    exit 1
+fi
+
+# 下载所有AI帧
+echo "Downloading AI frames..."
+mkdir -p ./input_frames
+cd ./input_frames
+
+# 使用并行下载加速
+cat /tmp/ai_frames_list.txt | parallel -j 10 \
+    aws s3 cp "s3://$AWS_BUCKET_NAME/${TASK_ID}/ai_frames/{}" ./{} \
+        --endpoint-url "$AWS_ENDPOINT_URL"
+
+cd ..
+
+# 检查文件命名顺序，确保正确排序
+echo "Checking frame sequence..."
+ls -1 ./input_frames/*.jpg | sort -V > /tmp/frame_sequence.txt
+
+# 合成视频
+echo "Composing video at ${OUTPUT_FPS}fps..."
+START_TIME=$(date +%s)
+
+ffmpeg -framerate "$OUTPUT_FPS" \
+    -pattern_type glob \
+    -i './input_frames/*.jpg' \
+    -c:v libx264 \
+    -pix_fmt yuv420p \
+    -crf 23 \
+    -preset medium \
+    -movflags +faststart \
+    ./output.mp4
+
+COMPOSE_TIME=$(($(date +%s) - START_TIME))
+echo "Video composition completed in ${COMPOSE_TIME}s"
+
+# 上传视频到R2
+echo "Uploading final video..."
+VIDEO_PATH="${TASK_ID}/final_video.mp4"
+
+aws s3 cp ./output.mp4 \
+    "s3://$AWS_BUCKET_NAME/$VIDEO_PATH" \
+    --endpoint-url "$AWS_ENDPOINT_URL" \
+    --content-type video/mp4
+
+# 生成视频URL（预签名URL或公共URL）
+VIDEO_URL="${CLOUDFLARE_PUBLIC_URL}/${VIDEO_PATH}"
+
+# 清理临时文件
+echo "Cleaning up..."
+rm -rf ./input_frames ./output.mp4
+
+# 生成结果文件
+cat > /tmp/result.json <<EOF
+{
+    "videoPath": "$VIDEO_PATH",
+    "videoUrl": "$VIDEO_URL",
+    "frameCount": $FRAME_COUNT,
+    "duration": $(ffprobe -v quiet -show_format -print_format json ./output.mp4 | jq '.format.duration')
+}
+EOF
+
+echo "Phase 3 completed successfully"
+echo "Final video: $VIDEO_URL"
+七、前端管理界面
+7.1 项目初始化
+bash
+# 使用Vite创建React + TypeScript项目
+npm create vite@latest frontend -- --template react-ts
+cd frontend
+
+# 安装依赖
+npm install antd @ant-design/icons axios dayjs react-router-dom
+npm install @types/node -D
+7.2 核心页面组件
+Dashboard页面
+tsx
+// src/pages/Dashboard/index.tsx
+
+import React, { useEffect, useState } from 'react';
+import { Card, Row, Col, Statistic, Table, Progress } from 'antd';
+import {
+    DatabaseOutlined,
+    ClockCircleOutlined,
+    CheckCircleOutlined,
+    CloseCircleOutlined,
+} from '@ant-design/icons';
+import { getDashboardStats } from '../../api';
+import { Task } from '../../types';
+import { formatDistanceToNow } from 'dayjs';
+
+const Dashboard: React.FC = () => {
+    const [stats, setStats] = useState<any>(null);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        fetchStats();
+        const interval = setInterval(fetchStats, 30000); // 30秒刷新
+        return () => clearInterval(interval);
+    }, []);
+
+    const fetchStats = async () => {
+        setLoading(true);
+        try {
+            const data = await getDashboardStats();
+            setStats(data);
+        } catch (error) {
+            console.error('Failed to fetch stats:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (!stats) return <div>Loading...</div>;
+
+    const columns = [
+        {
+            title: 'Task ID',
+            dataIndex: 'id',
+            key: 'id',
+            render: (id: string) => <a href={`/tasks/${id}`}>{id}</a>,
+        },
+        {
+            title: 'Status',
+            dataIndex: 'status',
+            key: 'status',
+            render: (status: string) => {
+                const colors = {
+                    PENDING: 'default',
+                    EXTRACTING: 'processing',
+                    IMG2IMGING: 'processing',
+                    COMPOSING: 'processing',
+                    COMPLETED: 'success',
+                    FAILED: 'danger',
+                };
+                return <Tag color={colors[status] || 'default'}>{status}</Tag>;
+            },
+        },
+        {
+            title: 'Progress',
+            key: 'progress',
+            render: (_, record: Task) => (
+                <Progress
+                    percent={record.progress || 0}
+                    size="small"
+                    status={record.status === 'FAILED' ? 'exception' : 'active'}
+                />
+            ),
+        },
+        {
+            title: 'Created',
+            dataIndex: 'createdAt',
+            key: 'createdAt',
+            render: (date: string) => formatDistanceToNow(new Date(date)),
+        },
+    ];
+
+    return (
+        <div>
+            <h1>Dashboard</h1>
+            
+            <Row gutter={16} style={{ marginBottom: 24 }}>
+                <Col span={6}>
+                    <Card>
+                        <Statistic
+                            title="Today Tasks"
+                            value={stats.todayTasks}
+                            prefix={<DatabaseOutlined />}
+                        />
+                    </Card>
+                </Col>
+                <Col span={6}>
+                    <Card>
+                        <Statistic
+                            title="Running"
+                            value={stats.runningTasks}
+                            prefix={<ClockCircleOutlined />}
+                            valueStyle={{ color: '#1890ff' }}
+                        />
+                    </Card>
+                </Col>
+                <Col span={6}>
+                    <Card>
+                        <Statistic
+                            title="Completed"
+                            value={stats.completedTasks}
+                            prefix={<CheckCircleOutlined />}
+                            valueStyle={{ color: '#52c41a' }}
+                        />
+                    </Card>
+                </Col>
+                <Col span={6}>
+                    <Card>
+                        <Statistic
+                            title="Failed"
+                            value={stats.failedTasks}
+                            prefix={<CloseCircleOutlined />}
+                            valueStyle={{ color: '#ff4d4f' }}
+                        />
+                    </Card>
+                </Col>
+            </Row>
+
+            <Card title="Recent Tasks">
+                <Table
+                    dataSource={stats.recentTasks}
+                    columns={columns}
+                    rowKey="id"
+                    loading={loading}
+                    pagination={{ pageSize: 10 }}
+                />
+            </Card>
+        </div>
+    );
+};
+
+export default Dashboard;
+GitHub账户管理页面
+tsx
+// src/pages/GitHubAccounts/index.tsx
+
+import React, { useState, useEffect } from 'react';
+import {
+    Table,
+    Button,
+    Modal,
+    Form,
+    Input,
+    Switch,
+    message,
+    Popconfirm,
+    Tag,
+    Space,
+} from 'antd';
+import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import {
+    getGitHubAccounts,
+    addGitHubAccount,
+    updateGitHubAccount,
+    deleteGitHubAccount,
+    testGitHubAccount,
+} from '../../api';
+import { GitHubAccount } from '../../types';
+
+const GitHubAccounts: React.FC = () => {
+    const [accounts, setAccounts] = useState<GitHubAccount[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [modalVisible, setModalVisible] = useState(false);
+    const [editingAccount, setEditingAccount] = useState<GitHubAccount | null>(null);
+    const [form] = Form.useForm();
+
+    useEffect(() => {
+        fetchAccounts();
+    }, []);
+
+    const fetchAccounts = async () => {
+        setLoading(true);
+        try {
+            const data = await getGitHubAccounts();
+            setAccounts(data);
+        } catch (error) {
+            message.error('Failed to fetch accounts');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAdd = () => {
+        setEditingAccount(null);
+        form.resetFields();
+        setModalVisible(true);
+    };
+
+    const handleEdit = (account: GitHubAccount) => {
+        setEditingAccount(account);
+        form.setFieldsValue(account);
+        setModalVisible(true);
+    };
+
+    const handleSubmit = async (values: any) => {
+        try {
+            if (editingAccount) {
+                await updateGitHubAccount(editingAccount.id, values);
+                message.success('Account updated');
+            } else {
+                await addGitHubAccount(values);
+                message.success('Account added');
+            }
+            setModalVisible(false);
+            fetchAccounts();
+        } catch (error) {
+            message.error('Operation failed');
+        }
+    };
+
+    const handleTest = async (id: number) => {
+        try {
+            await testGitHubAccount(id);
+            message.success('Account is valid');
+        } catch (error) {
+            message.error('Account is invalid');
+        }
+    };
+
+    const handleDelete = async (id: number) => {
+        try {
+            await deleteGitHubAccount(id);
+            message.success('Account deleted');
+            fetchAccounts();
+        } catch (error) {
+            message.error('Delete failed');
+        }
+    };
+
+    const columns = [
+        {
+            title: 'Name',
+            dataIndex: 'name',
+            key: 'name',
+        },
+        {
+            title: 'Username',
+            dataIndex: 'username',
+            key: 'username',
+        },
+        {
+            title: 'Status',
+            dataIndex: 'isActive',
+            key: 'isActive',
+            render: (isActive: boolean) => (
+                <Tag color={isActive ? 'green' : 'red'}>
+                    {isActive ? 'Active' : 'Inactive'}
+                </Tag>
+            ),
+        },
+        {
+            title: 'Monthly Usage',
+            key: 'usage',
+            render: (_, record: GitHubAccount) => (
+                <Space>
+                    <span>{record.monthlyUsedMinutes} min</span>
+                    <span>/</span>
+                    <span>{record.monthlyLimit} min</span>
+                </Space>
+            ),
+        },
+        {
+            title: 'Success Rate',
+            dataIndex: 'successRate',
+            key: 'successRate',
+            render: (rate: number) => `${rate}%`,
+        },
+        {
+            title: 'Total Jobs',
+            dataIndex: 'totalJobs',
+            key: 'totalJobs',
+        },
+        {
+            title: 'Actions',
+            key: 'actions',
+            render: (_, record: GitHubAccount) => (
+                <Space>
+                    <Button size="small" onClick={() => handleTest(record.id)}>
+                        Test
+                    </Button>
+                    <Button
+                        size="small"
+                        icon={<EditOutlined />}
+                        onClick={() => handleEdit(record)}
+                    />
+                    <Popconfirm
+                        title="Delete this account?"
+                        onConfirm={() => handleDelete(record.id)}
+                    >
+                        <Button size="small" danger icon={<DeleteOutlined />} />
+                    </Popconfirm>
+                </Space>
+            ),
+        },
+    ];
+
+    return (
+        <div>
+            <div style={{ marginBottom: 16 }}>
+                <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+                    Add GitHub Account
+                </Button>
+            </div>
+
+            <Table
+                dataSource={accounts}
+                columns={columns}
+                rowKey="id"
+                loading={loading}
+            />
+
+            <Modal
+                title={editingAccount ? 'Edit Account' : 'Add Account'}
+                open={modalVisible}
+                onCancel={() => setModalVisible(false)}
+                footer={null}
+            >
+                <Form form={form} onFinish={handleSubmit} layout="vertical">
+                    <Form.Item
+                        name="name"
+                        label="Account Name"
+                        rules={[{ required: true }]}
+                    >
+                        <Input />
+                    </Form.Item>
+                    <Form.Item
+                        name="token"
+                        label="Personal Access Token"
+                        rules={[{ required: !editingAccount }]}
+                    >
+                        <Input.Password />
+                    </Form.Item>
+                    <Form.Item
+                        name="monthlyLimit"
+                        label="Monthly Limit (minutes)"
+                        initialValue={2000}
+                    >
+                        <Input type="number" />
+                    </Form.Item>
+                    <Form.Item>
+                        <Button type="primary" htmlType="submit">
+                            {editingAccount ? 'Update' : 'Add'}
+                        </Button>
+                    </Form.Item>
+                </Form>
+            </Modal>
+        </div>
+    );
+};
+
+export default GitHubAccounts;
+API封装
+typescript
+// src/api/index.ts
+
+import axios from 'axios';
+import { Task, GitHubAccount, AIAccount } from '../types';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8787';
+
+const api = axios.create({
+    baseURL: API_BASE_URL,
+    timeout: 30000,
+});
+
+// 请求拦截器
+api.interceptors.request.use((config) => {
+    const token = localStorage.getItem('admin_token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
+// 响应拦截器
+api.interceptors.response.use(
+    (response) => {
+        if (response.data.code === 0) {
+            return response.data.data;
+        }
+        return Promise.reject(new Error(response.data.msg));
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
+
+// ========== 任务API ==========
+
+export const createTask = (params: {
+    videoPath: string;
+    prompt: string;
+    fps?: number;
+    outputFps?: number;
+    title?: string;
+}) => api.post('/api/v1/tasks', params);
+
+export const getTask = (taskId: string) => api.get(`/api/v1/tasks/${taskId}`);
+
+export const getTasks = (params: { page: number; limit: number; status?: string }) =>
+    api.get('/api/v1/tasks', { params });
+
+export const cancelTask = (taskId: string) =>
+    api.post(`/api/v1/tasks/${taskId}/cancel`);
+
+export const retryTask = (taskId: string) =>
+    api.post(`/api/v1/tasks/${taskId}/retry`);
+
+// ========== 管理API ==========
+
+export const getDashboardStats = () => api.get('/api/admin/dashboard/stats');
+
+// GitHub账户
+export const getGitHubAccounts = () => api.get('/api/admin/github-accounts');
+
+export const addGitHubAccount = (data: any) =>
+    api.post('/api/admin/github-accounts', data);
+
+export const updateGitHubAccount = (id: number, data: any) =>
+    api.put(`/api/admin/github-accounts/${id}`, data);
+
+export const deleteGitHubAccount = (id: number) =>
+    api.delete(`/api/admin/github-accounts/${id}`);
+
+export const testGitHubAccount = (id: number) =>
+    api.post(`/api/admin/github-accounts/${id}/test`);
+
+// AI账户
+export const getAIAccounts = () => api.get('/api/admin/ai-accounts');
+
+export const addAIAccount = (data: any) => api.post('/api/admin/ai-accounts', data);
+
+export const updateAIAccount = (id: number, data: any) =>
+    api.put(`/api/admin/ai-accounts/${id}`, data);
+
+export const deleteAIAccount = (id: number) =>
+    api.delete(`/api/admin/ai-accounts/${id}`);
+
+export const testAIAccount = (id: number) =>
+    api.post(`/api/admin/ai-accounts/${id}/test`);
+
+export const batchImportAIAccounts = (data: { accounts: any[] }) =>
+    api.post('/api/admin/ai-accounts/batch-import', data);
+
+// 配置
+export const getSystemConfig = () => api.get('/api/admin/config');
+
+export const updateSystemConfig = (key: string, value: string) =>
+    api.put('/api/admin/config', { key, value });
+
+// 日志
+export const getTaskLogs = (taskId: string, params: { offset?: number; limit?: number }) =>
+    api.get(`/api/admin/tasks/${taskId}/logs`, { params });
+八、部署脚本
+8.1 部署Worker
+bash
+#!/bin/bash
+# scripts/deploy-worker.sh
+
+set -e
+
+echo "Deploying Cloudflare Worker..."
+
+# 安装依赖
+cd backend
+npm install
+
+# 运行测试
+npm test
+
+# 部署
+npx wrangler deploy --env production
+
+echo "Worker deployed successfully!"
+8.2 部署前端
+bash
+#!/bin/bash
+# scripts/deploy-frontend.sh
+
+set -e
+
+echo "Building and deploying frontend..."
+
+cd frontend
+
+# 安装依赖
+npm install
+
+# 构建
+npm run build
+
+# 部署到Cloudflare Pages（或Vercel等）
+npx wrangler pages publish dist --project-name=ai-video-manager
+
+echo "Frontend deployed successfully!"
+8.3 初始化数据库
+bash
+#!/bin/bash
+# scripts/init-database.sh
+
+set -e
+
+echo "Initializing D1 database..."
+
+cd backend
+
+# 应用Schema
+npx wrangler d1 execute ai-video-db --file=./src/database/schema.sql
+
+# 插入初始数据
+npx wrangler d1 execute ai-video-db --command="
+    INSERT OR IGNORE INTO system_config (key, value, description) VALUES
+    ('max_concurrent_tasks', '5', 'Maximum concurrent tasks'),
+    ('default_fps', '30', 'Default FPS for frame extraction'),
+    ('default_cooldown', '60', 'Default cooldown seconds for AI accounts');
+"
+
+echo "Database initialized successfully!"
+九、环境变量配置
+9.1 Worker环境变量（.env）
+env
+# Cloudflare
+CLOUDFLARE_ACCOUNT_ID=your-account-id
+CLOUDFLARE_API_TOKEN=your-api-token
+
+# D1
+D1_DATABASE_ID=your-database-id
+
+# R2
+R2_ACCESS_KEY_ID=your-r2-access-key
+R2_SECRET_ACCESS_KEY=your-r2-secret-key
+R2_BUCKET_NAME=your-bucket-name
+R2_ACCOUNT_ID=your-r2-account-id
+
+# GitHub
+GITHUB_REPO=your-username/your-repo
+GITHUB_WORKFLOW_ID=main.yml
+
+# Security
+ADMIN_API_KEY=your-strong-admin-key
+CALLBACK_SECRET=your-callback-secret
+
+# Worker
+WORKER_URL=https://your-worker.workers.dev
+
+# Environment
+ENVIRONMENT=production
+9.2 前端环境变量（.env）
+env
+VITE_API_BASE_URL=https://your-worker.workers.dev
+VITE_ADMIN_API_KEY=your-admin-key
+十、监控与维护
+10.1 健康检查脚本
+bash
+#!/bin/bash
+# scripts/health-check.sh
+
+echo "Checking system health..."
+
+# 检查Worker
+curl -f https://your-worker.workers.dev/health || exit 1
+
+# 检查D1
+npx wrangler d1 execute ai-video-db --command="SELECT 1" || exit 1
+
+# 检查R2
+aws s3 ls s3://your-bucket --endpoint-url https://your-r2-endpoint || exit 1
+
+echo "All systems healthy!"
+10.2 定期清理脚本
+bash
+#!/bin/bash
+# scripts/cleanup.sh
+
+echo "Cleaning up expired tasks..."
+
+# 删除7天前的任务数据
+npx wrangler d1 execute ai-video-db --command="
+    DELETE FROM tasks 
+    WHERE completed_at < datetime('now', '-7 days')
+    AND status IN ('COMPLETED', 'FAILED');
+"
+
+# 删除R2中的过期文件
+aws s3 rm s3://your-bucket/tasks/ --recursive \
+    --endpoint-url https://your-r2-endpoint \
+    --exclude "*" \
+    --include "*/" \
+    --older-than 7d
+
+echo "Cleanup completed!"
+十一、成本估算
+11.1 免费额度（Cloudflare免费计划）
+服务	免费额度	预估月用量	费用
+Workers	100k请求/天	10k请求/天	$0
+D1	5GB存储	1GB	$0
+R2	10GB存储 + 1M ops	5GB + 100k ops	$0
+GitHub Actions	2000分钟/月/账户	基于实际使用量动态计算	$0
+
+11.2 动态成本计算模型
+设N为GitHub账户数量，M为AI账户数量，F为每月处理帧数
+
+GitHub Actions成本（免费）：
+  - 总可用额度：N × 2000 分钟/月
+  - 实际使用量：根据任务数量动态分配
+  - 成本：$0（免费套餐内）
+
+AI API成本（按次计费）：
+  - 单次调用成本：$0.02 - $0.05（根据模型和平台）
+  - 月度AI成本：F × 单次调用成本
+  - 分摊到每个AI账户：F/M 次调用/账户
+
+存储成本（R2）：
+  - 存储费用：$0.015/GB/月
+  - 预估存储量：每1000帧约占用500MB-1GB
+  - 月度存储成本：(F/1000) × 1GB × $0.015
+
+带宽成本：
+  - Cloudflare免费计划：$0
+  - R2 Class A操作：$0.005/万次请求
+
+11.3 吞吐量估算
+设N为GitHub账户数量，M为AI账户数量，每帧处理时间约20秒
+
+最大并行任务数：
+  - GitHub Actions层面：N × 2（每个账户最多2个并发）
+  - AI API层面：M × 1（每个账户严格串行，每次1个任务）
+  - 系统实际吞吐量：min(N×2, M)
+
+每小时处理帧数：
+  - 公式：min(N×2, M) × 3600秒/20秒/帧
+  - 示例：N=5, M=10 → min(10, 10) × 180 = 1800帧/小时
+  - 示例：N=20, M=5 → min(40, 5) × 180 = 900帧/小时
+
+11.4 账户数量配置建议
+根据预期吞吐量选择账户数量：
+- 小规模（<1000帧/天）：N=2-3, M=2-3
+- 中等规模（1000-10000帧/天）：N=5-10, M=5-10
+- 大规模（>10000帧/天）：N=10-20, M=10-20
+
+关键原则：AI账户数量是吞吐量瓶颈，建议M ≥ N以充分利用GitHub Actions资源
+
+十二、扩展与优化建议
+12.1 性能优化详细方案
+12.1.1 帧分片并行处理
+typescript
+// src/services/ParallelProcessingService.ts
+
+export class ParallelProcessingService {
+    constructor(private env: Bindings) {}
+
+    // 将帧拆分成多个批次，并行处理
+    async scheduleFrameBatches(taskId: string, totalFrames: number): Promise<void> {
+        const batchSize = await this.getBatchSize();
+        const batches = Math.ceil(totalFrames / batchSize);
+
+        // 创建帧任务记录
+        for (let i = 0; i < totalFrames; i++) {
+            await this.env.DB.prepare(`
+                INSERT INTO frame_tasks (
+                    task_id, frame_index, frame_path, status
+                ) VALUES (?, ?, ?, 'PENDING')
+            `).bind(
+                taskId,
+                i,
+                `${taskId}/origin_frames/frame_${i.toString().padStart(6, '0')}.jpg`
+            ).run();
+        }
+
+        // 为每个批次创建GitHub Actions Job
+        for (let batch = 0; batch < batches; batch++) {
+            const startFrame = batch * batchSize;
+            const endFrame = Math.min((batch + 1) * batchSize, totalFrames);
+
+            await this.scheduleBatchJob(taskId, batch, startFrame, endFrame);
+        }
+
+        // 更新任务状态
+        await this.env.DB.prepare(`
+            UPDATE tasks
+            SET status = 'IMG2IMGING',
+                total_frames = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).bind(totalFrames, taskId).run();
+    }
+
+    // 调度批次任务
+    private async scheduleBatchJob(
+        taskId: string,
+        batchIndex: number,
+        startFrame: number,
+        endFrame: number
+    ): Promise<void> {
+        const githubAccount = await this.selectAvailableGitHubAccount();
+        const aiAccount = await this.selectAIAccount();
+
+        // 创建队列任务
+        const queueId = await this.env.DB.prepare(`
+            INSERT INTO task_queue (
+                task_id, github_account_id, phase,
+                priority, status, scheduled_at
+            ) VALUES (?, ?, 'IMG2IMG_BATCH', ?, 'PENDING', CURRENT_TIMESTAMP)
+        `).bind(
+            taskId,
+            githubAccount.id,
+            50  // 较高优先级
+        ).run();
+
+        // 更新帧任务分配
+        for (let i = startFrame; i < endFrame; i++) {
+            await this.env.DB.prepare(`
+                UPDATE frame_tasks
+                SET ai_account_id = ?
+                WHERE task_id = ? AND frame_index = ?
+            `).bind(aiAccount.id, taskId, i).run();
+        }
+
+        // 触发GitHub Actions
+        await this.triggerBatchWorkflow(
+            taskId,
+            batchIndex,
+            startFrame,
+            endFrame,
+            githubAccount,
+            aiAccount
+        );
+    }
+
+    private async getBatchSize(): Promise<number> {
+        const config = await this.env.DB.prepare(
+            "SELECT value FROM system_config WHERE key = 'frame_batch_size'"
+        ).first();
+        return parseInt(config?.value || '10');
+    }
+}
+
+12.1.2 批处理优化
+bash
+#!/bin/bash
+# docker/scripts/img2img-batch.sh - 批量处理优化版本
+
+set -e
+
+echo "=== Phase 2: Batch Image-to-Image Generation ==="
+
+BATCH_SIZE=${BATCH_SIZE:-10}
+START_FRAME=${START_FRAME:-0}
+END_FRAME=${END_FRAME:-0}
+
+# 批量下载帧
+echo "Downloading frames $START_FRAME to $END_FRAME..."
+mkdir -p ./input_frames
+
+aws s3 cp "s3://$AWS_BUCKET_NAME/${TASK_ID}/origin_frames/" ./input_frames \
+    --endpoint-url "$AWS_ENDPOINT_URL" \
+    --recursive \
+    --exclude "*" \
+    --include "frame_${START_FRAME}-*.jpg" \
+    --include "frame_${END_FRAME}-*.jpg"
+
+# 使用串行处理（每个AI账户每次只处理一个任务）
+find ./input_frames -name "*.jpg" | sort -V | split -l $BATCH_SIZE - batch_
+
+for batch_file in batch_*; do
+    echo "Processing batch $batch_file..."
+
+    # 串行处理批次中的帧（确保每个AI账户严格串行）
+    while IFS= read -r FRAME_FILE; do
+        if [ -z "$FRAME_FILE" ]; then
+            continue
+        fi
+
+        echo "Processing frame: $FRAME_FILE"
+
+        AI_API_KEY=$(echo "$AI_API_KEYS" | jq -r ".\"$AI_ACCOUNT_ID\"")
+        RESPONSE=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $AI_API_KEY" \
+            -d "{\"prompt\":\"$PROMPT\",\"init_image\":\"$(base64 -w0 "$FRAME_FILE")\",\"strength\":0.75}" \
+            "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/image-to-image")
+        
+        echo "$RESPONSE" | jq -r ".artifacts[0].base64" | base64 -d > "./ai_frames/$(basename "$FRAME_FILE")"
+
+        # 更新帧处理状态回调
+        curl -X POST "$CALLBACK_URL" \
+            -H "X-Callback-Signature: $CALLBACK_SIGNATURE" \
+            -d "{\"taskId\":\"$TASK_ID\",\"phase\":\"IMG2IMG_BATCH\",\"frameIndex\":\"$(basename "$FRAME_FILE")\",\"status\":\"COMPLETED\"}"
+
+        # 添加冷却时间，避免触发AI平台限流
+        sleep ${COOLDOWN_SECONDS:-0.5}
+
+    done < "$batch_file"
+
+    # 批量上传结果
+    aws s3 cp ./ai_frames/ \
+        "s3://$AWS_BUCKET_NAME/${TASK_ID}/ai_frames/" \
+        --endpoint-url "$AWS_ENDPOINT_URL" \
+        --recursive \
+        --exclude "*" \
+        --include "*.jpg"
+
+    # 更新进度
+    PROCESSED=$(cat "$batch_file" | wc -l)
+    curl -X POST "$CALLBACK_URL" \
+        -H "X-Callback-Signature: $CALLBACK_SIGNATURE" \
+        -d "{\"taskId\":\"$TASK_ID\",\"phase\":\"IMG2IMG_BATCH\",\"processedCount\":$PROCESSED}"
+done
+
+echo "Batch processing completed"
+12.1.3 WebSocket实时推送
+typescript
+// src/services/WebSocketService.ts
+
+import { Server } from 'ws';
+
+export class WebSocketService {
+    private clients: Map<string, WebSocket> = new Map();
+
+    constructor(private env: Bindings) {}
+
+    // 推送任务进度更新
+    async broadcastTaskProgress(
+        taskId: string,
+        progress: number,
+        status: string,
+        details?: any
+    ): Promise<void> {
+        const message = JSON.stringify({
+            type: 'task_progress',
+            taskId,
+            progress,
+            status,
+            details,
+            timestamp: new Date().toISOString(),
+        });
+
+        // 发送给订阅该任务的所有客户端
+        this.clients.forEach((client, clientId) => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(message);
+            }
+        });
+    }
+
+    // 推送帧处理进度
+    async broadcastFrameProgress(
+        taskId: string,
+        frameIndex: number,
+        frameStatus: string
+    ): Promise<void> {
+        const message = JSON.stringify({
+            type: 'frame_progress',
+            taskId,
+            frameIndex,
+            frameStatus,
+            timestamp: new Date().toISOString(),
+        });
+
+        this.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(message);
+            }
+        });
+    }
+}
+
+// 在Worker中集成WebSocket
+// src/index.ts 添加WebSocket路由
+app.get('/ws', (c) => {
+    // 升级HTTP连接到WebSocket
+    // Cloudflare Workers支持Durable Objects实现WebSocket
+    return c.json({ message: 'WebSocket endpoint available' });
+});
+
+12.1.4 智能缓存机制
+typescript
+// src/services/CacheService.ts
+
+export class CacheService {
+    constructor(private env: Bindings) {}
+
+    // 缓存AI处理结果（相似prompt）
+    async getCachedResult(
+        prompt: string,
+        imageHash: string
+    ): Promise<string | null> {
+        // 计算prompt和image的组合hash
+        const cacheKey = await this.hashPromptImage(prompt, imageHash);
+
+        // 从KV或R2查询缓存
+        const cached = await this.env.KV.get(cacheKey);
+        return cached;
+    }
+
+    // 保存缓存结果
+    async saveCachedResult(
+        prompt: string,
+        imageHash: string,
+        resultUrl: string
+    ): Promise<void> {
+        const cacheKey = await this.hashPromptImage(prompt, imageHash);
+
+        // 缓存24小时
+        await this.env.KV.put(cacheKey, resultUrl, {
+            expirationTtl: 86400,
+        });
+    }
+
+    private async hashPromptImage(prompt: string, imageHash: string): Promise<string> {
+        // 使用SHA256生成hash
+        const encoder = new TextEncoder();
+        const data = encoder.encode(prompt + imageHash);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+}
+
+12.2 功能扩展
+WebSocket实时推送：替代轮询，实时更新任务进度
+
+视频预处理：支持视频裁剪、缩放、滤镜等
+
+批量任务：支持一次提交多个视频处理
+
+模板系统：预设prompt模板，一键应用
+
+12.3 安全增强详细设计
+12.3.1 加密存储实现
+typescript
+// src/utils/crypto.ts
+
+import { createCipheriv, createDecipheriv, randomBytes, createHmac } from 'crypto';
+
+export class CryptoService {
+    private algorithm = 'aes-256-cbc';
+    private key: Buffer;
+
+    constructor(secretKey: string) {
+        // 从环境变量获取密钥，确保32字节长度
+        this.key = Buffer.from(secretKey.padEnd(32, '0').slice(0, 32));
+    }
+
+    // 加密敏感数据
+    encrypt(text: string): string {
+        const iv = randomBytes(16);
+        const cipher = createCipheriv(this.algorithm, this.key, iv);
+
+        let encrypted = cipher.update(text, 'utf8', 'hex');
+        encrypted += cipher.final('hex');
+
+        // 返回 iv + encrypted，方便解密
+        return iv.toString('hex') + ':' + encrypted;
+    }
+
+    // 解密敏感数据
+    decrypt(encryptedData: string): string {
+        const parts = encryptedData.split(':');
+        const iv = Buffer.from(parts[0], 'hex');
+        const encrypted = parts[1];
+
+        const decipher = createDecipheriv(this.algorithm, this.key, iv);
+
+        let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+
+        return decrypted;
+    }
+
+    // 验证HMAC签名
+    verifyHMAC(data: string, signature: string, secret: string): boolean {
+        const expectedSignature = createHmac('sha256', secret)
+            .update(data)
+            .digest('hex');
+
+        return signature === expectedSignature;
+    }
+
+    // 生成HMAC签名
+    generateHMAC(data: string, secret: string): string {
+        return createHmac('sha256', secret)
+            .update(data)
+            .digest('hex');
+    }
+}
+
+// 使用示例
+const cryptoService = new CryptoService(env.ENCRYPTION_KEY);
+
+// 存储GitHub Token
+const encryptedToken = cryptoService.encrypt(githubToken);
+await db.prepare(`
+    UPDATE github_accounts
+    SET token_encrypted = ?
+    WHERE id = ?
+`).bind(encryptedToken, accountId).run();
+
+// 解密使用
+const account = await db.prepare(
+    'SELECT token_encrypted FROM github_accounts WHERE id = ?'
+).bind(accountId).first();
+
+const token = cryptoService.decrypt(account.token_encrypted);
+
+12.3.2 JWT认证实现
+typescript
+// src/middleware/auth.ts
+
+import { sign, verify } from 'jsonwebtoken';
+import { Context, Next } from 'hono';
+
+export class AuthService {
+    private jwtSecret: string;
+    private tokenExpiry = '24h';
+
+    constructor(secret: string) {
+        this.jwtSecret = secret;
+    }
+
+    // 生成JWT Token
+    generateToken(userId: string, role: string): string {
+        return sign(
+            { userId, role, timestamp: Date.now() },
+            this.jwtSecret,
+            { expiresIn: this.tokenExpiry }
+        );
+    }
+
+    // 验证JWT Token
+    verifyToken(token: string): { userId: string; role: string } | null {
+        try {
+            const decoded = verify(token, this.jwtSecret);
+            return decoded as any;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    // 认证中间件
+    authMiddleware() {
+        return async (c: Context, next: Next) => {
+            const authHeader = c.req.header('Authorization');
+
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                return c.json({ code: 401, msg: 'Unauthorized' }, 401);
+            }
+
+            const token = authHeader.slice(7);
+            const decoded = this.verifyToken(token);
+
+            if (!decoded) {
+                return c.json({ code: 401, msg: 'Invalid token' }, 401);
+            }
+
+            // 检查用户权限
+            const user = await c.env.DB.prepare(
+                'SELECT * FROM users WHERE id = ? AND is_active = TRUE'
+            ).bind(decoded.userId).first();
+
+            if (!user) {
+                return c.json({ code: 401, msg: 'User not found' }, 401);
+            }
+
+            // 将用户信息注入context
+            c.set('user', user);
+
+            await next();
+        };
+    }
+
+    // RBAC权限检查中间件
+    requireRole(requiredRole: string) {
+        return async (c: Context, next: Next) => {
+            const user = c.get('user');
+
+            if (user.role !== 'ADMIN' && user.role !== requiredRole) {
+                return c.json({ code: 403, msg: 'Forbidden' }, 403);
+            }
+
+            await next();
+        };
+    }
+}
+
+12.3.3 API请求限流
+typescript
+// src/middleware/rateLimit.ts
+
+export class RateLimiter {
+    private requests: Map<string, number[]> = new Map();
+    private windowMs: number;
+    private maxRequests: number;
+
+    constructor(windowMs: number = 60000, maxRequests: number = 100) {
+        this.windowMs = windowMs;
+        this.maxRequests = maxRequests;
+    }
+
+    // 限流中间件
+    rateLimitMiddleware() {
+        return async (c: Context, next: Next) => {
+            const identifier = this.getIdentifier(c);
+            const now = Date.now();
+
+            // 获取该标识符的请求历史
+            const requests = this.requests.get(identifier) || [];
+
+            // 过滤掉窗口外的请求
+            const validRequests = requests.filter(
+                time => now - time < this.windowMs
+            );
+
+            // 检查是否超过限制
+            if (validRequests.length >= this.maxRequests) {
+                return c.json(
+                    {
+                        code: 429,
+                        msg: 'Too many requests',
+                        retryAfter: Math.ceil(
+                            (this.windowMs - (now - validRequests[0])) / 1000
+                        ),
+                    },
+                    429
+                );
+            }
+
+            // 记录本次请求
+            validRequests.push(now);
+            this.requests.set(identifier, validRequests);
+
+            await next();
+        };
+    }
+
+    // 获取限流标识符（IP或用户ID）
+    private getIdentifier(c: Context): string {
+        // 优先使用用户ID
+        const user = c.get('user');
+        if (user) {
+            return `user:${user.id}`;
+        }
+
+        // 否则使用IP地址
+        const ip = c.req.header('CF-Connecting-IP') ||
+                   c.req.header('X-Forwarded-For') ||
+                   'unknown';
+
+        return `ip:${ip}`;
+    }
+}
+
+// 全局限流配置
+const apiLimiter = new RateLimiter(60000, 100);  // 100次/分钟
+const authLimiter = new RateLimiter(60000, 10);   // 认证接口更严格
+
+// 应用限流
+app.use('/api/*', apiLimiter.rateLimitMiddleware());
+app.use('/api/auth/*', authLimiter.rateLimitMiddleware());
+
+12.3.4 回调签名验证
+typescript
+// src/handlers/callback.ts
+
+export class CallbackHandler {
+    constructor(private env: Bindings) {}
+
+    // 验证回调签名
+    async handleCallback(c: Context): Promise<Response> {
+        const signature = c.req.header('X-Callback-Signature');
+        const body = await c.req.text();
+
+        // 验证HMAC签名
+        const cryptoService = new CryptoService(this.env.CALLBACK_SECRET);
+        const isValid = cryptoService.verifyHMAC(
+            body,
+            signature,
+            this.env.CALLBACK_SECRET
+        );
+
+        if (!isValid) {
+            return c.json({ code: 401, msg: 'Invalid signature' }, 401);
+        }
+
+        // 处理回调数据
+        const data = JSON.parse(body);
+        await this.processCallback(data);
+
+        return c.json({ code: 0, msg: 'Success' });
+    }
+
+    private async processCallback(data: any): Promise<void> {
+        const { taskId, phase, status, error } = data;
+
+        if (status === 'FAILED') {
+            const errorHandler = new ErrorHandlerService(this.env);
+            await errorHandler.handleTaskFailure(
+                taskId,
+                phase,
+                new Error(error || 'Unknown error'),
+                true
+            );
+        } else {
+            await this.env.DB.prepare(`
+                UPDATE tasks
+                SET current_phase = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `).bind(phase, taskId).run();
+        }
+    }
+}
+
+12.3.5 内容安全审核
+typescript
+// src/services/ContentModerationService.ts
+
+export class ContentModerationService {
+    constructor(private env: Bindings) {}
+
+    // 检查prompt安全性
+    async checkPromptSafety(prompt: string): Promise<{
+        isSafe: boolean;
+        reason?: string;
+    }> {
+        const blockedWords = [
+            'violence', 'nudity', 'hate', 'illegal',
+        ];
+
+        const lowerPrompt = prompt.toLowerCase();
+        for (const word of blockedWords) {
+            if (lowerPrompt.includes(word)) {
+                return { isSafe: false, reason: `Contains blocked word: ${word}` };
+            }
+        }
+
+        return { isSafe: true };
+    }
+}
+
+// 在任务创建时应用内容审核
+async createTask(params: TaskParams): Promise<{ taskId: string }> {
+    const moderationService = new ContentModerationService(this.env);
+    const promptCheck = await moderationService.checkPromptSafety(params.prompt);
+
+    if (!promptCheck.isSafe) {
+        throw new Error(`Unsafe prompt: ${promptCheck.reason}`);
+    }
+
+    // 继续创建任务...
+}
+
+12.3.6 CORS安全配置
+typescript
+// src/index.ts - CORS精细化配置
+
+app.use('*', cors({
+    origin: (origin) => {
+        const allowedOrigins = [
+            'https://your-domain.com',
+            'https://admin.your-domain.com',
+            'http://localhost:3000',
+        ];
+
+        if (allowedOrigins.includes(origin)) {
+            return origin;
+        }
+
+        return null;
+    },
+    allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
+    maxAge: 86400,
+    credentials: true,
+}));
+
+12.4 运维监控增强
+12.4.1 自动化运维脚本
+bash
+#!/bin/bash
+# scripts/auto-healing.sh - 自动修复脚本
+
+echo "=== Auto Healing Process ==="
+
+# 检查并修复失败的GitHub账户
+FAILED_ACCOUNTS=$(npx wrangler d1 execute ai-video-db --command="
+    SELECT id FROM github_accounts
+    WHERE is_limited = TRUE
+        AND last_used_at < datetime('now', '-1 hour')
+" --json)
+
+for account_id in $(echo "$FAILED_ACCOUNTS" | jq -r '.results[].id'); do
+    echo "Resetting GitHub account $account_id..."
+    npx wrangler d1 execute ai-video-db --command="
+        UPDATE github_accounts
+        SET is_limited = FALSE,
+            limit_reason = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $account_id
+    "
+done
+
+# 清理僵尸任务（超过6小时的运行任务）
+echo "Cleaning zombie tasks..."
+npx wrangler d1 execute ai-video-db --command="
+    UPDATE tasks
+    SET status = 'FAILED',
+        error_msg = 'Timeout - zombie task',
+        completed_at = CURRENT_TIMESTAMP
+    WHERE status IN ('EXTRACTING', 'IMG2IMGING', 'COMPOSING')
+        AND started_at < datetime('now', '-6 hours')
+"
+
+# 重置AI账户冷却状态
+echo "Resetting AI account cooldown..."
+npx wrangler d1 execute ai-video-db --command="
+    UPDATE ai_accounts
+    SET cooldown_until = NULL,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE cooldown_until IS NOT NULL
+        AND cooldown_until < CURRENT_TIMESTAMP
+"
+
+echo "Auto healing completed"
+
+12.4.2 定时任务（Scheduled Worker）
+typescript
+// src/scheduled.ts - Cloudflare Workers Cron Trigger
+
+export async function scheduled(event: ScheduledEvent, env: Bindings) {
+    const monitoringService = new MonitoringService(env);
+    const costService = new CostTrackingService(env);
+
+    switch (event.cron) {
+        case '*/5 * * * *':  // 每5分钟
+            await monitoringService.checkAlertRules();
+            break;
+
+        case '*/30 * * * *':  // 每30分钟
+            await monitoringService.cleanupOldMetrics(30);
+            break;
+
+        case '0 * * * *':  // 每小时
+            const budget = await costService.checkBudget();
+            if (!budget.withinBudget) {
+                await monitoringService.recordMetric('budget_exceeded', 1);
+            }
+            break;
+
+        case '0 0 * * *':  // 每天0点
+            await resetDailyUsage(env);
+            break;
+    }
+}
+
+async function resetDailyUsage(env: Bindings) {
+    await env.DB.prepare(`
+        UPDATE ai_accounts
+        SET daily_usage = 0,
+            updated_at = CURRENT_TIMESTAMP
+    `).run();
+
+    const today = new Date();
+    if (today.getDate() === 1) {
+        await env.DB.prepare(`
+            UPDATE github_accounts
+            SET monthly_used_minutes = 0,
+                last_reset_date = CURRENT_DATE,
+                updated_at = CURRENT_TIMESTAMP
+        `).run();
+    }
+}
+
+// wrangler.toml 配置Cron Trigger
+[triggers]
+crons = ["*/5 * * * *", "*/30 * * * *", "0 * * * *", "0 0 * * *"]
+
+十三、项目时间线
+阶段	任务	预计时间
+Phase 1	数据库设计与搭建	2天
+Phase 2	Worker核心API开发	3天
+Phase 3	Docker镜像与脚本	2天
+Phase 4	GitHub Actions配置	2天
+Phase 5	前端管理界面	5天
+Phase 6	集成测试与调试	3天
+Phase 7	部署与文档	2天
+Total		19天
+十四、故障排查指南
+14.1 常见问题
+问题	可能原因	解决方案
+Worker启动失败	环境变量缺失	检查.env文件配置
+任务卡在PENDING	GitHub Token过期	更新GitHub Token
+AI调用失败	API Key无效或额度用完	更换AI账户
+视频合成失败	ffmpeg参数错误	检查输出帧率设置
+R2上传失败	权限不足	检查R2凭证
+14.2 日志查看
+bash
+# Worker日志
+npx wrangler tail --env production
+
+# GitHub Actions日志
+# 在GitHub仓库的Actions页面查看
+
+# D1日志
+npx wrangler d1 execute ai-video-db --command="SELECT * FROM operation_logs ORDER BY created_at DESC LIMIT 10"
+十五、总结
+本项目提供了一个完整的、生产级的AI视频处理系统方案，核心优势：
+
+零服务器成本：完全基于Cloudflare免费套餐和GitHub Actions
+
+无限扩展：多账户池设计，突破单账户限制
+
+可视化运营：完整的Web管理界面
+
+企业级特性：任务管理、监控告警、日志审计
+
+开箱即用：详细的部署脚本和文档

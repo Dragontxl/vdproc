@@ -1,0 +1,30 @@
+{
+  "name": "ai-video-backend",
+  "version": "1.0.0",
+  "description": "Cloudflare Workers backend for AI video processing",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy",
+    "init-db": "wrangler d1 execute ai-video-db --file=./src/database/schema.sql",
+    "test": "npm run lint && npm run typecheck",
+    "lint": "eslint src/**/*.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.5.0",
+    "jose": "^5.4.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240529.0",
+    "@types/uuid": "^9.0.8",
+    "@typescript-eslint/eslint-plugin": "^7.10.0",
+    "@typescript-eslint/parser": "^7.10.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.5",
+    "wrangler": "^4.105.0"
+  },
+  "author": "",
+  "license": "MIT"
+}
