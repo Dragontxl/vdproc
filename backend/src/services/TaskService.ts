@@ -166,7 +166,15 @@ export class TaskService {
       WHERE id = ?
     `).bind('EXTRACTING', taskId).run();
 
-    await this.triggerPhase(taskId, 'EXTRACT');
+    try {
+      await this.triggerPhase(taskId, 'EXTRACT');
+    } catch (error) {
+      await this.env.DB.prepare(`
+        UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind('PENDING', taskId).run();
+      throw error;
+    }
 
     return await this.getTask(taskId);
   }
@@ -246,11 +254,22 @@ export class TaskService {
       throw new Error('GitHub repository not configured');
     }
 
-    const apiKeyResult = await this.env.DB.prepare(`
-      SELECT api_key FROM github_accounts WHERE id = ?
+    const accountResult = await this.env.DB.prepare(`
+      SELECT token_encrypted FROM github_accounts WHERE id = ?
     `).bind(ghAccountId).first();
 
-    const ghApiKey = apiKeyResult ? (apiKeyResult as { api_key: string }).api_key : undefined;
+    if (!accountResult) {
+      throw new Error('GitHub account not found');
+    }
+
+    const tokenEncrypted = (accountResult as { token_encrypted: string }).token_encrypted;
+    
+    if (!tokenEncrypted) {
+      throw new Error('GitHub account token is empty');
+    }
+
+    const cryptoService = await import('./CryptoService');
+    const ghApiKey = await new cryptoService.CryptoService(this.env).decrypt(tokenEncrypted);
 
     const payload = {
       event_type: `video-processing-${phase.toLowerCase()}`,

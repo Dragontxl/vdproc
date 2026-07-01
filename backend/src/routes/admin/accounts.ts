@@ -15,6 +15,12 @@ accountRoutes.post('/github', async (c) => {
   const service = new AccountService(c.env as Bindings);
   const body = await c.req.json();
   
+  if (body.token_encrypted) {
+    const CryptoService = (await import('../../services/CryptoService')).CryptoService;
+    const cryptoService = new CryptoService(c.env as Bindings);
+    body.token_encrypted = await cryptoService.encrypt(body.token_encrypted);
+  }
+  
   const account = await service.createGitHubAccount(body);
   
   return c.json({ code: 201, data: account, msg: 'Account created successfully' }, 201);
@@ -23,6 +29,12 @@ accountRoutes.post('/github', async (c) => {
 accountRoutes.put('/github/:id', async (c) => {
   const service = new AccountService(c.env as Bindings);
   const body = await c.req.json();
+  
+  if (body.token_encrypted) {
+    const CryptoService = (await import('../../services/CryptoService')).CryptoService;
+    const cryptoService = new CryptoService(c.env as Bindings);
+    body.token_encrypted = await cryptoService.encrypt(body.token_encrypted);
+  }
   
   const updated = await service.updateGitHubAccount(parseInt(c.req.param('id')), body);
   
@@ -55,6 +67,12 @@ accountRoutes.post('/ai', async (c) => {
   const service = new AccountService(c.env as Bindings);
   const body = await c.req.json();
   
+  if (body.api_key_encrypted) {
+    const CryptoService = (await import('../../services/CryptoService')).CryptoService;
+    const cryptoService = new CryptoService(c.env as Bindings);
+    body.api_key_encrypted = await cryptoService.encrypt(body.api_key_encrypted);
+  }
+  
   const account = await service.createAIAccount(body);
   
   return c.json({ code: 201, data: account, msg: 'Account created successfully' }, 201);
@@ -63,6 +81,12 @@ accountRoutes.post('/ai', async (c) => {
 accountRoutes.put('/ai/:id', async (c) => {
   const service = new AccountService(c.env as Bindings);
   const body = await c.req.json();
+  
+  if (body.api_key_encrypted) {
+    const CryptoService = (await import('../../services/CryptoService')).CryptoService;
+    const cryptoService = new CryptoService(c.env as Bindings);
+    body.api_key_encrypted = await cryptoService.encrypt(body.api_key_encrypted);
+  }
   
   const updated = await service.updateAIAccount(parseInt(c.req.param('id')), body);
   
