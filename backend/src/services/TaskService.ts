@@ -154,6 +154,13 @@ export class TaskService {
       throw new Error(`Task is not in PENDING state: ${task.status}`);
     }
 
+    const accountService = await import('./AccountService');
+    const ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
+    
+    if (!ghAccount) {
+      throw new Error('No available GitHub account');
+    }
+
     await this.env.DB.prepare(`
       UPDATE tasks SET status = ?, started_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?

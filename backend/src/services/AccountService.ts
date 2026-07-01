@@ -219,16 +219,10 @@ export class AccountService {
 
   async selectAvailableGitHubAccount(): Promise<GitHubAccount | null> {
     const accounts = await this.env.DB.prepare(`
-      SELECT ga.*,
-             (SELECT COUNT(*) FROM task_queue tq 
-              WHERE tq.github_account_id = ga.id AND tq.status = 'PROCESSING') as active_tasks
+      SELECT ga.*
       FROM github_accounts ga
       WHERE is_active = TRUE 
         AND (is_limited IS NULL OR is_limited = FALSE)
-        AND (last_reset_date IS NULL OR last_reset_date = CURRENT_DATE)
-        AND monthly_used_minutes < monthly_limit
-        AND (SELECT COUNT(*) FROM task_queue tq 
-             WHERE tq.github_account_id = ga.id AND tq.status = 'PROCESSING') < 2
       ORDER BY monthly_used_minutes ASC, success_rate DESC
     `).all();
 
