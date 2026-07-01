@@ -9,7 +9,7 @@ import {
   LogoutOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 
 const { Header, Sider, Content } = AntLayout;
 
@@ -97,7 +97,7 @@ export default function Layout({ children }: LayoutProps) {
           </Button>
         </Header>
         <Content style={{ padding: '24px', margin: '24px', background: '#141414', borderRadius: '8px' }}>
-          {children}
+          <Outlet />
         </Content>
       </AntLayout>
     </AntLayout>
