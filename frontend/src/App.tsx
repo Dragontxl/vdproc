@@ -26,17 +26,17 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/*" element={
+          <Route path="/" element={
             <ProtectedRoute>
               <Layout />
             </ProtectedRoute>
           }>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/tasks" element={<Tasks />} />
-            <Route path="/tasks/:id" element={<TaskDetail />} />
-            <Route path="/accounts" element={<Accounts />} />
-            <Route path="/config" element={<Config />} />
-            <Route path="/metrics" element={<Metrics />} />
+            <Route index element={<Dashboard />} />
+            <Route path="tasks" element={<Tasks />} />
+            <Route path="tasks/:id" element={<TaskDetail />} />
+            <Route path="accounts" element={<Accounts />} />
+            <Route path="config" element={<Config />} />
+            <Route path="metrics" element={<Metrics />} />
           </Route>
         </Routes>
       </BrowserRouter>
