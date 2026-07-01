@@ -27,19 +27,21 @@ export default function Dashboard() {
 
   const loadStats = async () => {
     try {
-      const [pending, processing, completed, failed] = await Promise.all([
-        taskApi.list({ status: 'PENDING', limit: 1 }),
-        taskApi.list({ status: 'EXTRACTING', limit: 1 }),
-        taskApi.list({ status: 'COMPLETED', limit: 1 }),
-        taskApi.list({ status: 'FAILED', limit: 1 }),
+      const [pending, extracting, img2imging, composing, completed, failed] = await Promise.all([
+        taskApi.list({ status: 'PENDING', limit: 100 }),
+        taskApi.list({ status: 'EXTRACTING', limit: 100 }),
+        taskApi.list({ status: 'IMG2IMGING', limit: 100 }),
+        taskApi.list({ status: 'COMPOSING', limit: 100 }),
+        taskApi.list({ status: 'COMPLETED', limit: 100 }),
+        taskApi.list({ status: 'FAILED', limit: 100 }),
       ]);
 
       setStats({
-        total: pending.data.length + processing.data.length + completed.data.length + failed.data.length,
-        pending: pending.data.length,
-        processing: processing.data.length,
-        completed: completed.data.length,
-        failed: failed.data.length,
+        total: (pending.data?.length || 0) + (extracting.data?.length || 0) + (img2imging.data?.length || 0) + (composing.data?.length || 0) + (completed.data?.length || 0) + (failed.data?.length || 0),
+        pending: pending.data?.length || 0,
+        processing: (extracting.data?.length || 0) + (img2imging.data?.length || 0) + (composing.data?.length || 0),
+        completed: completed.data?.length || 0,
+        failed: failed.data?.length || 0,
       });
     } catch (error) {
       console.error('Failed to load stats:', error);
@@ -49,7 +51,7 @@ export default function Dashboard() {
   const loadRecentTasks = async () => {
     try {
       const result = await taskApi.list({ page: 1, limit: 5 });
-      setRecentTasks(result.data);
+      setRecentTasks(result.data || []);
     } catch (error) {
       console.error('Failed to load recent tasks:', error);
     }
@@ -98,11 +100,12 @@ export default function Dashboard() {
     },
     {
       title: '进度',
-      dataIndex: ['processed_frames', 'total_frames'],
       key: 'progress',
-      render: ([processed, total]: [number, number]) => (
-        <Progress percent={total > 0 ? Math.round((processed / total) * 100) : 0} size="small" />
-      ),
+      render: (_: any, record: any) => {
+        const processed = record.processed_frames || 0;
+        const total = record.total_frames || 0;
+        return <Progress percent={total > 0 ? Math.round((processed / total) * 100) : 0} size="small" />;
+      },
     },
     {
       title: '创建时间',
