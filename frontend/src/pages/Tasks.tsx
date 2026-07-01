@@ -28,7 +28,7 @@ export default function Tasks() {
     setLoading(true);
     try {
       const result = await taskApi.list({ status: statusFilter || undefined, page: 1, limit: 100 });
-      setTasks(result.data);
+      setTasks(result.data || []);
     } catch (error) {
       message.error('加载任务失败');
     } finally {
@@ -136,25 +136,24 @@ export default function Tasks() {
     },
     {
       title: '帧率',
-      dataIndex: ['fps', 'output_fps'],
       key: 'fps',
-      render: ([fps, outputFps]: [number, number]) => `${fps} -> ${outputFps}`,
+      render: (_: any, record: any) => `${record.fps || 0} -> ${record.output_fps || 0}`,
       width: 100,
     },
     {
       title: '进度',
-      dataIndex: ['processed_frames', 'total_frames'],
       key: 'progress',
-      render: ([processed, total]: [number, number]) => {
+      render: (_: any, record: any) => {
+        const processed = record.processed_frames || 0;
+        const total = record.total_frames || 0;
         if (total === 0) return 'N/A';
         return `${processed}/${total} (${Math.round((processed / total) * 100)}%)`;
       },
     },
     {
       title: '重试次数',
-      dataIndex: ['retry_count', 'max_retries'],
       key: 'retry',
-      render: ([current, max]: [number, number]) => `${current}/${max}`,
+      render: (_: any, record: any) => `${record.retry_count || 0}/${record.max_retries || 0}`,
       width: 80,
     },
     {

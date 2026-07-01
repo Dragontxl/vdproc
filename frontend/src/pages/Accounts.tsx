@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, Table, Tag, Button, Modal, Form, Input, InputNumber, Switch, Space, message, Tabs } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, HeartOutlined } from '@ant-design/icons';
 import { accountApi } from '../api';
@@ -23,8 +23,8 @@ export default function Accounts() {
         accountApi.listGitHub(),
         accountApi.listAI(),
       ]);
-      setGithubAccounts(ghResult.data);
-      setAiAccounts(aiResult.data);
+      setGithubAccounts(ghResult.data || []);
+      setAiAccounts(aiResult.data || []);
     } catch (error) {
       message.error('加载账户失败');
     } finally {
@@ -32,9 +32,9 @@ export default function Accounts() {
     }
   };
 
-  useState(() => {
+  useEffect(() => {
     loadAccounts();
-  });
+  }, []);
 
   const handleAdd = () => {
     setEditMode(false);
@@ -115,9 +115,8 @@ export default function Accounts() {
     },
     {
       title: '月使用/限制',
-      dataIndex: ['monthly_used_minutes', 'monthly_limit'],
       key: 'usage',
-      render: ([used, limit]: [number, number]) => `${used}/${limit} 分钟`,
+      render: (_: any, record: any) => `${record.monthly_used_minutes || 0}/${record.monthly_limit || 0} 分钟`,
     },
     {
       title: '状态',
@@ -168,9 +167,8 @@ export default function Accounts() {
     },
     {
       title: '日使用/限制',
-      dataIndex: ['daily_usage', 'daily_limit'],
       key: 'usage',
-      render: ([used, limit]: [number, number]) => `${used}/${limit} 次`,
+      render: (_: any, record: any) => `${record.daily_usage || 0}/${record.daily_limit || 0} 次`,
     },
     {
       title: '优先级',
