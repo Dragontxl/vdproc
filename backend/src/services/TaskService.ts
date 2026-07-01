@@ -252,6 +252,10 @@ export class TaskService {
         phase: phase,
         gh_account_id: ghAccountId,
         ai_account_id: aiAccountId,
+        video_path: task.video_path,
+        fps: task.fps,
+        prompt: task.prompt,
+        output_fps: task.output_fps,
       },
     };
 
