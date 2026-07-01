@@ -17,7 +17,9 @@ app.use('*', cors({
   origin: (origin) => {
     const allowedOrigins = [
       'http://localhost:3000',
-      'https://your-domain.com',
+      'https://ai-video.ldragon.xyz',
+      'https://b4272ef7.ai-video-frontend-c9p.pages.dev',
+      'https://main.ai-video-frontend-c9p.pages.dev',
     ];
     if (allowedOrigins.includes(origin)) {
       return origin;

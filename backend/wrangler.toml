@@ -13,8 +13,8 @@ CALLBACK_SECRET = "callback-secret-1234567890"
 ENCRYPTION_KEY = "encryption-key-32-bytes-minimum"
 JWT_SECRET = "jwt-secret-key-1234567890"
 ENVIRONMENT = "production"
-GITHUB_REPO_OWNER = ""
-GITHUB_REPO_NAME = ""
+GITHUB_REPO_OWNER = "Dragontxl"
+GITHUB_REPO_NAME = "ai-video-process"
 
 [[d1_databases]]
 binding = "DB"

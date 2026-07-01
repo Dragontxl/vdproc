@@ -15,7 +15,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'https://ai-video-worker.tangsong-001.workers.dev',
+        target: 'https://ai-video.ldragon.xyz',
         changeOrigin: true,
         secure: true,
       },
