@@ -47,8 +47,8 @@ app.get('/health', (c) => {
 app.route('/api/v1/tasks', taskRoutes);
 app.route('/api/v1/callback', callbackRoutes);
 app.route('/api/v1/auth', authRoutes);
-app.use('/api/admin/*', authMiddleware);
-app.route('/api/admin', adminRoutes);
+app.use('/api/v1/admin/*', authMiddleware);
+app.route('/api/v1/admin', adminRoutes);
 
 app.notFound((c) => {
   return c.json({ code: 404, msg: 'Not Found' }, 404);
