@@ -236,7 +236,7 @@ export class TaskService {
       await this.env.DB.prepare(`
         UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).bind(phase, statusMap[phase], ghAccount?.id, taskId).run();
+      `).bind(phase, statusMap[phase], ghAccount ? ghAccount.id : null, taskId).run();
     } else if (phase === 'IMG2IMG') {
       aiAccount = await new accountService.AccountService(this.env).selectAIAccount();
       ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
@@ -244,14 +244,14 @@ export class TaskService {
       await this.env.DB.prepare(`
         UPDATE tasks SET current_phase = ?, status = ?, ai_account_id = ?, github_account_id = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).bind(phase, statusMap[phase], aiAccount?.id, ghAccount?.id, taskId).run();
+      `).bind(phase, statusMap[phase], aiAccount ? aiAccount.id : null, ghAccount ? ghAccount.id : null, taskId).run();
     } else if (phase === 'COMPOSE') {
       ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
       console.log('triggerPhase: COMPOSE - ghAccount:', ghAccount?.id);
       await this.env.DB.prepare(`
         UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).bind(phase, statusMap[phase], ghAccount?.id, taskId).run();
+      `).bind(phase, statusMap[phase], ghAccount ? ghAccount.id : null, taskId).run();
     }
 
     if (!ghAccount) {
