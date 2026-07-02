@@ -262,14 +262,11 @@ export class TaskService {
       throw new Error('GitHub account not found');
     }
 
-    const tokenEncrypted = (accountResult as { token_encrypted: string }).token_encrypted;
+    const ghApiKey = (accountResult as { token_encrypted: string }).token_encrypted;
     
-    if (!tokenEncrypted) {
+    if (!ghApiKey) {
       throw new Error('GitHub account token is empty');
     }
-
-    const cryptoService = await import('./CryptoService');
-    const ghApiKey = await new cryptoService.CryptoService(this.env).decrypt(tokenEncrypted);
 
     const payload = {
       event_type: `video-processing-${phase.toLowerCase()}`,
