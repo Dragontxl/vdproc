@@ -223,21 +223,28 @@ export class TaskService {
       'COMPOSE': 'COMPOSING',
     };
 
-    await this.env.DB.prepare(`
-      UPDATE tasks SET current_phase = ?, status = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).bind(phase, statusMap[phase], taskId).run();
-
     const accountService = await import('./AccountService');
-    let ghAccount = null;
-    let aiAccount = null;
+    let ghAccount: any = null;
+    let aiAccount: any = null;
 
     if (phase === 'EXTRACT') {
       ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
+      await this.env.DB.prepare(`
+        UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind(phase, statusMap[phase], ghAccount?.id, taskId).run();
     } else if (phase === 'IMG2IMG') {
       aiAccount = await new accountService.AccountService(this.env).selectAIAccount();
+      await this.env.DB.prepare(`
+        UPDATE tasks SET current_phase = ?, status = ?, ai_account_id = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind(phase, statusMap[phase], aiAccount?.id, taskId).run();
     } else if (phase === 'COMPOSE') {
       ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
+      await this.env.DB.prepare(`
+        UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind(phase, statusMap[phase], ghAccount?.id, taskId).run();
     }
 
     if (!ghAccount && phase !== 'IMG2IMG') {
@@ -260,18 +267,21 @@ export class TaskService {
       throw new Error('GitHub repository not configured');
     }
 
-    const accountResult = await this.env.DB.prepare(`
-      SELECT token_encrypted FROM github_accounts WHERE id = ?
-    `).bind(ghAccountId).first();
+    let ghApiKey = '';
+    if (ghAccountId) {
+      const accountResult = await this.env.DB.prepare(`
+        SELECT token_encrypted FROM github_accounts WHERE id = ?
+      `).bind(ghAccountId).first();
 
-    if (!accountResult) {
-      throw new Error('GitHub account not found');
-    }
+      if (!accountResult) {
+        throw new Error('GitHub account not found');
+      }
 
-    const ghApiKey = (accountResult as { token_encrypted: string }).token_encrypted;
-    
-    if (!ghApiKey) {
-      throw new Error('GitHub account token is empty');
+      ghApiKey = (accountResult as { token_encrypted: string }).token_encrypted;
+      
+      if (!ghApiKey) {
+        throw new Error('GitHub account token is empty');
+      }
     }
 
     const task = await this.getTask(taskId);
@@ -332,12 +342,12 @@ export class TaskService {
   }
 
   async updateTaskProgress(body: any) {
-    const { task_id: taskId, processed_count: processedCount } = body;
+    const { task_id: taskId, processed_count: processedCount, total_count: totalCount } = body;
     
     await this.env.DB.prepare(`
-      UPDATE tasks SET processed_frames = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE tasks SET processed_frames = ?, total_frames = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).bind(processedCount, taskId).run();
+    `).bind(processedCount, totalCount, taskId).run();
 
     return { success: true };
   }
