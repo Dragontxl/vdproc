@@ -217,10 +217,16 @@ export class TaskService {
       throw new Error('Task not found');
     }
 
+    const statusMap: Record<string, TaskStatus> = {
+      'EXTRACT': 'EXTRACTING',
+      'IMG2IMG': 'IMG2IMGING',
+      'COMPOSE': 'COMPOSING',
+    };
+
     await this.env.DB.prepare(`
-      UPDATE tasks SET current_phase = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE tasks SET current_phase = ?, status = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).bind(phase, taskId).run();
+    `).bind(phase, statusMap[phase], taskId).run();
 
     const accountService = await import('./AccountService');
     let ghAccount = null;

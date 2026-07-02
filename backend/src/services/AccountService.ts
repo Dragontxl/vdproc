@@ -238,9 +238,7 @@ export class AccountService {
       SELECT aa.*
       FROM ai_accounts aa
       WHERE is_active = TRUE 
-        AND is_healthy = TRUE
         AND (cooldown_until IS NULL OR cooldown_until < CURRENT_TIMESTAMP)
-        AND daily_usage < daily_limit
       ORDER BY priority_weight DESC, total_usage ASC
     `).all();
 
