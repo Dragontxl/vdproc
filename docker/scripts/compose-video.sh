@@ -57,10 +57,35 @@ FINAL_URL="$R2_ENDPOINT_URL/${TASK_ID}/output/video.mp4"
 echo "Final video URL: $FINAL_URL"
 
 echo "Notifying completion..."
-curl -s -X POST "$CALLBACK_URL/complete" \
-    -H "Content-Type: application/json" \
-    -H "X-Callback-Signature: $CALLBACK_SECRET" \
-    -d "{\"task_id\":\"$TASK_ID\",\"final_video_url\":\"$FINAL_URL\",\"total_frames\":$FRAME_COUNT}"
+MAX_RETRIES=3
+RETRY_DELAY=5
+SUCCESS=0
+
+for attempt in $(seq 1 $MAX_RETRIES); do
+    echo "Attempt $attempt/$MAX_RETRIES to notify completion..."
+    RESP=$(curl -s -w "\n%{http_code}" -X POST "$CALLBACK_URL/complete" \
+        -H "Content-Type: application/json" \
+        -H "X-Callback-Signature: $CALLBACK_SECRET" \
+        -d "{\"task_id\":\"$TASK_ID\",\"final_video_url\":\"$FINAL_URL\",\"total_frames\":$FRAME_COUNT}")
+    
+    HTTP_CODE=$(echo "$RESP" | tail -n1)
+    echo "Completion callback code: $HTTP_CODE"
+    
+    if [ "$HTTP_CODE" -eq 200 ]; then
+        SUCCESS=1
+        break
+    fi
+    
+    if [ "$attempt" -lt "$MAX_RETRIES" ]; then
+        echo "Completion notification failed, retrying in $RETRY_DELAY seconds..."
+        sleep $RETRY_DELAY
+    fi
+done
+
+if [ $SUCCESS -ne 1 ]; then
+    echo "ERROR: Failed to notify completion after $MAX_RETRIES attempts"
+    exit 1
+fi
 
 echo "Phase 3 completed successfully"
 

@@ -43,10 +43,38 @@ aws s3 cp ./origin_frames/ \
     --content-type image/jpeg
 
 echo "Updating progress..."
-curl -s -X POST "$CALLBACK_URL/progress" \
-    -H "Content-Type: application/json" \
-    -H "X-Callback-Signature: $CALLBACK_SECRET" \
-    -d "{\"task_id\":\"$TASK_ID\",\"phase\":\"EXTRACT\",\"processed_count\":$FRAME_COUNT,\"total_count\":$FRAME_COUNT}"
+MAX_RETRIES=3
+RETRY_DELAY=5
+SUCCESS=0
+
+for attempt in $(seq 1 $MAX_RETRIES); do
+    echo "Attempt $attempt/$MAX_RETRIES to update progress..."
+    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$CALLBACK_URL/progress" \
+        -H "Content-Type: application/json" \
+        -H "X-Callback-Signature: $CALLBACK_SECRET" \
+        -d "{\"task_id\":\"$TASK_ID\",\"phase\":\"EXTRACT\",\"processed_count\":$FRAME_COUNT,\"total_count\":$FRAME_COUNT}")
+    
+    HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+    BODY=$(echo "$RESPONSE" | head -n -1)
+    
+    echo "Progress callback response code: $HTTP_CODE"
+    echo "Progress callback response body: $BODY"
+    
+    if [ "$HTTP_CODE" -eq 200 ]; then
+        SUCCESS=1
+        break
+    fi
+    
+    if [ "$attempt" -lt "$MAX_RETRIES" ]; then
+        echo "Progress update failed, retrying in $RETRY_DELAY seconds..."
+        sleep $RETRY_DELAY
+    fi
+done
+
+if [ $SUCCESS -ne 1 ]; then
+    echo "ERROR: Failed to update progress after $MAX_RETRIES attempts"
+    exit 1
+fi
 
 echo "Phase 1 completed: $FRAME_COUNT frames extracted"
 

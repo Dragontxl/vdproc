@@ -147,15 +147,42 @@ jobs:
           CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
           PHASE: ${{ inputs.phase || github.event.client_payload.phase }}
         run: |
-          RESPONSE=$(curl -s -X POST \
-            "$CALLBACK_URL/github" \
-            -H "Content-Type: application/json" \
-            -H "X-Callback-Signature: $CALLBACK_SECRET" \
-            -d "{
-              \"task_id\": \"$TASK_ID\",
-              \"status\": \"$STATUS\",
-              \"run_id\": \"$RUN_ID\",
-              \"run_number\": \"$RUN_NUMBER\",
-              \"phase\": \"$PHASE\"
-            }")
-          echo "Callback response: $RESPONSE"
+          MAX_RETRIES=3
+          RETRY_DELAY=5
+          SUCCESS=0
+          
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $attempt/$MAX_RETRIES to notify completion..."
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+              "$CALLBACK_URL/github" \
+              -H "Content-Type: application/json" \
+              -H "X-Callback-Signature: $CALLBACK_SECRET" \
+              -d "{
+                \"task_id\": \"$TASK_ID\",
+                \"status\": \"$STATUS\",
+                \"run_id\": \"$RUN_ID\",
+                \"run_number\": \"$RUN_NUMBER\",
+                \"phase\": \"$PHASE\"
+              }")
+            
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            BODY=$(echo "$RESPONSE" | head -n -1)
+            
+            echo "Completion callback response code: $HTTP_CODE"
+            echo "Completion callback response body: $BODY"
+            
+            if [ "$HTTP_CODE" -eq 200 ]; then
+              SUCCESS=1
+              break
+            fi
+            
+            if [ "$attempt" -lt "$MAX_RETRIES" ]; then
+              echo "Completion notification failed, retrying in $RETRY_DELAY seconds..."
+              sleep $RETRY_DELAY
+            fi
+          done
+          
+          if [ $SUCCESS -ne 1 ]; then
+            echo "ERROR: Failed to notify completion after $MAX_RETRIES attempts"
+            exit 1
+          fi

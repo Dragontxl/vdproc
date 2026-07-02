@@ -101,20 +101,49 @@ while IFS= read -r FRAME_FILE; do
     sleep ${COOLDOWN_SECONDS:-1}
     
     if [ $((PROCESSED % 10)) -eq 0 ]; then
-        curl -s -X POST "$CALLBACK_URL/progress" \
+        echo "Updating progress: $PROCESSED/$FRAME_COUNT..."
+        RESP=$(curl -s -w "\n%{http_code}" -X POST "$CALLBACK_URL/progress" \
             -H "Content-Type: application/json" \
             -H "X-Callback-Signature: $CALLBACK_SECRET" \
-            -d "{\"task_id\":\"$TASK_ID\",\"phase\":\"IMG2IMG\",\"processed_count\":$PROCESSED,\"total_count\":$FRAME_COUNT}"
+            -d "{\"task_id\":\"$TASK_ID\",\"phase\":\"IMG2IMG\",\"processed_count\":$PROCESSED,\"total_count\":$FRAME_COUNT}")
+        HTTP_CODE=$(echo "$RESP" | tail -n1)
+        echo "Progress callback code: $HTTP_CODE"
     fi
     
 done < /tmp/frames_list.txt
 
 echo "Phase 2 completed: $PROCESSED processed, $FAILED failed"
 
-curl -s -X POST "$CALLBACK_URL/progress" \
-    -H "Content-Type: application/json" \
-    -H "X-Callback-Signature: $CALLBACK_SECRET" \
-    -d "{\"task_id\":\"$TASK_ID\",\"phase\":\"IMG2IMG\",\"processed_count\":$PROCESSED,\"total_count\":$FRAME_COUNT,\"failed_count\":$FAILED}"
+echo "Updating final progress..."
+MAX_RETRIES=3
+RETRY_DELAY=5
+SUCCESS=0
+
+for attempt in $(seq 1 $MAX_RETRIES); do
+    echo "Attempt $attempt/$MAX_RETRIES to update progress..."
+    RESP=$(curl -s -w "\n%{http_code}" -X POST "$CALLBACK_URL/progress" \
+        -H "Content-Type: application/json" \
+        -H "X-Callback-Signature: $CALLBACK_SECRET" \
+        -d "{\"task_id\":\"$TASK_ID\",\"phase\":\"IMG2IMG\",\"processed_count\":$PROCESSED,\"total_count\":$FRAME_COUNT,\"failed_count\":$FAILED}")
+    
+    HTTP_CODE=$(echo "$RESP" | tail -n1)
+    echo "Progress callback code: $HTTP_CODE"
+    
+    if [ "$HTTP_CODE" -eq 200 ]; then
+        SUCCESS=1
+        break
+    fi
+    
+    if [ "$attempt" -lt "$MAX_RETRIES" ]; then
+        echo "Progress update failed, retrying in $RETRY_DELAY seconds..."
+        sleep $RETRY_DELAY
+    fi
+done
+
+if [ $SUCCESS -ne 1 ]; then
+    echo "ERROR: Failed to update progress after $MAX_RETRIES attempts"
+    exit 1
+fi
 
 cat > /tmp/result.json <<EOF
 {
