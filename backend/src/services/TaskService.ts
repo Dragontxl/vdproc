@@ -212,8 +212,11 @@ export class TaskService {
   }
 
   async triggerPhase(taskId: string, phase: 'EXTRACT' | 'IMG2IMG' | 'COMPOSE') {
+    console.log('triggerPhase called:', { taskId, phase });
+    
     const task = await this.getTask(taskId);
     if (!task) {
+      console.error('triggerPhase: Task not found, taskId:', taskId);
       throw new Error('Task not found');
     }
 
@@ -229,63 +232,84 @@ export class TaskService {
 
     if (phase === 'EXTRACT') {
       ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
+      console.log('triggerPhase: EXTRACT - ghAccount:', ghAccount?.id);
       await this.env.DB.prepare(`
         UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).bind(phase, statusMap[phase], ghAccount?.id, taskId).run();
     } else if (phase === 'IMG2IMG') {
       aiAccount = await new accountService.AccountService(this.env).selectAIAccount();
+      ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
+      console.log('triggerPhase: IMG2IMG - aiAccount:', aiAccount?.id, 'ghAccount:', ghAccount?.id);
       await this.env.DB.prepare(`
-        UPDATE tasks SET current_phase = ?, status = ?, ai_account_id = ?, updated_at = CURRENT_TIMESTAMP
+        UPDATE tasks SET current_phase = ?, status = ?, ai_account_id = ?, github_account_id = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).bind(phase, statusMap[phase], aiAccount?.id, taskId).run();
+      `).bind(phase, statusMap[phase], aiAccount?.id, ghAccount?.id, taskId).run();
     } else if (phase === 'COMPOSE') {
       ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
+      console.log('triggerPhase: COMPOSE - ghAccount:', ghAccount?.id);
       await this.env.DB.prepare(`
         UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).bind(phase, statusMap[phase], ghAccount?.id, taskId).run();
     }
 
-    if (!ghAccount && phase !== 'IMG2IMG') {
+    if (!ghAccount) {
+      console.error('triggerPhase: No available GitHub account');
       throw new Error('No available GitHub account');
     }
     if (!aiAccount && phase === 'IMG2IMG') {
+      console.error('triggerPhase: No available AI account for IMG2IMG');
       throw new Error('No available AI account');
     }
 
     await this.dispatchGitHubWorkflow(taskId, phase, ghAccount?.id, aiAccount?.id);
 
     await this.logTask(taskId, phase, 'INFO', `Phase ${phase} triggered`);
+    console.log('triggerPhase completed successfully:', { taskId, phase });
   }
 
   async dispatchGitHubWorkflow(taskId: string, phase: 'EXTRACT' | 'IMG2IMG' | 'COMPOSE', ghAccountId?: number, aiAccountId?: number) {
+    console.log('dispatchGitHubWorkflow called:', { taskId, phase, ghAccountId, aiAccountId });
+    
     const owner = this.env.GITHUB_REPO_OWNER;
     const repo = this.env.GITHUB_REPO_NAME;
     
+    console.log('dispatchGitHubWorkflow: GitHub config:', { owner, repo });
+    
     if (!owner || !repo) {
+      console.error('dispatchGitHubWorkflow: GitHub repository not configured');
       throw new Error('GitHub repository not configured');
     }
 
     let ghApiKey = '';
     if (ghAccountId) {
+      console.log('dispatchGitHubWorkflow: Fetching GitHub account, id:', ghAccountId);
       const accountResult = await this.env.DB.prepare(`
         SELECT token_encrypted FROM github_accounts WHERE id = ?
       `).bind(ghAccountId).first();
 
       if (!accountResult) {
+        console.error('dispatchGitHubWorkflow: GitHub account not found, id:', ghAccountId);
         throw new Error('GitHub account not found');
       }
 
       ghApiKey = (accountResult as { token_encrypted: string }).token_encrypted;
       
+      console.log('dispatchGitHubWorkflow: ghApiKey length:', ghApiKey.length);
+      
       if (!ghApiKey) {
+        console.error('dispatchGitHubWorkflow: GitHub account token is empty');
         throw new Error('GitHub account token is empty');
       }
+    } else {
+      console.error('dispatchGitHubWorkflow: ghAccountId is undefined');
+      throw new Error('GitHub account ID is undefined');
     }
 
     const task = await this.getTask(taskId);
     if (!task) {
+      console.error('dispatchGitHubWorkflow: Task not found, taskId:', taskId);
       throw new Error('Task not found');
     }
 
@@ -303,6 +327,8 @@ export class TaskService {
       },
     };
 
+    console.log('dispatchGitHubWorkflow: Sending request to:', `https://api.github.com/repos/${owner}/${repo}/dispatches`);
+    
     const response = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/dispatches`,
       {
@@ -316,16 +342,21 @@ export class TaskService {
       }
     );
 
+    console.log('dispatchGitHubWorkflow: Response status:', response.status);
+    
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('dispatchGitHubWorkflow: GitHub API error:', { status: response.status, errorText });
       throw new Error(`Failed to dispatch workflow: ${response.status} ${errorText}`);
     }
 
-    console.log(`GitHub workflow dispatched for task ${taskId}, phase ${phase}`);
+    console.log('dispatchGitHubWorkflow: GitHub workflow dispatched successfully for task', taskId);
   }
 
   async handleGitHubCallback(body: any) {
     const { task_id: taskId, phase, status, run_id: runId } = body;
+    
+    console.log('handleGitHubCallback called:', { taskId, phase, status, runId });
     
     await this.env.DB.prepare(`
       UPDATE tasks SET current_run_id = ?, updated_at = CURRENT_TIMESTAMP
@@ -333,7 +364,14 @@ export class TaskService {
     `).bind(runId, taskId).run();
 
     if (status === 'success') {
-      await this.advancePhase(taskId);
+      try {
+        await this.advancePhase(taskId);
+        console.log('advancePhase completed successfully for task:', taskId);
+      } catch (error) {
+        console.error('Error in advancePhase:', error);
+        await this.logTask(taskId, phase, 'ERROR', `Failed to advance phase: ${(error as Error).message}`);
+        throw error;
+      }
     } else if (status === 'failure') {
       await this.handleTaskError({ taskId, error: body.error || 'Workflow failed' });
     }
@@ -392,7 +430,12 @@ export class TaskService {
 
   async advancePhase(taskId: string) {
     const task = await this.getTask(taskId);
-    if (!task) return;
+    if (!task) {
+      console.log('advancePhase: Task not found, taskId:', taskId);
+      return;
+    }
+
+    console.log('advancePhase: Current task state:', { taskId, currentPhase: task.current_phase, status: task.status });
 
     const phaseMap: Record<string, { next: string; status: TaskStatus }> = {
       'EXTRACT': { next: 'IMG2IMG', status: 'EXTRACTED' },
@@ -403,7 +446,10 @@ export class TaskService {
     const currentPhase = task.current_phase || 'EXTRACT';
     const nextPhase = phaseMap[currentPhase];
 
+    console.log('advancePhase: Phase transition:', { currentPhase, nextPhase });
+
     if (!nextPhase) {
+      console.log('advancePhase: No next phase found for:', currentPhase);
       return;
     }
 
@@ -412,11 +458,13 @@ export class TaskService {
         UPDATE tasks SET status = ?, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).bind(nextPhase.status, taskId).run();
+      console.log('advancePhase: Task marked as completed:', taskId);
     } else {
       await this.env.DB.prepare(`
         UPDATE tasks SET status = ?, current_phase = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).bind(nextPhase.status, nextPhase.next, taskId).run();
+      console.log('advancePhase: Task status updated to:', { status: nextPhase.status, currentPhase: nextPhase.next });
 
       await this.triggerPhase(taskId, nextPhase.next as 'EXTRACT' | 'IMG2IMG' | 'COMPOSE');
     }

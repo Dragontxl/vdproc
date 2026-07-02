@@ -41,6 +41,8 @@ taskRoutes.post('/', async (c) => {
     tags: body.tags || '',
   });
   
+  await service.startTask(task.id);
+  
   return c.json({ code: 201, data: task, msg: 'Task created successfully' }, 201);
 });
 
