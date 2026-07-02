@@ -309,24 +309,24 @@ export class TaskService {
   }
 
   async handleGitHubCallback(body: any) {
-    const { taskId, phase, status, runId } = body;
+    const { task_id: taskId, phase, status, run_id: runId } = body;
     
     await this.env.DB.prepare(`
       UPDATE tasks SET current_run_id = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(runId, taskId).run();
 
-    if (status === 'completed') {
+    if (status === 'success') {
       await this.advancePhase(taskId);
-    } else if (status === 'failed') {
-      await this.handleTaskError({ taskId, error: body.error });
+    } else if (status === 'failure') {
+      await this.handleTaskError({ taskId, error: body.error || 'Workflow failed' });
     }
 
     return { success: true };
   }
 
   async updateTaskProgress(body: any) {
-    const { taskId, processedCount } = body;
+    const { task_id: taskId, processed_count: processedCount } = body;
     
     await this.env.DB.prepare(`
       UPDATE tasks SET processed_frames = ?, updated_at = CURRENT_TIMESTAMP
