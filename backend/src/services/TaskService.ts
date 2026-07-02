@@ -268,6 +268,11 @@ export class TaskService {
       throw new Error('GitHub account token is empty');
     }
 
+    const task = await this.getTask(taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
     const payload = {
       event_type: `video-processing-${phase.toLowerCase()}`,
       client_payload: {
