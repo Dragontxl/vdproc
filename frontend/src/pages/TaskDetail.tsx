@@ -22,6 +22,15 @@ export default function TaskDetail() {
       loadTask();
       loadLogs();
     }
+
+    const interval = setInterval(() => {
+      if (id) {
+        loadTask();
+        loadLogs();
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [id]);
 
   const loadTask = async () => {
@@ -73,6 +82,16 @@ export default function TaskDetail() {
       loadTask();
     } catch (error) {
       message.error('重试任务失败');
+    }
+  };
+
+  const handleAdvancePhase = async () => {
+    try {
+      await taskApi.advance(id!);
+      message.success('阶段已推进');
+      loadTask();
+    } catch (error) {
+      message.error('推进阶段失败');
     }
   };
 
@@ -138,6 +157,11 @@ export default function TaskDetail() {
           {task.status === 'FAILED' && (
             <Button icon={<RotateLeftOutlined />} onClick={handleRetry} style={{ marginLeft: 8 }}>
               重试任务
+            </Button>
+          )}
+          {(task.status === 'EXTRACTED' || task.status === 'IMG2IMGED') && (
+            <Button type="dashed" icon={<PlayCircleOutlined />} onClick={handleAdvancePhase} style={{ marginLeft: 8 }}>
+              推进阶段
             </Button>
           )}
           <Button danger icon={<DeleteOutlined />} onClick={handleDelete} style={{ marginLeft: 8 }}>

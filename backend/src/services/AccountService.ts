@@ -72,7 +72,7 @@ export class AccountService {
 
     await this.env.DB.prepare(`
       UPDATE github_accounts SET ${updateFields.join(', ')} WHERE id = ?
-    `).bind(...params).run();
+    `).bind(...params).run() as D1ResultType;
 
     const updated = await this.env.DB.prepare(`
       SELECT * FROM github_accounts WHERE id = ?
@@ -238,7 +238,7 @@ export class AccountService {
       SELECT aa.*
       FROM ai_accounts aa
       WHERE is_active = TRUE 
-        AND (cooldown_until IS NULL OR cooldown_until < CURRENT_TIMESTAMP)
+        AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
       ORDER BY priority_weight DESC, total_usage ASC
     `).all();
 
@@ -267,8 +267,8 @@ export class AccountService {
 
     const result = await this.env.DB.prepare(`
       UPDATE ai_accounts
-      SET cooldown_until = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND (cooldown_until IS NULL OR cooldown_until < CURRENT_TIMESTAMP)
+      SET cooldown_until = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE id = ? AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
     `).bind(reservationExpiry.toISOString(), selectedAccount.id).run() as D1ResultType;
 
     if (!result.success || (result.meta?.changes ?? 0) === 0) {
@@ -280,7 +280,7 @@ export class AccountService {
 
   async releaseAIAccount(accountId: number): Promise<void> {
     await this.env.DB.prepare(`
-      UPDATE ai_accounts SET cooldown_until = NULL, updated_at = CURRENT_TIMESTAMP
+      UPDATE ai_accounts SET cooldown_until = NULL, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ?
     `).bind(accountId).run();
   }

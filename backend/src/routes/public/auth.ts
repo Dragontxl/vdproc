@@ -35,7 +35,7 @@ authRoutes.post('/login', async (c) => {
 
   await (c.env as Bindings).DB.prepare(`
     UPDATE users 
-    SET last_login_at = CURRENT_TIMESTAMP 
+    SET last_login_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') 
     WHERE id = ?
   `).bind(user.id).run();
 

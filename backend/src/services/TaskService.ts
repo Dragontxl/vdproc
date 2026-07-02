@@ -162,7 +162,7 @@ export class TaskService {
     }
 
     await this.env.DB.prepare(`
-      UPDATE tasks SET status = ?, started_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      UPDATE tasks SET status = ?, started_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ?
     `).bind('EXTRACTING', taskId).run();
 
@@ -170,7 +170,7 @@ export class TaskService {
       await this.triggerPhase(taskId, 'EXTRACT');
     } catch (error) {
       await this.env.DB.prepare(`
-        UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP
+        UPDATE tasks SET status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?
       `).bind('PENDING', taskId).run();
       throw error;
@@ -184,7 +184,7 @@ export class TaskService {
     if (!task) return null;
 
     await this.env.DB.prepare(`
-      UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE tasks SET status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ?
     `).bind('CANCELLED', taskId).run();
 
@@ -204,7 +204,7 @@ export class TaskService {
     }
 
     await this.env.DB.prepare(`
-      UPDATE tasks SET status = ?, retry_count = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE tasks SET status = ?, retry_count = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ?
     `).bind('PENDING', task.retry_count + 1, taskId).run();
 
@@ -234,7 +234,7 @@ export class TaskService {
       ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
       console.log('triggerPhase: EXTRACT - ghAccount:', ghAccount?.id);
       await this.env.DB.prepare(`
-        UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = CURRENT_TIMESTAMP
+        UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?
       `).bind(phase, statusMap[phase], ghAccount ? ghAccount.id : null, taskId).run();
     } else if (phase === 'IMG2IMG') {
@@ -242,14 +242,14 @@ export class TaskService {
       ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
       console.log('triggerPhase: IMG2IMG - aiAccount:', aiAccount?.id, 'ghAccount:', ghAccount?.id);
       await this.env.DB.prepare(`
-        UPDATE tasks SET current_phase = ?, status = ?, ai_account_id = ?, github_account_id = ?, updated_at = CURRENT_TIMESTAMP
+        UPDATE tasks SET current_phase = ?, status = ?, ai_account_id = ?, github_account_id = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?
       `).bind(phase, statusMap[phase], aiAccount ? aiAccount.id : null, ghAccount ? ghAccount.id : null, taskId).run();
     } else if (phase === 'COMPOSE') {
       ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
       console.log('triggerPhase: COMPOSE - ghAccount:', ghAccount?.id);
       await this.env.DB.prepare(`
-        UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = CURRENT_TIMESTAMP
+        UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?
       `).bind(phase, statusMap[phase], ghAccount ? ghAccount.id : null, taskId).run();
     }
@@ -359,7 +359,7 @@ export class TaskService {
     console.log('handleGitHubCallback called:', { taskId, phase, status, runId });
     
     await this.env.DB.prepare(`
-      UPDATE tasks SET current_run_id = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE tasks SET current_run_id = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ?
     `).bind(runId, taskId).run();
 
@@ -383,7 +383,7 @@ export class TaskService {
     const { task_id: taskId, processed_count: processedCount, total_count: totalCount } = body;
     
     await this.env.DB.prepare(`
-      UPDATE tasks SET processed_frames = ?, total_frames = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE tasks SET processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ?
     `).bind(processedCount, totalCount, taskId).run();
 
@@ -394,7 +394,7 @@ export class TaskService {
     const { taskId, finalVideoUrl } = body;
     
     await this.env.DB.prepare(`
-      UPDATE tasks SET status = ?, final_video_url = ?, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      UPDATE tasks SET status = ?, final_video_url = ?, completed_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ?
     `).bind('COMPLETED', finalVideoUrl, taskId).run();
 
@@ -411,14 +411,14 @@ export class TaskService {
 
     if (task.retry_count >= task.max_retries) {
       await this.env.DB.prepare(`
-        UPDATE tasks SET status = ?, error_msg = ?, updated_at = CURRENT_TIMESTAMP
+        UPDATE tasks SET status = ?, error_msg = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?
       `).bind('FAILED', error, taskId).run();
 
       await this.logTask(taskId, 'ERROR', 'ERROR', `Task failed: ${error}`);
     } else {
       await this.env.DB.prepare(`
-        UPDATE tasks SET status = ?, retry_count = ?, updated_at = CURRENT_TIMESTAMP
+        UPDATE tasks SET status = ?, retry_count = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?
       `).bind('PENDING', task.retry_count + 1, taskId).run();
 
@@ -455,13 +455,13 @@ export class TaskService {
 
     if (nextPhase.next === 'COMPLETE') {
       await this.env.DB.prepare(`
-        UPDATE tasks SET status = ?, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+        UPDATE tasks SET status = ?, completed_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?
       `).bind(nextPhase.status, taskId).run();
       console.log('advancePhase: Task marked as completed:', taskId);
     } else {
       await this.env.DB.prepare(`
-        UPDATE tasks SET status = ?, current_phase = ?, updated_at = CURRENT_TIMESTAMP
+        UPDATE tasks SET status = ?, current_phase = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?
       `).bind(nextPhase.status, nextPhase.next, taskId).run();
       console.log('advancePhase: Task status updated to:', { status: nextPhase.status, currentPhase: nextPhase.next });
