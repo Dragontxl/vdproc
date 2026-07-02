@@ -103,4 +103,12 @@ taskRoutes.post('/:id/retry', async (c) => {
   return c.json({ code: 200, data: result, msg: 'Task retry scheduled' });
 });
 
+taskRoutes.post('/:id/advance', async (c) => {
+  const service = new TaskService(c.env as Bindings);
+  await service.advancePhase(c.req.param('id'));
+  
+  const task = await service.getTask(c.req.param('id'));
+  return c.json({ code: 200, data: task, msg: 'Phase advanced' });
+});
+
 export { taskRoutes };

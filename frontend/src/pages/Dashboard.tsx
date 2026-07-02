@@ -23,6 +23,13 @@ export default function Dashboard() {
   useEffect(() => {
     loadStats();
     loadRecentTasks();
+
+    const interval = setInterval(() => {
+      loadStats();
+      loadRecentTasks();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const loadStats = async () => {

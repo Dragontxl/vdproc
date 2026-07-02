@@ -22,6 +22,12 @@ export default function Tasks() {
 
   useEffect(() => {
     loadTasks();
+
+    const interval = setInterval(() => {
+      loadTasks();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [statusFilter]);
 
   const loadTasks = async () => {
