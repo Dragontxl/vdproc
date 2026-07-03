@@ -38,9 +38,30 @@ while IFS= read -r FRAME_FILE; do
     
 done < /tmp/ai_frames_list.txt
 
+echo "Validating and converting AI frames..."
+mkdir -p ./ai_frames_valid
+
+for FRAME_FILE in ./ai_frames_download/*.jpg; do
+    if [ ! -f "$FRAME_FILE" ] || [ ! -s "$FRAME_FILE" ]; then
+        echo "Skipping invalid or empty frame: $FRAME_FILE"
+        continue
+    fi
+    
+    FRAME_NAME=$(basename "$FRAME_FILE")
+    ffmpeg -i "$FRAME_FILE" -y -q:v 2 "./ai_frames_valid/$FRAME_NAME" 2>/dev/null || {
+        echo "Failed to convert $FRAME_NAME, trying with different codec..."
+        ffmpeg -i "$FRAME_FILE" -y -c:v mjpeg -q:v 2 "./ai_frames_valid/$FRAME_NAME" 2>/dev/null || {
+            echo "Failed to convert $FRAME_NAME, skipping..."
+        }
+    }
+done
+
+VALID_FRAME_COUNT=$(ls ./ai_frames_valid/*.jpg 2>/dev/null | wc -l)
+echo "Valid frames after conversion: $VALID_FRAME_COUNT"
+
 echo "Creating video with ffmpeg..."
 ffmpeg -framerate $OUTPUT_FPS \
-    -i "./ai_frames_download/frame_%04d.jpg" \
+    -i "./ai_frames_valid/frame_%04d.jpg" \
     -c:v libx264 \
     -profile:v high \
     -crf 20 \
