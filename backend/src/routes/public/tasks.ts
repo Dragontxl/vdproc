@@ -103,6 +103,25 @@ taskRoutes.post('/:id/retry', async (c) => {
   return c.json({ code: 200, data: result, msg: 'Task retry scheduled' });
 });
 
+taskRoutes.post('/:id/restart-phase', async (c) => {
+  const service = new TaskService(c.env as Bindings);
+  const task = await service.getTask(c.req.param('id'));
+  
+  if (!task) {
+    return c.json({ code: 404, data: null, msg: 'Task not found' }, 404);
+  }
+  
+  const currentPhase = task.current_phase;
+  if (!currentPhase || currentPhase === 'COMPLETE') {
+    return c.json({ code: 400, data: null, msg: 'No active phase to restart' }, 400);
+  }
+  
+  await service.triggerPhase(c.req.param('id'), currentPhase as 'EXTRACT' | 'IMG2IMG' | 'COMPOSE');
+  
+  const updatedTask = await service.getTask(c.req.param('id'));
+  return c.json({ code: 200, data: updatedTask, msg: `Phase ${currentPhase} restarted` });
+});
+
 taskRoutes.post('/:id/advance', async (c) => {
   const service = new TaskService(c.env as Bindings);
   await service.advancePhase(c.req.param('id'));

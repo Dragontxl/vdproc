@@ -7,6 +7,7 @@ import {
   DeleteOutlined,
   EyeOutlined,
   RotateLeftOutlined,
+  PauseCircleOutlined,
 } from '@ant-design/icons';
 import { taskApi } from '../api';
 import dayjs from 'dayjs';
@@ -89,6 +90,16 @@ export default function Tasks() {
       loadTasks();
     } catch (error) {
       message.error('重试任务失败');
+    }
+  };
+
+  const handleRestartPhase = async (id: string) => {
+    try {
+      await taskApi.restartPhase(id);
+      message.success('当前阶段已重新触发');
+      loadTasks();
+    } catch (error) {
+      message.error('重新触发阶段失败');
     }
   };
 
@@ -183,6 +194,9 @@ export default function Tasks() {
           )}
           {record.status === 'FAILED' && (
             <Button size="small" icon={<RotateLeftOutlined />} onClick={() => handleRetry(record.id)} />
+          )}
+          {(record.status === 'EXTRACTING' || record.status === 'IMG2IMGING' || record.status === 'COMPOSING') && (
+            <Button size="small" type="primary" icon={<PauseCircleOutlined />} onClick={() => handleRestartPhase(record.id)} />
           )}
           <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
         </Space>

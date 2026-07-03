@@ -7,6 +7,7 @@ import {
   DeleteOutlined,
   VideoCameraOutlined,
   RotateLeftOutlined,
+  PauseCircleOutlined,
 } from '@ant-design/icons';
 import { taskApi } from '../api';
 import dayjs from 'dayjs';
@@ -95,6 +96,16 @@ export default function TaskDetail() {
     }
   };
 
+  const handleRestartPhase = async () => {
+    try {
+      await taskApi.restartPhase(id!);
+      message.success('当前阶段已重新触发');
+      loadTask();
+    } catch (error) {
+      message.error('重新触发阶段失败');
+    }
+  };
+
   const handleDelete = async () => {
     try {
       await taskApi.delete(id!);
@@ -157,6 +168,11 @@ export default function TaskDetail() {
           {task.status === 'FAILED' && (
             <Button icon={<RotateLeftOutlined />} onClick={handleRetry} style={{ marginLeft: 8 }}>
               重试任务
+            </Button>
+          )}
+          {(task.status === 'EXTRACTING' || task.status === 'IMG2IMGING' || task.status === 'COMPOSING') && (
+            <Button type="primary" icon={<PauseCircleOutlined />} onClick={handleRestartPhase} style={{ marginLeft: 8 }}>
+              继续任务
             </Button>
           )}
           {(task.status === 'EXTRACTED' || task.status === 'IMG2IMGED') && (

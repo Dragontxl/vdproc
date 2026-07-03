@@ -40,6 +40,7 @@ export const taskApi = {
   cancel: (id: string) => api.post(`/tasks/${id}/cancel`),
   retry: (id: string) => api.post(`/tasks/${id}/retry`),
   advance: (id: string) => api.post(`/tasks/${id}/advance`),
+  restartPhase: (id: string) => api.post(`/tasks/${id}/restart-phase`),
 };
 
 export const accountApi = {
