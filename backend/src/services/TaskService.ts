@@ -161,13 +161,37 @@ export class TaskService {
       throw new Error('No available GitHub account');
     }
 
+    const currentPhase = task.current_phase || 'EXTRACT';
+    
+    const statusMap: Record<string, TaskStatus> = {
+      'EXTRACT': 'EXTRACTING',
+      'IMG2IMG': 'IMG2IMGING',
+      'COMPOSE': 'COMPOSING',
+    };
+
+    let aiAccount: any = null;
+    if (currentPhase === 'IMG2IMG') {
+      aiAccount = await new accountService.AccountService(this.env).selectAIAccount();
+      if (!aiAccount) {
+        throw new Error('No available AI account');
+      }
+    }
+
+    const status = statusMap[currentPhase] || 'EXTRACTING';
+    
     await this.env.DB.prepare(`
-      UPDATE tasks SET status = ?, started_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+      UPDATE tasks SET status = ?, started_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), github_account_id = ?
       WHERE id = ?
-    `).bind('EXTRACTING', taskId).run();
+    `).bind(status, ghAccount ? ghAccount.id : null, taskId).run();
+
+    if (currentPhase === 'IMG2IMG') {
+      await this.env.DB.prepare(`
+        UPDATE tasks SET ai_account_id = ? WHERE id = ?
+      `).bind(aiAccount ? aiAccount.id : null, taskId).run();
+    }
 
     try {
-      await this.triggerPhase(taskId, 'EXTRACT');
+      await this.triggerPhase(taskId, currentPhase as 'EXTRACT' | 'IMG2IMG' | 'COMPOSE');
     } catch (error) {
       await this.env.DB.prepare(`
         UPDATE tasks SET status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
