@@ -415,7 +415,7 @@ export class TaskService {
   }
 
   async handleTaskComplete(body: any) {
-    const { taskId, finalVideoUrl } = body;
+    const { task_id: taskId, final_video_url: finalVideoUrl } = body;
     
     await this.env.DB.prepare(`
       UPDATE tasks SET status = ?, final_video_url = ?, completed_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
