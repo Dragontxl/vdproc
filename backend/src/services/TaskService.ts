@@ -453,6 +453,11 @@ export class TaskService {
   async handleTaskComplete(body: any) {
     const { task_id: taskId, final_video_url: finalVideoUrl } = body;
     
+    const task = await this.getTask(taskId);
+    if (task && task.ai_account_id) {
+      await this.accountService.releaseAIAccount(task.ai_account_id);
+    }
+
     await this.env.DB.prepare(`
       UPDATE tasks SET status = ?, final_video_url = ?, completed_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ?
@@ -468,6 +473,10 @@ export class TaskService {
     
     const task = await this.getTask(taskId);
     if (!task) return { success: false };
+
+    if (task.ai_account_id) {
+      await this.accountService.releaseAIAccount(task.ai_account_id);
+    }
 
     if (task.retry_count >= task.max_retries) {
       await this.env.DB.prepare(`

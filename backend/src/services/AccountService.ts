@@ -277,7 +277,7 @@ export class AccountService {
       selectedAccount = accounts.results[0];
     }
 
-    const reservationExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    const reservationExpiry = new Date(Date.now() + 60 * 1000);
 
     const result = await this.env.DB.prepare(`
       UPDATE ai_accounts
