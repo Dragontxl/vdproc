@@ -152,6 +152,7 @@ jobs:
           BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
           AI_API_KEY: ${{ inputs.ai_api_key || github.event.client_payload.ai_api_key || secrets.AI_API_KEY }}
           AI_BASE_URL: ${{ inputs.ai_base_url || github.event.client_payload.ai_base_url || secrets.AI_BASE_URL }}
+          AI_ACCOUNTS: ${{ inputs.ai_accounts || github.event.client_payload.ai_accounts }}
           COOLDOWN_SECONDS: ${{ inputs.cooldown_seconds || github.event.client_payload.cooldown_seconds || 1 }}
         run: |
           docker run --rm \
@@ -167,6 +168,7 @@ jobs:
             -e BACKEND_API_KEY="$BACKEND_API_KEY" \
             -e AI_API_KEY="$AI_API_KEY" \
             -e AI_BASE_URL="$AI_BASE_URL" \
+            -e AI_ACCOUNTS="$AI_ACCOUNTS" \
             -e COOLDOWN_SECONDS="$COOLDOWN_SECONDS" \
             ai-video-processor \
             bash /scripts/generate-characters.sh
@@ -214,6 +216,7 @@ jobs:
           BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
           AI_API_KEY: ${{ inputs.ai_api_key || github.event.client_payload.ai_api_key || secrets.AI_API_KEY }}
           AI_BASE_URL: ${{ inputs.ai_base_url || github.event.client_payload.ai_base_url || secrets.AI_BASE_URL }}
+          AI_ACCOUNTS: ${{ inputs.ai_accounts || github.event.client_payload.ai_accounts }}
           COOLDOWN_SECONDS: ${{ inputs.cooldown_seconds || github.event.client_payload.cooldown_seconds || 1 }}
         run: |
           docker run --rm \
@@ -229,6 +232,7 @@ jobs:
             -e BACKEND_API_KEY="$BACKEND_API_KEY" \
             -e AI_API_KEY="$AI_API_KEY" \
             -e AI_BASE_URL="$AI_BASE_URL" \
+            -e AI_ACCOUNTS="$AI_ACCOUNTS" \
             -e COOLDOWN_SECONDS="$COOLDOWN_SECONDS" \
             ai-video-processor \
             bash /scripts/convert-frames.sh
@@ -249,6 +253,7 @@ jobs:
           BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
           AI_API_KEY: ${{ inputs.ai_api_key || github.event.client_payload.ai_api_key || secrets.AI_API_KEY }}
           AI_BASE_URL: ${{ inputs.ai_base_url || github.event.client_payload.ai_base_url || secrets.AI_BASE_URL }}
+          AI_ACCOUNTS: ${{ inputs.ai_accounts || github.event.client_payload.ai_accounts }}
           COOLDOWN_SECONDS: ${{ inputs.cooldown_seconds || github.event.client_payload.cooldown_seconds || 2 }}
         run: |
           docker run --rm \
@@ -265,6 +270,7 @@ jobs:
             -e BACKEND_API_KEY="$BACKEND_API_KEY" \
             -e AI_API_KEY="$AI_API_KEY" \
             -e AI_BASE_URL="$AI_BASE_URL" \
+            -e AI_ACCOUNTS="$AI_ACCOUNTS" \
             -e COOLDOWN_SECONDS="$COOLDOWN_SECONDS" \
             ai-video-processor \
             bash /scripts/generate-shots.sh

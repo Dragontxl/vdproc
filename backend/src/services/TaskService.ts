@@ -360,6 +360,8 @@ export class TaskService {
 
     let aiApiKey = '';
     let aiBaseUrl = '';
+    let aiAccountsJson = '';
+    
     if (aiAccountId) {
       const aiAccountResult = await this.env.DB.prepare(`
         SELECT api_key_encrypted, base_url FROM ai_accounts WHERE id = ?
@@ -371,6 +373,15 @@ export class TaskService {
       }
     }
 
+    const aiAccountsResult = await this.env.DB.prepare(`
+      SELECT id, api_key_encrypted, base_url, model_name FROM ai_accounts 
+      WHERE is_active = TRUE AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    `).all();
+    
+    if (aiAccountsResult.results && aiAccountsResult.results.length > 0) {
+      aiAccountsJson = JSON.stringify(aiAccountsResult.results);
+    }
+
     const payload = {
       event_type: `video-processing-${phase.toLowerCase()}`,
       client_payload: {
@@ -380,6 +391,7 @@ export class TaskService {
         ai_account_id: aiAccountId,
         ai_api_key: aiApiKey,
         ai_base_url: aiBaseUrl,
+        ai_accounts: aiAccountsJson,
         video_path: task.video_path,
         fps: task.fps,
         prompt: task.prompt,

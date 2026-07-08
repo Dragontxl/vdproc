@@ -33,55 +33,87 @@ SHOT_COUNT=$(echo "$RESULT" | jq -r '.shots | length')
 echo "Found $SHOT_COUNT shots to generate"
 
 mkdir -p ./generated_shots
+mkdir -p ./locks
 
-SUCCESS_COUNT=0
-FAILED_COUNT=0
+ACCOUNT_COUNT=1
+if [ -n "$AI_ACCOUNTS" ]; then
+    ACCOUNT_COUNT=$(echo "$AI_ACCOUNTS" | jq -r '. | length')
+fi
 
-for i in $(seq 0 $((SHOT_COUNT - 1))); do
-    START_TIME=$(echo "$RESULT" | jq -r ".shots[$i].start_time")
-    END_TIME=$(echo "$RESULT" | jq -r ".shots[$i].end_time")
-    DURATION=$(echo "$RESULT" | jq -r ".shots[$i].duration")
-    CHARACTERS=$(echo "$RESULT" | jq -r ".shots[$i].characters")
-    SPEAKER=$(echo "$RESULT" | jq -r ".shots[$i].speaker")
-    DIALOGUE=$(echo "$RESULT" | jq -r ".shots[$i].dialogue")
-    SCENE_DESC=$(echo "$RESULT" | jq -r ".shots[$i].scene_description")
-    POSITIVE_PROMPT=$(echo "$RESULT" | jq -r ".shots[$i].positive_prompt")
-    NEGATIVE_PROMPT=$(echo "$RESULT" | jq -r ".shots[$i].negative_prompt")
+echo "Available AI accounts: $ACCOUNT_COUNT"
+echo "Concurrency: $ACCOUNT_COUNT"
+
+process_shot() {
+    local shot_index="$1"
+    local work_dir="$2"
+    local ai_accounts="$3"
+    
+    cd "$work_dir"
+    
+    START_TIME=$(echo "$RESULT" | jq -r ".shots[$shot_index].start_time")
+    END_TIME=$(echo "$RESULT" | jq -r ".shots[$shot_index].end_time")
+    DURATION=$(echo "$RESULT" | jq -r ".shots[$shot_index].duration")
+    CHARACTERS=$(echo "$RESULT" | jq -r ".shots[$shot_index].characters")
+    SPEAKER=$(echo "$RESULT" | jq -r ".shots[$shot_index].speaker")
+    DIALOGUE=$(echo "$RESULT" | jq -r ".shots[$shot_index].dialogue")
+    SCENE_DESC=$(echo "$RESULT" | jq -r ".shots[$shot_index].scene_description")
+    POSITIVE_PROMPT=$(echo "$RESULT" | jq -r ".shots[$shot_index].positive_prompt")
+    NEGATIVE_PROMPT=$(echo "$RESULT" | jq -r ".shots[$shot_index].negative_prompt")
     
     FRAME_COUNT=$(echo "$DURATION * $OUTPUT_FPS" | bc | awk '{print int($1+0.5)}')
     
-    echo "Processing shot $i: duration=$DURATIONs, frames=$FRAME_COUNT"
+    echo "Processing shot $shot_index: duration=$DURATIONs, frames=$FRAME_COUNT"
     
-    FIRST_FRAME_KEY="${TASK_ID}/ai_shot_frames/shot_${i}_first.jpg"
-    LAST_FRAME_KEY="${TASK_ID}/ai_shot_frames/shot_${i}_last.jpg"
+    FIRST_FRAME_KEY="${TASK_ID}/ai_shot_frames/shot_${shot_index}_first.jpg"
+    LAST_FRAME_KEY="${TASK_ID}/ai_shot_frames/shot_${shot_index}_last.jpg"
     
     echo "Downloading AI frames..."
-    aws s3 cp "s3://$R2_BUCKET_NAME/$FIRST_FRAME_KEY" "./first_frame.jpg" \
+    aws s3 cp "s3://$R2_BUCKET_NAME/$FIRST_FRAME_KEY" "./first_frame_${shot_index}.jpg" \
         --endpoint-url "$R2_ENDPOINT_URL"
-    aws s3 cp "s3://$R2_BUCKET_NAME/$LAST_FRAME_KEY" "./last_frame.jpg" \
+    aws s3 cp "s3://$R2_BUCKET_NAME/$LAST_FRAME_KEY" "./last_frame_${shot_index}.jpg" \
         --endpoint-url "$R2_ENDPOINT_URL"
     
-    FIRST_FRAME_BASE64=$(base64 -w0 ./first_frame.jpg)
-    LAST_FRAME_BASE64=$(base64 -w0 ./last_frame.jpg)
+    FIRST_FRAME_BASE64=$(base64 -w0 "./first_frame_${shot_index}.jpg")
+    LAST_FRAME_BASE64=$(base64 -w0 "./last_frame_${shot_index}.jpg")
     
     MAIN_PROMPT="$POSITIVE_PROMPT, American animation style, anime style, high quality, $SCENE_DESC"
     if [ -n "$DIALOGUE" ]; then
         MAIN_PROMPT="$MAIN_PROMPT, dialogue: $DIALOGUE"
     fi
     
+    local selected_key="$AI_API_KEY"
+    local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/videos/generations"
+    
+    if [ -n "$ai_accounts" ]; then
+        local account_index=$((shot_index % $(echo "$ai_accounts" | jq -r '. | length')))
+        selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
+        selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
+        if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
+            selected_url="https://apihub.agnes-ai.com/v1/videos/generations"
+        fi
+    fi
+    
+    local lock_file="./locks/account_${shot_index}.lock"
+    
+    exec 200>"$lock_file"
+    flock -x 200
+    
+    echo "Shot $shot_index: Using AI account index $account_index"
+    
     MAX_RETRIES=3
     RETRY_DELAY=10
     API_SUCCESS=0
+    RESPONSE=""
     
     for attempt in $(seq 1 $MAX_RETRIES); do
-        echo "  Attempt $attempt/$MAX_RETRIES..."
+        echo "  Shot $shot_index: Attempt $attempt/$MAX_RETRIES..."
         
         RESPONSE=$(curl -s -X POST \
             --connect-timeout 60 \
             --max-time 300 \
             -w "\n%{http_code}" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $AI_API_KEY" \
+            -H "Authorization: Bearer $selected_key" \
             -d "{
                 \"model\": \"agnes-video\",
                 \"prompt\": \"$MAIN_PROMPT\",
@@ -91,7 +123,7 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
                     \"response_format\": \"url\"
                 }
             }" \
-            "${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/videos/generations")
+            "$selected_url")
         
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
         RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
@@ -107,51 +139,68 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
         fi
     done
     
+    flock -u 200
+    
     if [ $API_SUCCESS -ne 1 ]; then
-        echo "Error: Failed to generate shot $i"
-        FAILED_COUNT=$((FAILED_COUNT + 1))
-        rm -f ./first_frame.jpg ./last_frame.jpg
-        continue
+        echo "Error: Failed to generate shot $shot_index"
+        rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file"
+        echo "$shot_index:FAILED" >> "./shot_results.txt"
+        return 1
     fi
     
     RESULT_URL=$(echo "$RESPONSE" | jq -r '.data[0].url // ""')
     if [ -z "$RESULT_URL" ]; then
-        echo "Error: No result URL"
-        FAILED_COUNT=$((FAILED_COUNT + 1))
-        rm -f ./first_frame.jpg ./last_frame.jpg
-        continue
+        echo "Error: No result URL for shot $shot_index"
+        rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file"
+        echo "$shot_index:FAILED" >> "./shot_results.txt"
+        return 1
     fi
     
-    echo "Downloading generated video..."
-    curl -s --connect-timeout 60 --max-time 120 -o "./generated_shots/shot_${i}.mp4" "$RESULT_URL"
+    echo "Downloading generated video for shot $shot_index..."
+    curl -s --connect-timeout 60 --max-time 120 -o "./generated_shots/shot_${shot_index}.mp4" "$RESULT_URL"
     
-    if [ ! -f "./generated_shots/shot_${i}.mp4" ] || [ ! -s "./generated_shots/shot_${i}.mp4" ]; then
-        echo "Error: Downloaded video is empty"
-        FAILED_COUNT=$((FAILED_COUNT + 1))
-        rm -f ./first_frame.jpg ./last_frame.jpg
-        continue
+    if [ ! -f "./generated_shots/shot_${shot_index}.mp4" ] || [ ! -s "./generated_shots/shot_${shot_index}.mp4" ]; then
+        echo "Error: Downloaded video is empty for shot $shot_index"
+        rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file"
+        echo "$shot_index:FAILED" >> "./shot_results.txt"
+        return 1
     fi
     
-    echo "Uploading to R2..."
-    aws s3 cp "./generated_shots/shot_${i}.mp4" \
-        "s3://$R2_BUCKET_NAME/${TASK_ID}/generated_shots/shot_${i}.mp4" \
-        --endpoint-url "$R2_ENDPOINT_URL" \
-        --content-type video/mp4
+    rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file"
+    echo "$shot_index:SUCCESS" >> "./shot_results.txt"
+    echo "Successfully generated shot $shot_index"
     
-    SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
-    echo "Progress: $SUCCESS_COUNT/$SHOT_COUNT"
-    
-    rm -f ./first_frame.jpg ./last_frame.jpg
-    sleep ${COOLDOWN_SECONDS:-2}
-done
-
-echo "Phase 7 completed: $SUCCESS_COUNT generated, $FAILED_COUNT failed"
-
-cat > /tmp/result.json <<EOF
-{
-    "taskId": "$TASK_ID",
-    "successCount": $SUCCESS_COUNT,
-    "failedCount": $FAILED_COUNT,
-    "path": "${TASK_ID}/generated_shots/"
+    return 0
 }
-EOF
+
+export -f process_shot
+export RESULT
+export TASK_ID
+export OUTPUT_FPS
+export R2_BUCKET_NAME
+export R2_ENDPOINT_URL
+export AI_API_KEY
+export AI_BASE_URL
+
+rm -f "./shot_results.txt"
+
+echo "$RESULT" | jq -r '.shots | to_entries[] | .key' | \
+    xargs -P "$ACCOUNT_COUNT" -I {} bash -c 'process_shot "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS"
+
+SUCCESS_COUNT=$(grep -c ':SUCCESS' "./shot_results.txt" 2>/dev/null || echo 0)
+FAILED_COUNT=$(grep -c ':FAILED' "./shot_results.txt" 2>/dev/null || echo 0)
+
+echo "=== Shot Generation Complete ==="
+echo "Total: $SHOT_COUNT"
+echo "Success: $SUCCESS_COUNT"
+echo "Failed: $FAILED_COUNT"
+
+if [ "$FAILED_COUNT" -gt 0 ]; then
+    echo "Warning: Some shots failed to generate"
+fi
+
+echo "Uploading generated shots..."
+aws s3 sync "./generated_shots" "s3://$R2_BUCKET_NAME/${TASK_ID}/generated_shots" \
+    --endpoint-url "$R2_ENDPOINT_URL"
+
+echo "Shot generation phase completed."
