@@ -45,7 +45,7 @@ const phasesRequiringAI: Record<TaskPhase, string> = {
   ANALYZE: 'text',
   GENERATE_CHARACTERS: 'image',
   CONVERT_FRAMES: 'image',
-  GENERATE_SHOTS: 'video',
+  GENERATE_SHOTS: 'image',
   DETECT: '',
   SELECT_FACES: '',
   CROP_SHOTS: '',
