@@ -228,14 +228,21 @@ export class AccountService {
       FROM github_accounts ga
       WHERE is_active = TRUE 
         AND (is_limited IS NULL OR is_limited = FALSE)
-      ORDER BY monthly_used_minutes ASC, success_rate DESC
+      ORDER BY last_used_at ASC NULLS FIRST, monthly_used_minutes ASC, success_rate DESC
     `).all();
 
     if (!accounts.results || accounts.results.length === 0) {
       return null;
     }
 
-    return accounts.results[0] as unknown as GitHubAccount;
+    const selectedAccount = accounts.results[0] as unknown as GitHubAccount;
+
+    await this.env.DB.prepare(`
+      UPDATE github_accounts SET last_used_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), total_jobs = total_jobs + 1
+      WHERE id = ?
+    `).bind(selectedAccount.id).run();
+
+    return selectedAccount;
   }
 
   async selectAIAccount(apiType?: string): Promise<AIAccount | null> {
