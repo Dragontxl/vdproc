@@ -297,10 +297,10 @@ export default function Accounts() {
               <Form.Item name="api_key_encrypted" label="API Key（加密）" rules={[{ required: true }]}>
                 <Input.Password placeholder="请输入加密后的 API Key" />
               </Form.Item>
-              <Form.Item name="base_url" label="API 地址" initialValue="https://apihub.agnes-ai.com/v1/images/generations">
+              <Form.Item name="base_url" label="API 地址">
                 <Input placeholder="请输入 API 地址" />
               </Form.Item>
-              <Form.Item name="model_name" label="模型名称" initialValue="agnes-image-2.1-flash">
+              <Form.Item name="model_name" label="模型名称">
                 <Input placeholder="请输入模型名称" />
               </Form.Item>
               <Form.Item name="priority_weight" label="优先级权重" initialValue={50}>

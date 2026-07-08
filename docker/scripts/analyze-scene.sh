@@ -91,7 +91,7 @@ for attempt in $(seq 1 $MAX_RETRIES); do
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $AI_API_KEY" \
         -d "{
-            \"model\": \"gemini-pro-2.5\",
+            \"model\": \"gemini-1.5-pro\",
             \"contents\": [{
                 \"parts\": [{
                     \"text\": \"$ANALYSIS_PROMPT\"
@@ -102,7 +102,7 @@ for attempt in $(seq 1 $MAX_RETRIES); do
                 \"maxOutputTokens\": 8192
             }
         }" \
-        "${AI_BASE_URL:-https://generativelanguage.googleapis.com/v1/models/gemini-pro-2.5:generateContent}")
+        "${AI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent}")
     
     HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
     RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
