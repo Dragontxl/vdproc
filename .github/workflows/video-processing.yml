@@ -89,8 +89,8 @@ jobs:
           CALLBACK_URL: ${{ secrets.CALLBACK_URL }}
           CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
           BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_BASE_URL: ${{ secrets.GEMINI_BASE_URL }}
+          AI_API_KEY: ${{ inputs.ai_api_key || github.event.client_payload.ai_api_key || secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ inputs.ai_base_url || github.event.client_payload.ai_base_url || secrets.AI_BASE_URL }}
         run: |
           docker run --rm \
             -e TASK_ID="$TASK_ID" \
@@ -104,8 +104,8 @@ jobs:
             -e CALLBACK_URL="$CALLBACK_URL" \
             -e CALLBACK_SECRET="$CALLBACK_SECRET" \
             -e BACKEND_API_KEY="$BACKEND_API_KEY" \
-            -e GEMINI_API_KEY="$GEMINI_API_KEY" \
-            -e GEMINI_BASE_URL="$GEMINI_BASE_URL" \
+            -e AI_API_KEY="$AI_API_KEY" \
+            -e AI_BASE_URL="$AI_BASE_URL" \
             ai-video-processor \
             bash /scripts/analyze-scene.sh
 
