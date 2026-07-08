@@ -407,7 +407,7 @@ export class TaskService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `token ${ghApiKey}`,
+          'Authorization': `Bearer ${ghApiKey}`,
           'User-Agent': 'AI-Video-Processor',
         },
         body: JSON.stringify(payload),
