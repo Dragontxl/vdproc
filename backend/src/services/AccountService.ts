@@ -223,19 +223,36 @@ export class AccountService {
   }
 
   async selectAvailableGitHubAccount(): Promise<GitHubAccount | null> {
+    const configResult = await this.env.DB.prepare(`
+      SELECT value FROM system_config WHERE key = 'max_concurrent_jobs_per_github_account'
+    `).first();
+    const maxConcurrent = configResult ? parseInt((configResult as { value: string }).value) : 2;
+
     const accounts = await this.env.DB.prepare(`
-      SELECT ga.*
+      SELECT ga.*, 
+             (SELECT COUNT(*) FROM tasks t 
+              WHERE t.github_account_id = ga.id 
+                AND t.status IN ('DETECTING', 'ANALYZING', 'SELECTING_FACES', 'GENERATING_CHARACTERS', 'CROPPING_SHOTS', 'CONVERTING_FRAMES', 'GENERATING_SHOTS', 'COMPOSING')) as running_tasks
       FROM github_accounts ga
       WHERE is_active = TRUE 
         AND (is_limited IS NULL OR is_limited = FALSE)
-      ORDER BY last_used_at ASC NULLS FIRST, monthly_used_minutes ASC, success_rate DESC
+      ORDER BY running_tasks ASC, last_used_at ASC NULLS FIRST, monthly_used_minutes ASC, success_rate DESC
     `).all();
 
     if (!accounts.results || accounts.results.length === 0) {
       return null;
     }
 
-    const selectedAccount = accounts.results[0] as unknown as GitHubAccount;
+    const availableAccounts = accounts.results.filter((acc: any) => {
+      const runningTasks = parseInt(acc.running_tasks) || 0;
+      return runningTasks < maxConcurrent;
+    });
+
+    if (availableAccounts.length === 0) {
+      return null;
+    }
+
+    const selectedAccount = availableAccounts[0] as unknown as GitHubAccount;
 
     await this.env.DB.prepare(`
       UPDATE github_accounts SET last_used_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), total_jobs = total_jobs + 1
