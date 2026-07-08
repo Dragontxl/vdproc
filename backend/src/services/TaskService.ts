@@ -43,9 +43,9 @@ const phaseOrder: TaskPhase[] = [
 
 const phasesRequiringAI: Record<TaskPhase, string> = {
   ANALYZE: 'text',
-  GENERATE_CHARACTERS: 'image',
-  CONVERT_FRAMES: 'image',
-  GENERATE_SHOTS: 'image',
+  GENERATE_CHARACTERS: '',
+  CONVERT_FRAMES: '',
+  GENERATE_SHOTS: '',
   DETECT: '',
   SELECT_FACES: '',
   CROP_SHOTS: '',
@@ -358,6 +358,19 @@ export class TaskService {
       throw new Error('Task not found');
     }
 
+    let aiApiKey = '';
+    let aiBaseUrl = '';
+    if (aiAccountId) {
+      const aiAccountResult = await this.env.DB.prepare(`
+        SELECT api_key_encrypted, base_url FROM ai_accounts WHERE id = ?
+      `).bind(aiAccountId).first();
+
+      if (aiAccountResult) {
+        aiApiKey = (aiAccountResult as { api_key_encrypted: string }).api_key_encrypted;
+        aiBaseUrl = (aiAccountResult as { base_url: string }).base_url || '';
+      }
+    }
+
     const payload = {
       event_type: `video-processing-${phase.toLowerCase()}`,
       client_payload: {
@@ -365,6 +378,8 @@ export class TaskService {
         phase: phase,
         gh_account_id: ghAccountId,
         ai_account_id: aiAccountId,
+        ai_api_key: aiApiKey,
+        ai_base_url: aiBaseUrl,
         video_path: task.video_path,
         fps: task.fps,
         prompt: task.prompt,
