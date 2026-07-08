@@ -62,6 +62,7 @@ CREATE INDEX IF NOT EXISTS idx_github_accounts_monthly_used ON github_accounts(m
 CREATE TABLE IF NOT EXISTS ai_accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     account_alias TEXT NOT NULL,
+    api_type TEXT DEFAULT 'image',
     api_key_encrypted TEXT NOT NULL,
     base_url TEXT,
     model_name TEXT,

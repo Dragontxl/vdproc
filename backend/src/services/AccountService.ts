@@ -100,11 +100,12 @@ export class AccountService {
   async createAIAccount(data: any): Promise<AIAccount> {
     const result = await this.env.DB.prepare(`
       INSERT INTO ai_accounts (
-        account_alias, api_key_encrypted, base_url, model_name, 
+        account_alias, api_type, api_key_encrypted, base_url, model_name, 
         max_concurrent, priority_weight, cooldown_seconds, daily_limit
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       data.account_alias,
+      data.api_type || 'image',
       data.api_key_encrypted || '',
       data.base_url || 'https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/image-to-image',
       data.model_name || 'stable-diffusion-xl-1024-v1-0',
@@ -133,6 +134,10 @@ export class AccountService {
     if (data.account_alias !== undefined) {
       updateFields.push('account_alias = ?');
       params.push(data.account_alias);
+    }
+    if (data.api_type !== undefined) {
+      updateFields.push('api_type = ?');
+      params.push(data.api_type);
     }
     if (data.api_key_encrypted !== undefined) {
       updateFields.push('api_key_encrypted = ?');
@@ -233,14 +238,23 @@ export class AccountService {
     return accounts.results[0] as unknown as GitHubAccount;
   }
 
-  async selectAIAccount(): Promise<AIAccount | null> {
-    const accounts = await this.env.DB.prepare(`
+  async selectAIAccount(apiType?: string): Promise<AIAccount | null> {
+    let query = `
       SELECT aa.*
       FROM ai_accounts aa
       WHERE is_active = TRUE 
         AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-      ORDER BY priority_weight DESC, total_usage ASC
-    `).all();
+    `;
+    const params: (string | number)[] = [];
+
+    if (apiType) {
+      query += ' AND api_type = ?';
+      params.push(apiType);
+    }
+
+    query += ' ORDER BY priority_weight DESC, total_usage ASC';
+
+    const accounts = await this.env.DB.prepare(query).bind(...params).all();
 
     if (!accounts.results || accounts.results.length === 0) {
       return null;

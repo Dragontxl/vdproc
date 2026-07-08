@@ -41,9 +41,16 @@ const phaseOrder: TaskPhase[] = [
   'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'
 ];
 
-const phasesRequiringAI: TaskPhase[] = [
-  'ANALYZE', 'GENERATE_CHARACTERS', 'CONVERT_FRAMES', 'GENERATE_SHOTS'
-];
+const phasesRequiringAI: Record<TaskPhase, string> = {
+  ANALYZE: 'text',
+  GENERATE_CHARACTERS: 'image',
+  CONVERT_FRAMES: 'image',
+  GENERATE_SHOTS: 'video',
+  DETECT: '',
+  SELECT_FACES: '',
+  CROP_SHOTS: '',
+  COMPOSE: '',
+};
 
 export class TaskService {
   constructor(private env: Bindings) {}
@@ -195,10 +202,11 @@ export class TaskService {
     }
 
     let aiAccount: any = null;
-    if (phasesRequiringAI.includes(phase)) {
-      aiAccount = await new accountService.AccountService(this.env).selectAIAccount();
+    const requiredApiType = phasesRequiringAI[phase];
+    if (requiredApiType) {
+      aiAccount = await new accountService.AccountService(this.env).selectAIAccount(requiredApiType);
       if (!aiAccount) {
-        throw new Error('No available AI account');
+        throw new Error(`No available ${requiredApiType} AI account`);
       }
     }
 
@@ -275,8 +283,9 @@ export class TaskService {
 
     ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
     
-    if (phasesRequiringAI.includes(phase)) {
-      aiAccount = await new accountService.AccountService(this.env).selectAIAccount();
+    const requiredApiType = phasesRequiringAI[phase];
+    if (requiredApiType) {
+      aiAccount = await new accountService.AccountService(this.env).selectAIAccount(requiredApiType);
     }
 
     await this.env.DB.prepare(`
@@ -294,7 +303,7 @@ export class TaskService {
       console.error('triggerPhase: No available GitHub account');
       throw new Error('No available GitHub account');
     }
-    if (!aiAccount && phasesRequiringAI.includes(phase)) {
+    if (!aiAccount && phasesRequiringAI[phase]) {
       console.error('triggerPhase: No available AI account for phase:', phase);
       throw new Error('No available AI account');
     }

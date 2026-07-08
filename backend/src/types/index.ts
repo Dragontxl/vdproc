@@ -77,6 +77,7 @@ export interface GitHubAccount {
 export interface AIAccount {
   id: number;
   account_alias: string;
+  api_type: string;
   api_key_encrypted: string;
   base_url: string;
   model_name: string;

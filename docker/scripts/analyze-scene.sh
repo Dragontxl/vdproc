@@ -17,8 +17,8 @@ LOG_FILE="/tmp/analyze-scene.log"
 exec 1> >(tee -a "$LOG_FILE")
 exec 2>&1
 
-if [ -z "$AI_API_KEY" ]; then
-    echo "Error: AI_API_KEY not set"
+if [ -z "$GEMINI_API_KEY" ]; then
+    echo "Error: GEMINI_API_KEY not set"
     exit 1
 fi
 
@@ -89,7 +89,7 @@ for attempt in $(seq 1 $MAX_RETRIES); do
         --max-time 300 \
         -w "\n%{http_code}" \
         -H "Content-Type: application/json" \
-        -H "Authorization: Bearer $AI_API_KEY" \
+        -H "Authorization: Bearer $GEMINI_API_KEY" \
         -d "{
             \"model\": \"gemini-pro-2.5\",
             \"contents\": [{
@@ -102,7 +102,7 @@ for attempt in $(seq 1 $MAX_RETRIES); do
                 \"maxOutputTokens\": 8192
             }
         }" \
-        "https://generativelanguage.googleapis.com/v1/models/gemini-pro-2.5:generateContent")
+        "${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1/models/gemini-pro-2.5:generateContent}")
     
     HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
     RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')

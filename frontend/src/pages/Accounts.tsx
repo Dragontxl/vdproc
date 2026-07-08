@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, Table, Tag, Button, Modal, Form, Input, InputNumber, Switch, Space, message, Tabs } from 'antd';
+import { Card, Table, Tag, Button, Modal, Form, Input, InputNumber, Switch, Space, message, Tabs, Select } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, HeartOutlined } from '@ant-design/icons';
 import { accountApi } from '../api';
 import dayjs from 'dayjs';
@@ -161,6 +161,14 @@ export default function Accounts() {
       key: 'account_alias',
     },
     {
+      title: '类型',
+      dataIndex: 'api_type',
+      key: 'api_type',
+      render: (type: string) => <Tag color={type === 'text' ? 'blue' : type === 'image' ? 'green' : 'purple'}>
+        {type === 'text' ? '文本' : type === 'image' ? '图像' : '视频'}
+      </Tag>,
+    },
+    {
       title: '模型',
       dataIndex: 'model_name',
       key: 'model_name',
@@ -278,6 +286,13 @@ export default function Accounts() {
             <>
               <Form.Item name="account_alias" label="账户别名" rules={[{ required: true }]}>
                 <Input placeholder="请输入账户别名" />
+              </Form.Item>
+              <Form.Item name="api_type" label="API 类型" rules={[{ required: true }]} initialValue="image">
+                <Select>
+                  <Select.Option value="text">文本模型（如 Gemini）</Select.Option>
+                  <Select.Option value="image">图像模型（如图生图）</Select.Option>
+                  <Select.Option value="video">视频模型（如视频生成）</Select.Option>
+                </Select>
               </Form.Item>
               <Form.Item name="api_key_encrypted" label="API Key（加密）" rules={[{ required: true }]}>
                 <Input.Password placeholder="请输入加密后的 API Key" />
