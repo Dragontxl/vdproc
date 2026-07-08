@@ -31,7 +31,27 @@ export interface Task {
   priority: number;
 }
 
-export type TaskStatus = 'PENDING' | 'EXTRACTING' | 'EXTRACTED' | 'IMG2IMGING' | 'IMG2IMGED' | 'COMPOSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type TaskPhase =
+  | 'DETECT'
+  | 'ANALYZE'
+  | 'SELECT_FACES'
+  | 'GENERATE_CHARACTERS'
+  | 'CROP_SHOTS'
+  | 'CONVERT_FRAMES'
+  | 'GENERATE_SHOTS'
+  | 'COMPOSE';
+
+export type TaskStatus =
+  | 'PENDING'
+  | 'DETECTING' | 'DETECTED'
+  | 'ANALYZING' | 'ANALYZED'
+  | 'SELECTING_FACES' | 'FACES_SELECTED'
+  | 'GENERATING_CHARACTERS' | 'CHARACTERS_GENERATED'
+  | 'CROPPING_SHOTS' | 'SHOTS_CROPPED'
+  | 'CONVERTING_FRAMES' | 'FRAMES_CONVERTED'
+  | 'GENERATING_SHOTS' | 'SHOTS_GENERATED'
+  | 'COMPOSING' | 'COMPLETED'
+  | 'FAILED' | 'CANCELLED';
 
 export interface GitHubAccount {
   id: number;
@@ -101,6 +121,74 @@ export interface FrameTask {
   completed_at: string;
   output_path: string;
   error_msg: string;
+  created_at: string;
+}
+
+export interface Shot {
+  id: number;
+  task_id: string;
+  shot_index: number;
+  start_time: number;
+  end_time: number;
+  duration: number;
+  scene_type: string;
+  confidence: number;
+  created_at: string;
+}
+
+export interface Character {
+  id: number;
+  task_id: string;
+  role_id: string;
+  gender: string;
+  build: string;
+  height: string;
+  permanent_features: string;
+  tags: string;
+  avatar_path: string;
+  best_frame_path: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShotDetail {
+  id: number;
+  task_id: string;
+  shot_index: number;
+  start_time: number;
+  end_time: number;
+  duration: number;
+  characters: string;
+  speaker: string;
+  dialogue: string;
+  scene_description: string;
+  lighting: string;
+  camera_movement: string;
+  positive_prompt: string;
+  negative_prompt: string;
+  first_frame_path: string;
+  last_frame_path: string;
+  ai_first_frame_path: string;
+  ai_last_frame_path: string;
+  generated_video_path: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CharacterFrame {
+  id: number;
+  task_id: string;
+  role_id: string;
+  frame_path: string;
+  shot_index: number;
+  position: string;
+  face_confidence: number;
+  face_angle: number;
+  blur_score: number;
+  occlusion_rate: number;
+  quality_score: number;
+  is_best: boolean;
   created_at: string;
 }
 

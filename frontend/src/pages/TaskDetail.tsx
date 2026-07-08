@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Descriptions, Tag, Timeline, Button, message } from 'antd';
+import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider } from 'antd';
 import {
   PlayCircleOutlined,
   StopOutlined,
@@ -8,15 +8,53 @@ import {
   VideoCameraOutlined,
   RotateLeftOutlined,
   PauseCircleOutlined,
+  CheckCircleOutlined,
+  RocketOutlined,
 } from '@ant-design/icons';
 import { taskApi } from '../api';
 import dayjs from 'dayjs';
+
+type TaskPhase = 'DETECT' | 'ANALYZE' | 'SELECT_FACES' | 'GENERATE_CHARACTERS' | 'CROP_SHOTS' | 'CONVERT_FRAMES' | 'GENERATE_SHOTS' | 'COMPOSE';
+
+const phaseConfig: Record<TaskPhase, { label: string; description: string; icon: React.ReactNode }> = {
+  DETECT: { label: '镜头检测', description: '使用PySceneDetect检测视频镜头边界', icon: <VideoCameraOutlined /> },
+  ANALYZE: { label: '剧情分析', description: '使用Gemini分析剧情并生成分镜详情', icon: <RocketOutlined /> },
+  SELECT_FACES: { label: '最优帧选择', description: '筛选每个角色的最优正脸帧', icon: <CheckCircleOutlined /> },
+  GENERATE_CHARACTERS: { label: '人设图生成', description: '生成动画风格角色人设图', icon: <PlayCircleOutlined /> },
+  CROP_SHOTS: { label: '分镜裁切', description: '裁切分镜片段并抽取首尾帧', icon: <VideoCameraOutlined /> },
+  CONVERT_FRAMES: { label: '首尾帧转化', description: '将首尾帧转化为动画风格', icon: <PlayCircleOutlined /> },
+  GENERATE_SHOTS: { label: '分镜生成', description: '生成完整分镜视频片段', icon: <PlayCircleOutlined /> },
+  COMPOSE: { label: '视频合成', description: '合成分镜片段为完整视频', icon: <VideoCameraOutlined /> },
+};
+
+const statusConfig: Record<string, { color: string; text: string }> = {
+  PENDING: { color: 'default', text: '等待中' },
+  DETECTING: { color: 'blue', text: '镜头检测中' },
+  DETECTED: { color: 'blue', text: '镜头检测完成' },
+  ANALYZING: { color: 'purple', text: '剧情分析中' },
+  ANALYZED: { color: 'purple', text: '剧情分析完成' },
+  SELECTING_FACES: { color: 'cyan', text: '最优帧选择中' },
+  FACES_SELECTED: { color: 'cyan', text: '最优帧选择完成' },
+  GENERATING_CHARACTERS: { color: 'green', text: '人设图生成中' },
+  CHARACTERS_GENERATED: { color: 'green', text: '人设图生成完成' },
+  CROPPING_SHOTS: { color: 'orange', text: '分镜裁切中' },
+  SHOTS_CROPPED: { color: 'orange', text: '分镜裁切完成' },
+  CONVERTING_FRAMES: { color: 'red', text: '首尾帧转化中' },
+  FRAMES_CONVERTED: { color: 'red', text: '首尾帧转化完成' },
+  GENERATING_SHOTS: { color: 'pink', text: '分镜生成中' },
+  SHOTS_GENERATED: { color: 'pink', text: '分镜生成完成' },
+  COMPOSING: { color: 'yellow', text: '合成中' },
+  COMPLETED: { color: 'success', text: '已完成' },
+  FAILED: { color: 'error', text: '失败' },
+  CANCELLED: { color: 'default', text: '已取消' },
+};
 
 export default function TaskDetail() {
   const { id } = useParams<{ id: string }>();
   const [task, setTask] = useState<any>(null);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [phaseStatus, setPhaseStatus] = useState<Record<string, { ready: boolean; missing: string[]; available: string[] }>>({});
 
   useEffect(() => {
     if (id) {
@@ -86,16 +124,6 @@ export default function TaskDetail() {
     }
   };
 
-  const handleAdvancePhase = async () => {
-    try {
-      await taskApi.advance(id!);
-      message.success('阶段已推进');
-      loadTask();
-    } catch (error) {
-      message.error('推进阶段失败');
-    }
-  };
-
   const handleRestartPhase = async () => {
     try {
       await taskApi.restartPhase(id!);
@@ -116,30 +144,53 @@ export default function TaskDetail() {
     }
   };
 
-  const getStatusTag = (status: string) => {
-    const statusConfig: Record<string, { color: string; text: string }> = {
-      PENDING: { color: 'default', text: '等待中' },
-      EXTRACTING: { color: 'blue', text: '抽帧中' },
-      EXTRACTED: { color: 'blue', text: '抽帧完成' },
-      IMG2IMGING: { color: 'purple', text: '图生图中' },
-      IMG2IMGED: { color: 'purple', text: '图生图完成' },
-      COMPOSING: { color: 'orange', text: '合成中' },
-      COMPLETED: { color: 'success', text: '已完成' },
-      FAILED: { color: 'error', text: '失败' },
-      CANCELLED: { color: 'default', text: '已取消' },
-    };
+  const checkPhase = async (phase: TaskPhase) => {
+    try {
+      const result = await taskApi.checkPhase(id!, phase);
+      setPhaseStatus(prev => ({ ...prev, [phase]: result.data }));
+    } catch (error) {
+      message.error('检查素材失败');
+    }
+  };
 
+  const startPhase = async (phase: TaskPhase) => {
+    try {
+      await taskApi.startPhase(id!, phase);
+      message.success(`${phaseConfig[phase].label}启动成功`);
+      loadTask();
+    } catch (error: any) {
+      const msg = error.response?.data?.msg || '启动阶段失败';
+      message.error(msg);
+    }
+  };
+
+  const getStatusTag = (status: string) => {
     const config = statusConfig[status] || { color: 'default', text: status };
     return <Tag color={config.color}>{config.text}</Tag>;
   };
 
-  const getPhaseLabel = (phase: string) => {
-    const phaseMap: Record<string, string> = {
-      EXTRACT: '抽帧',
-      IMG2IMG: '图生图',
-      COMPOSE: '合成',
-    };
-    return phaseMap[phase] || phase;
+  const getPhaseStatusColor = (phase: TaskPhase) => {
+    const status = task?.status || '';
+    const currentPhase = task?.current_phase || '';
+    
+    const runningStatus = `${phase}ING`;
+    const doneStatus = `${phase}ED`;
+    
+    if (status === runningStatus) return 'processing';
+    if (status === doneStatus || (currentPhase !== phase && isPhaseCompleted(currentPhase))) return 'success';
+    if (status === 'COMPLETED') return 'success';
+    return 'default';
+  };
+
+  const isPhaseCompleted = (currentPhase: string): boolean => {
+    const phases: TaskPhase[] = ['DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
+    const currentIndex = phases.indexOf(currentPhase as TaskPhase);
+    return currentIndex > -1;
+  };
+
+  const isPhaseRunning = () => {
+    const runningStatuses = ['DETECTING', 'ANALYZING', 'SELECTING_FACES', 'GENERATING_CHARACTERS', 'CROPPING_SHOTS', 'CONVERTING_FRAMES', 'GENERATING_SHOTS', 'COMPOSING'];
+    return runningStatuses.includes(task?.status || '');
   };
 
   if (loading) {
@@ -170,14 +221,9 @@ export default function TaskDetail() {
               重试任务
             </Button>
           )}
-          {(task.status === 'EXTRACTING' || task.status === 'IMG2IMGING' || task.status === 'COMPOSING') && (
+          {isPhaseRunning() && (
             <Button type="primary" icon={<PauseCircleOutlined />} onClick={handleRestartPhase} style={{ marginLeft: 8 }}>
               继续任务
-            </Button>
-          )}
-          {(task.status === 'EXTRACTED' || task.status === 'IMG2IMGED') && (
-            <Button type="dashed" icon={<PlayCircleOutlined />} onClick={handleAdvancePhase} style={{ marginLeft: 8 }}>
-              推进阶段
             </Button>
           )}
           <Button danger icon={<DeleteOutlined />} onClick={handleDelete} style={{ marginLeft: 8 }}>
@@ -191,7 +237,9 @@ export default function TaskDetail() {
           <Descriptions.Item label="任务ID">{task.id}</Descriptions.Item>
           <Descriptions.Item label="标题">{task.title}</Descriptions.Item>
           <Descriptions.Item label="状态">{getStatusTag(task.status)}</Descriptions.Item>
-          <Descriptions.Item label="当前阶段">{getPhaseLabel(task.current_phase || '')}</Descriptions.Item>
+          <Descriptions.Item label="当前阶段">
+            {phaseConfig[task.current_phase as TaskPhase]?.label || task.current_phase || '-'}
+          </Descriptions.Item>
           <Descriptions.Item label="视频路径">{task.video_path}</Descriptions.Item>
           <Descriptions.Item label="输出视频">
             {task.final_video_url ? (
@@ -218,17 +266,74 @@ export default function TaskDetail() {
         </Descriptions>
       </Card>
 
+      <Card title="阶段控制" style={{ marginBottom: 24 }}>
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          {(['DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'] as TaskPhase[]).map((phase) => {
+            const config = phaseConfig[phase];
+            const statusColor = getPhaseStatusColor(phase);
+            const phaseState = phaseStatus[phase];
+
+            return (
+              <div key={phase} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', border: '1px solid #f0f0f0', borderRadius: '8px' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {statusColor === 'success' && <CheckCircleOutlined style={{ color: '#52c41a' }} />}
+                    {statusColor === 'processing' && <PlayCircleOutlined style={{ color: '#1890ff' }} />}
+                    <Tag color={statusColor === 'success' ? 'success' : statusColor === 'processing' ? 'blue' : 'default'}>
+                      {config.label}
+                    </Tag>
+                  </div>
+                  <div style={{ color: '#999', fontSize: '12px', marginTop: '4px' }}>
+                    {config.description}
+                  </div>
+                  {phaseState && (
+                    <div style={{ marginTop: '8px' }}>
+                      {phaseState.ready ? (
+                        <span style={{ color: '#52c41a', fontSize: '12px' }}>
+                          ✓ 素材齐全
+                        </span>
+                      ) : (
+                        <span style={{ color: '#ff4d4f', fontSize: '12px' }}>
+                          ✗ 缺少素材: {phaseState.missing.join(', ')}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <Button size="small" onClick={() => checkPhase(phase)}>
+                    检查素材
+                  </Button>
+                  <Button
+                    type="primary"
+                    size="small"
+                    onClick={() => startPhase(phase)}
+                    disabled={isPhaseRunning()}
+                  >
+                    启动
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </Space>
+      </Card>
+
       <Card title="任务进度">
         <Timeline>
-          <Timeline.Item color={task.status === 'EXTRACTING' || task.status === 'EXTRACTED' ? 'blue' : task.status === 'COMPLETED' ? 'green' : ''}>
-            抽帧阶段 {task.status === 'EXTRACTED' || task.status === 'IMG2IMGING' || task.status === 'IMG2IMGED' || task.status === 'COMPOSING' || task.status === 'COMPLETED' ? '✓' : ''}
-          </Timeline.Item>
-          <Timeline.Item color={task.status === 'IMG2IMGING' || task.status === 'IMG2IMGED' ? 'purple' : task.status === 'COMPLETED' ? 'green' : ''}>
-            图生图阶段 {task.status === 'IMG2IMGED' || task.status === 'COMPOSING' || task.status === 'COMPLETED' ? '✓' : ''}
-          </Timeline.Item>
-          <Timeline.Item color={task.status === 'COMPOSING' ? 'orange' : task.status === 'COMPLETED' ? 'green' : ''}>
-            合成阶段 {task.status === 'COMPLETED' ? '✓' : ''}
-          </Timeline.Item>
+          {(['DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'] as TaskPhase[]).map((phase) => {
+            const config = phaseConfig[phase];
+            const status = task?.status || '';
+            const isRunning = status === `${phase}ING`;
+            const isDone = status === `${phase}ED` || status === 'COMPLETED';
+            const color = isRunning ? 'blue' : isDone ? 'green' : '';
+            
+            return (
+              <Timeline.Item key={phase} color={color}>
+                {config.label} {isDone ? '✓' : isRunning ? '处理中...' : ''}
+              </Timeline.Item>
+            );
+          })}
         </Timeline>
       </Card>
 

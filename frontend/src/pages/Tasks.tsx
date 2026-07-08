@@ -116,11 +116,21 @@ export default function Tasks() {
   const getStatusTag = (status: string) => {
     const statusConfig: Record<string, { color: string; text: string }> = {
       PENDING: { color: 'default', text: '等待中' },
-      EXTRACTING: { color: 'blue', text: '抽帧中' },
-      EXTRACTED: { color: 'blue', text: '抽帧完成' },
-      IMG2IMGING: { color: 'purple', text: '图生图中' },
-      IMG2IMGED: { color: 'purple', text: '图生图完成' },
-      COMPOSING: { color: 'orange', text: '合成中' },
+      DETECTING: { color: 'blue', text: '检测中' },
+      DETECTED: { color: 'blue', text: '检测完成' },
+      ANALYZING: { color: 'purple', text: '分析中' },
+      ANALYZED: { color: 'purple', text: '分析完成' },
+      SELECTING_FACES: { color: 'cyan', text: '选帧中' },
+      FACES_SELECTED: { color: 'cyan', text: '选帧完成' },
+      GENERATING_CHARACTERS: { color: 'green', text: '生人设中' },
+      CHARACTERS_GENERATED: { color: 'green', text: '人设完成' },
+      CROPPING_SHOTS: { color: 'orange', text: '裁切中' },
+      SHOTS_CROPPED: { color: 'orange', text: '裁切完成' },
+      CONVERTING_FRAMES: { color: 'red', text: '转化中' },
+      FRAMES_CONVERTED: { color: 'red', text: '转化完成' },
+      GENERATING_SHOTS: { color: 'pink', text: '生成分镜中' },
+      SHOTS_GENERATED: { color: 'pink', text: '分镜完成' },
+      COMPOSING: { color: 'yellow', text: '合成中' },
       COMPLETED: { color: 'success', text: '已完成' },
       FAILED: { color: 'error', text: '失败' },
       CANCELLED: { color: 'default', text: '已取消' },
@@ -183,24 +193,27 @@ export default function Tasks() {
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: any) => (
-        <Space>
-          <Button size="small" icon={<EyeOutlined />} onClick={() => window.location.href = `/tasks/${record.id}`} />
-          {record.status === 'PENDING' && (
-            <Button size="small" icon={<PlayCircleOutlined />} onClick={() => handleStart(record.id)} />
-          )}
-          {record.status !== 'COMPLETED' && record.status !== 'CANCELLED' && (
-            <Button size="small" icon={<StopOutlined />} onClick={() => handleCancel(record.id)} />
-          )}
-          {record.status === 'FAILED' && (
-            <Button size="small" icon={<RotateLeftOutlined />} onClick={() => handleRetry(record.id)} />
-          )}
-          {(record.status === 'EXTRACTING' || record.status === 'IMG2IMGING' || record.status === 'COMPOSING') && (
-            <Button size="small" type="primary" icon={<PauseCircleOutlined />} onClick={() => handleRestartPhase(record.id)} />
-          )}
-          <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
-        </Space>
-      ),
+      render: (_: any, record: any) => {
+        const isRunning = ['DETECTING', 'ANALYZING', 'SELECTING_FACES', 'GENERATING_CHARACTERS', 'CROPPING_SHOTS', 'CONVERTING_FRAMES', 'GENERATING_SHOTS', 'COMPOSING'].includes(record.status);
+        return (
+          <Space>
+            <Button size="small" icon={<EyeOutlined />} onClick={() => window.location.href = `/tasks/${record.id}`} />
+            {record.status === 'PENDING' && (
+              <Button size="small" icon={<PlayCircleOutlined />} onClick={() => handleStart(record.id)} />
+            )}
+            {record.status !== 'COMPLETED' && record.status !== 'CANCELLED' && (
+              <Button size="small" icon={<StopOutlined />} onClick={() => handleCancel(record.id)} />
+            )}
+            {record.status === 'FAILED' && (
+              <Button size="small" icon={<RotateLeftOutlined />} onClick={() => handleRetry(record.id)} />
+            )}
+            {isRunning && (
+              <Button size="small" type="primary" icon={<PauseCircleOutlined />} onClick={() => handleRestartPhase(record.id)} />
+            )}
+            <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
+          </Space>
+        );
+      },
     },
   ];
 
@@ -223,8 +236,13 @@ export default function Tasks() {
           >
             <Option value="">全部</Option>
             <Option value="PENDING">等待中</Option>
-            <Option value="EXTRACTING">抽帧中</Option>
-            <Option value="IMG2IMGING">图生图中</Option>
+            <Option value="DETECTING">检测中</Option>
+            <Option value="ANALYZING">分析中</Option>
+            <Option value="SELECTING_FACES">选帧中</Option>
+            <Option value="GENERATING_CHARACTERS">生人设中</Option>
+            <Option value="CROPPING_SHOTS">裁切中</Option>
+            <Option value="CONVERTING_FRAMES">转化中</Option>
+            <Option value="GENERATING_SHOTS">生成分镜中</Option>
             <Option value="COMPOSING">合成中</Option>
             <Option value="COMPLETED">已完成</Option>
             <Option value="FAILED">失败</Option>

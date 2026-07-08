@@ -112,11 +112,11 @@ taskRoutes.post('/:id/restart-phase', async (c) => {
   }
   
   const currentPhase = task.current_phase;
-  if (!currentPhase || currentPhase === 'COMPLETE') {
+  if (!currentPhase) {
     return c.json({ code: 400, data: null, msg: 'No active phase to restart' }, 400);
   }
   
-  await service.triggerPhase(c.req.param('id'), currentPhase as 'EXTRACT' | 'IMG2IMG' | 'COMPOSE');
+  await service.triggerPhase(c.req.param('id'), currentPhase as any);
   
   const updatedTask = await service.getTask(c.req.param('id'));
   return c.json({ code: 200, data: updatedTask, msg: `Phase ${currentPhase} restarted` });

@@ -34,19 +34,34 @@ export default function Dashboard() {
 
   const loadStats = async () => {
     try {
-      const [pending, extracting, img2imging, composing, completed, failed] = await Promise.all([
+      const [pending, detecting, analyzing, selectingFaces, generatingChars, croppingShots, convertingFrames, generatingShots, composing, completed, failed] = await Promise.all([
         taskApi.list({ status: 'PENDING', limit: 100 }),
-        taskApi.list({ status: 'EXTRACTING', limit: 100 }),
-        taskApi.list({ status: 'IMG2IMGING', limit: 100 }),
+        taskApi.list({ status: 'DETECTING', limit: 100 }),
+        taskApi.list({ status: 'ANALYZING', limit: 100 }),
+        taskApi.list({ status: 'SELECTING_FACES', limit: 100 }),
+        taskApi.list({ status: 'GENERATING_CHARACTERS', limit: 100 }),
+        taskApi.list({ status: 'CROPPING_SHOTS', limit: 100 }),
+        taskApi.list({ status: 'CONVERTING_FRAMES', limit: 100 }),
+        taskApi.list({ status: 'GENERATING_SHOTS', limit: 100 }),
         taskApi.list({ status: 'COMPOSING', limit: 100 }),
         taskApi.list({ status: 'COMPLETED', limit: 100 }),
         taskApi.list({ status: 'FAILED', limit: 100 }),
       ]);
 
+      const processingCount = 
+        (detecting.data?.length || 0) +
+        (analyzing.data?.length || 0) +
+        (selectingFaces.data?.length || 0) +
+        (generatingChars.data?.length || 0) +
+        (croppingShots.data?.length || 0) +
+        (convertingFrames.data?.length || 0) +
+        (generatingShots.data?.length || 0) +
+        (composing.data?.length || 0);
+
       setStats({
-        total: (pending.data?.length || 0) + (extracting.data?.length || 0) + (img2imging.data?.length || 0) + (composing.data?.length || 0) + (completed.data?.length || 0) + (failed.data?.length || 0),
+        total: pending.data?.length || 0 + processingCount + (completed.data?.length || 0) + (failed.data?.length || 0),
         pending: pending.data?.length || 0,
-        processing: (extracting.data?.length || 0) + (img2imging.data?.length || 0) + (composing.data?.length || 0),
+        processing: processingCount,
         completed: completed.data?.length || 0,
         failed: failed.data?.length || 0,
       });
@@ -67,11 +82,21 @@ export default function Dashboard() {
   const getStatusTag = (status: string) => {
     const statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }> = {
       PENDING: { color: 'default', text: '等待中', icon: <ClockCircleOutlined /> },
-      EXTRACTING: { color: 'blue', text: '抽帧中', icon: <PlayCircleOutlined /> },
-      EXTRACTED: { color: 'blue', text: '抽帧完成', icon: <CheckCircleOutlined /> },
-      IMG2IMGING: { color: 'purple', text: '图生图中', icon: <PlayCircleOutlined /> },
-      IMG2IMGED: { color: 'purple', text: '图生图完成', icon: <CheckCircleOutlined /> },
-      COMPOSING: { color: 'orange', text: '合成中', icon: <PlayCircleOutlined /> },
+      DETECTING: { color: 'blue', text: '检测中', icon: <PlayCircleOutlined /> },
+      DETECTED: { color: 'blue', text: '检测完成', icon: <CheckCircleOutlined /> },
+      ANALYZING: { color: 'purple', text: '分析中', icon: <PlayCircleOutlined /> },
+      ANALYZED: { color: 'purple', text: '分析完成', icon: <CheckCircleOutlined /> },
+      SELECTING_FACES: { color: 'cyan', text: '选帧中', icon: <PlayCircleOutlined /> },
+      FACES_SELECTED: { color: 'cyan', text: '选帧完成', icon: <CheckCircleOutlined /> },
+      GENERATING_CHARACTERS: { color: 'green', text: '生成人设中', icon: <PlayCircleOutlined /> },
+      CHARACTERS_GENERATED: { color: 'green', text: '人设完成', icon: <CheckCircleOutlined /> },
+      CROPPING_SHOTS: { color: 'orange', text: '裁切中', icon: <PlayCircleOutlined /> },
+      SHOTS_CROPPED: { color: 'orange', text: '裁切完成', icon: <CheckCircleOutlined /> },
+      CONVERTING_FRAMES: { color: 'red', text: '转化中', icon: <PlayCircleOutlined /> },
+      FRAMES_CONVERTED: { color: 'red', text: '转化完成', icon: <CheckCircleOutlined /> },
+      GENERATING_SHOTS: { color: 'pink', text: '生成分镜中', icon: <PlayCircleOutlined /> },
+      SHOTS_GENERATED: { color: 'pink', text: '分镜完成', icon: <CheckCircleOutlined /> },
+      COMPOSING: { color: 'yellow', text: '合成中', icon: <PlayCircleOutlined /> },
       COMPLETED: { color: 'success', text: '已完成', icon: <CheckCircleOutlined /> },
       FAILED: { color: 'error', text: '失败', icon: <CloseCircleOutlined /> },
       CANCELLED: { color: 'default', text: '已取消', icon: <CloseCircleOutlined /> },

@@ -41,6 +41,9 @@ export const taskApi = {
   retry: (id: string) => api.post(`/tasks/${id}/retry`),
   advance: (id: string) => api.post(`/tasks/${id}/advance`),
   restartPhase: (id: string) => api.post(`/tasks/${id}/restart-phase`),
+  checkPhase: (id: string, phase: string) => api.get(`/admin/tasks/${id}/check-phase/${phase}`),
+  startPhase: (id: string, phase: string) => api.post(`/admin/tasks/${id}/start-phase/${phase}`),
+  getPhaseOrder: () => api.get('/admin/tasks/phase-order'),
 };
 
 export const accountApi = {

@@ -251,3 +251,89 @@ CREATE TABLE IF NOT EXISTS task_checkpoints (
 );
 
 CREATE INDEX IF NOT EXISTS idx_checkpoints_task ON task_checkpoints(task_id);
+
+CREATE TABLE IF NOT EXISTS shots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    shot_index INTEGER NOT NULL,
+    start_time REAL NOT NULL,
+    end_time REAL NOT NULL,
+    duration REAL NOT NULL,
+    scene_type TEXT,
+    confidence REAL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_shots_task ON shots(task_id);
+CREATE INDEX IF NOT EXISTS idx_shots_index ON shots(shot_index);
+
+CREATE TABLE IF NOT EXISTS characters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    role_id TEXT UNIQUE NOT NULL,
+    gender TEXT,
+    build TEXT,
+    height TEXT,
+    permanent_features TEXT,
+    tags TEXT,
+    avatar_path TEXT,
+    best_frame_path TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_characters_task ON characters(task_id);
+CREATE INDEX IF NOT EXISTS idx_characters_role ON characters(role_id);
+
+CREATE TABLE IF NOT EXISTS shot_details (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    shot_index INTEGER NOT NULL,
+    start_time REAL NOT NULL,
+    end_time REAL NOT NULL,
+    duration REAL NOT NULL,
+    characters TEXT,
+    speaker TEXT,
+    dialogue TEXT,
+    scene_description TEXT,
+    lighting TEXT,
+    camera_movement TEXT,
+    positive_prompt TEXT,
+    negative_prompt TEXT,
+    first_frame_path TEXT,
+    last_frame_path TEXT,
+    ai_first_frame_path TEXT,
+    ai_last_frame_path TEXT,
+    generated_video_path TEXT,
+    status TEXT DEFAULT 'PENDING',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_shot_details_task ON shot_details(task_id);
+CREATE INDEX IF NOT EXISTS idx_shot_details_index ON shot_details(shot_index);
+
+CREATE TABLE IF NOT EXISTS character_frames (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    role_id TEXT NOT NULL,
+    frame_path TEXT NOT NULL,
+    shot_index INTEGER NOT NULL,
+    position TEXT NOT NULL,
+    face_confidence REAL DEFAULT 0,
+    face_angle REAL DEFAULT 0,
+    blur_score REAL DEFAULT 0,
+    occlusion_rate REAL DEFAULT 0,
+    quality_score REAL DEFAULT 0,
+    is_best BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id),
+    FOREIGN KEY (role_id) REFERENCES characters(role_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_character_frames_task ON character_frames(task_id);
+CREATE INDEX IF NOT EXISTS idx_character_frames_role ON character_frames(role_id);
+CREATE INDEX IF NOT EXISTS idx_character_frames_best ON character_frames(is_best);

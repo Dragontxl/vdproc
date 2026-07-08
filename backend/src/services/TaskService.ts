@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Bindings } from '../types/env';
-import { Task, TaskStatus } from '../types';
+import { Task, TaskStatus, TaskPhase } from '../types';
 
 interface CreateTaskOptions {
   title?: string;
@@ -25,6 +25,26 @@ type D1ResultType = {
   };
 };
 
+const phaseStatusMap: Record<TaskPhase, { running: TaskStatus; done: TaskStatus }> = {
+  DETECT: { running: 'DETECTING', done: 'DETECTED' },
+  ANALYZE: { running: 'ANALYZING', done: 'ANALYZED' },
+  SELECT_FACES: { running: 'SELECTING_FACES', done: 'FACES_SELECTED' },
+  GENERATE_CHARACTERS: { running: 'GENERATING_CHARACTERS', done: 'CHARACTERS_GENERATED' },
+  CROP_SHOTS: { running: 'CROPPING_SHOTS', done: 'SHOTS_CROPPED' },
+  CONVERT_FRAMES: { running: 'CONVERTING_FRAMES', done: 'FRAMES_CONVERTED' },
+  GENERATE_SHOTS: { running: 'GENERATING_SHOTS', done: 'SHOTS_GENERATED' },
+  COMPOSE: { running: 'COMPOSING', done: 'COMPLETED' },
+};
+
+const phaseOrder: TaskPhase[] = [
+  'DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS',
+  'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'
+];
+
+const phasesRequiringAI: TaskPhase[] = [
+  'ANALYZE', 'GENERATE_CHARACTERS', 'CONVERT_FRAMES', 'GENERATE_SHOTS'
+];
+
 export class TaskService {
   constructor(private env: Bindings) {}
 
@@ -34,8 +54,8 @@ export class TaskService {
     const result = await this.env.DB.prepare(`
       INSERT INTO tasks (
         id, user_id, title, status, video_path, fps, prompt, output_fps, 
-        priority, tags, max_retries, expires_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        priority, tags, max_retries, expires_at, current_phase
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       taskId,
       'default_user',
@@ -44,11 +64,12 @@ export class TaskService {
       options.videoPath,
       options.fps || 30,
       options.prompt || '',
-      options.outputFps || 30,
+      options.outputFps || 24,
       options.priority || 0,
       options.tags || '',
       3,
-      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      'DETECT'
     ).run() as D1ResultType;
 
     if (!result.success || (result.meta?.changes ?? 0) === 0) {
@@ -123,6 +144,10 @@ export class TaskService {
       updateFields.push('tags = ?');
       params.push(updates.tags);
     }
+    if (updates.current_phase !== undefined) {
+      updateFields.push('current_phase = ?');
+      params.push(updates.current_phase);
+    }
 
     updateFields.push('updated_at = CURRENT_TIMESTAMP');
     params.push(taskId);
@@ -154,6 +179,14 @@ export class TaskService {
       throw new Error(`Task is not in PENDING state: ${task.status}`);
     }
 
+    const currentPhase = (task.current_phase as TaskPhase) || 'DETECT';
+    return await this.startPhase(taskId, currentPhase);
+  }
+
+  async startPhase(taskId: string, phase: TaskPhase): Promise<Task | null> {
+    const task = await this.getTask(taskId);
+    if (!task) return null;
+
     const accountService = await import('./AccountService');
     const ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
     
@@ -161,37 +194,29 @@ export class TaskService {
       throw new Error('No available GitHub account');
     }
 
-    const currentPhase = task.current_phase || 'EXTRACT';
-    
-    const statusMap: Record<string, TaskStatus> = {
-      'EXTRACT': 'EXTRACTING',
-      'IMG2IMG': 'IMG2IMGING',
-      'COMPOSE': 'COMPOSING',
-    };
-
     let aiAccount: any = null;
-    if (currentPhase === 'IMG2IMG') {
+    if (phasesRequiringAI.includes(phase)) {
       aiAccount = await new accountService.AccountService(this.env).selectAIAccount();
       if (!aiAccount) {
         throw new Error('No available AI account');
       }
     }
 
-    const status = statusMap[currentPhase] || 'EXTRACTING';
+    const status = phaseStatusMap[phase].running;
     
     await this.env.DB.prepare(`
-      UPDATE tasks SET status = ?, started_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), github_account_id = ?
+      UPDATE tasks SET status = ?, current_phase = ?, started_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), github_account_id = ?
       WHERE id = ?
-    `).bind(status, ghAccount ? ghAccount.id : null, taskId).run();
+    `).bind(status, phase, ghAccount ? ghAccount.id : null, taskId).run();
 
-    if (currentPhase === 'IMG2IMG') {
+    if (aiAccount) {
       await this.env.DB.prepare(`
         UPDATE tasks SET ai_account_id = ? WHERE id = ?
       `).bind(aiAccount ? aiAccount.id : null, taskId).run();
     }
 
     try {
-      await this.triggerPhase(taskId, currentPhase as 'EXTRACT' | 'IMG2IMG' | 'COMPOSE');
+      await this.triggerPhase(taskId, phase);
     } catch (error) {
       await this.env.DB.prepare(`
         UPDATE tasks SET status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -235,7 +260,7 @@ export class TaskService {
     return await this.getTask(taskId);
   }
 
-  async triggerPhase(taskId: string, phase: 'EXTRACT' | 'IMG2IMG' | 'COMPOSE') {
+  async triggerPhase(taskId: string, phase: TaskPhase) {
     console.log('triggerPhase called:', { taskId, phase });
     
     const task = await this.getTask(taskId);
@@ -244,46 +269,33 @@ export class TaskService {
       throw new Error('Task not found');
     }
 
-    const statusMap: Record<string, TaskStatus> = {
-      'EXTRACT': 'EXTRACTING',
-      'IMG2IMG': 'IMG2IMGING',
-      'COMPOSE': 'COMPOSING',
-    };
-
     const accountService = await import('./AccountService');
     let ghAccount: any = null;
     let aiAccount: any = null;
 
-    if (phase === 'EXTRACT') {
-      ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
-      console.log('triggerPhase: EXTRACT - ghAccount:', ghAccount?.id);
-      await this.env.DB.prepare(`
-        UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ?
-      `).bind(phase, statusMap[phase], ghAccount ? ghAccount.id : null, taskId).run();
-    } else if (phase === 'IMG2IMG') {
+    ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
+    
+    if (phasesRequiringAI.includes(phase)) {
       aiAccount = await new accountService.AccountService(this.env).selectAIAccount();
-      ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
-      console.log('triggerPhase: IMG2IMG - aiAccount:', aiAccount?.id, 'ghAccount:', ghAccount?.id);
+    }
+
+    await this.env.DB.prepare(`
+      UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE id = ?
+    `).bind(phase, phaseStatusMap[phase].running, ghAccount ? ghAccount.id : null, taskId).run();
+
+    if (aiAccount) {
       await this.env.DB.prepare(`
-        UPDATE tasks SET current_phase = ?, status = ?, ai_account_id = ?, github_account_id = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ?
-      `).bind(phase, statusMap[phase], aiAccount ? aiAccount.id : null, ghAccount ? ghAccount.id : null, taskId).run();
-    } else if (phase === 'COMPOSE') {
-      ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
-      console.log('triggerPhase: COMPOSE - ghAccount:', ghAccount?.id);
-      await this.env.DB.prepare(`
-        UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ?
-      `).bind(phase, statusMap[phase], ghAccount ? ghAccount.id : null, taskId).run();
+        UPDATE tasks SET ai_account_id = ? WHERE id = ?
+      `).bind(aiAccount ? aiAccount.id : null, taskId).run();
     }
 
     if (!ghAccount) {
       console.error('triggerPhase: No available GitHub account');
       throw new Error('No available GitHub account');
     }
-    if (!aiAccount && phase === 'IMG2IMG') {
-      console.error('triggerPhase: No available AI account for IMG2IMG');
+    if (!aiAccount && phasesRequiringAI.includes(phase)) {
+      console.error('triggerPhase: No available AI account for phase:', phase);
       throw new Error('No available AI account');
     }
 
@@ -293,7 +305,7 @@ export class TaskService {
     console.log('triggerPhase completed successfully:', { taskId, phase });
   }
 
-  async dispatchGitHubWorkflow(taskId: string, phase: 'EXTRACT' | 'IMG2IMG' | 'COMPOSE', ghAccountId?: number, aiAccountId?: number) {
+  async dispatchGitHubWorkflow(taskId: string, phase: TaskPhase, ghAccountId?: number, aiAccountId?: number) {
     console.log('dispatchGitHubWorkflow called:', { taskId, phase, ghAccountId, aiAccountId });
     
     const owner = this.env.GITHUB_REPO_OWNER;
@@ -461,37 +473,33 @@ export class TaskService {
 
     console.log('advancePhase: Current task state:', { taskId, currentPhase: task.current_phase, status: task.status });
 
-    const phaseMap: Record<string, { next: string; status: TaskStatus }> = {
-      'EXTRACT': { next: 'IMG2IMG', status: 'EXTRACTED' },
-      'IMG2IMG': { next: 'COMPOSE', status: 'IMG2IMGED' },
-      'COMPOSE': { next: 'COMPLETE', status: 'COMPLETED' },
-    };
-
-    const currentPhase = task.current_phase || 'EXTRACT';
-    const nextPhase = phaseMap[currentPhase];
+    const currentPhase = task.current_phase as TaskPhase || 'DETECT';
+    const currentIndex = phaseOrder.indexOf(currentPhase);
+    const nextPhase = phaseOrder[currentIndex + 1];
 
     console.log('advancePhase: Phase transition:', { currentPhase, nextPhase });
 
     if (!nextPhase) {
       console.log('advancePhase: No next phase found for:', currentPhase);
+      if (currentPhase === 'COMPOSE') {
+        await this.env.DB.prepare(`
+          UPDATE tasks SET status = ?, completed_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ?
+        `).bind('COMPLETED', taskId).run();
+        console.log('advancePhase: Task marked as completed:', taskId);
+      }
       return;
     }
 
-    if (nextPhase.next === 'COMPLETE') {
-      await this.env.DB.prepare(`
-        UPDATE tasks SET status = ?, completed_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ?
-      `).bind(nextPhase.status, taskId).run();
-      console.log('advancePhase: Task marked as completed:', taskId);
-    } else {
-      await this.env.DB.prepare(`
-        UPDATE tasks SET status = ?, current_phase = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ?
-      `).bind(nextPhase.status, nextPhase.next, taskId).run();
-      console.log('advancePhase: Task status updated to:', { status: nextPhase.status, currentPhase: nextPhase.next });
+    const doneStatus = phaseStatusMap[currentPhase].done;
+    
+    await this.env.DB.prepare(`
+      UPDATE tasks SET status = ?, current_phase = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE id = ?
+    `).bind(doneStatus, nextPhase, taskId).run();
+    console.log('advancePhase: Task status updated to:', { status: doneStatus, currentPhase: nextPhase });
 
-      await this.triggerPhase(taskId, nextPhase.next as 'EXTRACT' | 'IMG2IMG' | 'COMPOSE');
-    }
+    await this.triggerPhase(taskId, nextPhase);
   }
 
   async logTask(taskId: string, phase: string, level: string, message: string) {
@@ -518,5 +526,14 @@ export class TaskService {
     }
 
     return results;
+  }
+
+  getNextPhase(phase: TaskPhase): TaskPhase | null {
+    const index = phaseOrder.indexOf(phase);
+    return phaseOrder[index + 1] || null;
+  }
+
+  getPhaseOrder(): TaskPhase[] {
+    return [...phaseOrder];
   }
 }
