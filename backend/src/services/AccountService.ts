@@ -1,5 +1,6 @@
 import { Bindings } from '../types/env';
 import { GitHubAccount, AIAccount } from '../types';
+import { CryptoService } from './CryptoService';
 
 type D1ResultType = {
   success: boolean;
@@ -9,7 +10,11 @@ type D1ResultType = {
 };
 
 export class AccountService {
-  constructor(private env: Bindings) {}
+  private cryptoService: CryptoService;
+
+  constructor(private env: Bindings) {
+    this.cryptoService = new CryptoService(env);
+  }
 
   async listGitHubAccounts(): Promise<GitHubAccount[]> {
     const result = await this.env.DB.prepare(`
@@ -20,13 +25,17 @@ export class AccountService {
   }
 
   async createGitHubAccount(data: any): Promise<GitHubAccount> {
+    const encryptedToken = data.token_encrypted 
+      ? await this.cryptoService.encrypt(data.token_encrypted) 
+      : '';
+
     const result = await this.env.DB.prepare(`
       INSERT INTO github_accounts (name, username, token_encrypted, monthly_limit)
       VALUES (?, ?, ?, ?)
     `).bind(
       data.name,
       data.username || '',
-      data.token_encrypted || '',
+      encryptedToken,
       data.monthly_limit || 2000
     ).run() as D1ResultType;
 
@@ -55,8 +64,9 @@ export class AccountService {
       params.push(data.username);
     }
     if (data.token_encrypted !== undefined) {
+      const encryptedToken = await this.cryptoService.encrypt(data.token_encrypted);
       updateFields.push('token_encrypted = ?');
-      params.push(data.token_encrypted);
+      params.push(encryptedToken);
     }
     if (data.is_active !== undefined) {
       updateFields.push('is_active = ?');
@@ -98,6 +108,10 @@ export class AccountService {
   }
 
   async createAIAccount(data: any): Promise<AIAccount> {
+    const encryptedKey = data.api_key_encrypted 
+      ? await this.cryptoService.encrypt(data.api_key_encrypted) 
+      : '';
+
     const result = await this.env.DB.prepare(`
       INSERT INTO ai_accounts (
         account_alias, api_type, api_key_encrypted, base_url, model_name, 
@@ -106,7 +120,7 @@ export class AccountService {
     `).bind(
       data.account_alias,
       data.api_type || 'image',
-      data.api_key_encrypted || '',
+      encryptedKey,
       data.base_url || 'https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/image-to-image',
       data.model_name || 'stable-diffusion-xl-1024-v1-0',
       data.max_concurrent || 1,
@@ -140,8 +154,9 @@ export class AccountService {
       params.push(data.api_type);
     }
     if (data.api_key_encrypted !== undefined) {
+      const encryptedKey = await this.cryptoService.encrypt(data.api_key_encrypted);
       updateFields.push('api_key_encrypted = ?');
-      params.push(data.api_key_encrypted);
+      params.push(encryptedKey);
     }
     if (data.base_url !== undefined) {
       updateFields.push('base_url = ?');

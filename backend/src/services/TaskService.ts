@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Bindings } from '../types/env';
 import { Task, TaskStatus, TaskPhase } from '../types';
+import { CryptoService } from './CryptoService';
 
 interface CreateTaskOptions {
   title?: string;
@@ -53,7 +54,11 @@ const phasesRequiringAI: Record<TaskPhase, string> = {
 };
 
 export class TaskService {
-  constructor(private env: Bindings) {}
+  private cryptoService: CryptoService;
+
+  constructor(private env: Bindings) {
+    this.cryptoService = new CryptoService(env);
+  }
 
   async createTask(options: CreateTaskOptions): Promise<Task> {
     const taskId = uuidv4();
@@ -339,7 +344,8 @@ export class TaskService {
         throw new Error('GitHub account not found');
       }
 
-      ghApiKey = (accountResult as { token_encrypted: string }).token_encrypted;
+      const encryptedToken = (accountResult as { token_encrypted: string }).token_encrypted;
+      ghApiKey = encryptedToken ? await this.cryptoService.decrypt(encryptedToken) : '';
       
       console.log('dispatchGitHubWorkflow: ghApiKey length:', ghApiKey.length);
       
@@ -368,7 +374,8 @@ export class TaskService {
       `).bind(aiAccountId).first();
 
       if (aiAccountResult) {
-        aiApiKey = (aiAccountResult as { api_key_encrypted: string }).api_key_encrypted;
+        const encryptedKey = (aiAccountResult as { api_key_encrypted: string }).api_key_encrypted;
+        aiApiKey = encryptedKey ? await this.cryptoService.decrypt(encryptedKey) : '';
         aiBaseUrl = (aiAccountResult as { base_url: string }).base_url || '';
       }
     }
@@ -379,7 +386,15 @@ export class TaskService {
     `).all();
     
     if (aiAccountsResult.results && aiAccountsResult.results.length > 0) {
-      aiAccountsJson = JSON.stringify(aiAccountsResult.results);
+      const decryptedAccounts = await Promise.all(
+        (aiAccountsResult.results as any[]).map(async (acc) => ({
+          ...acc,
+          api_key_encrypted: acc.api_key_encrypted 
+            ? await this.cryptoService.decrypt(acc.api_key_encrypted) 
+            : ''
+        }))
+      );
+      aiAccountsJson = JSON.stringify(decryptedAccounts);
     }
 
     const payload = {
