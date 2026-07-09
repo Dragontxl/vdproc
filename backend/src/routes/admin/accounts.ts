@@ -52,12 +52,17 @@ accountRoutes.get('/ai', async (c) => {
 });
 
 accountRoutes.post('/ai', async (c) => {
-  const service = new AccountService(c.env as Bindings);
-  const body = await c.req.json();
-  
-  const account = await service.createAIAccount(body);
-  
-  return c.json({ code: 201, data: account, msg: 'Account created successfully' }, 201);
+  try {
+    const service = new AccountService(c.env as Bindings);
+    const body = await c.req.json();
+    
+    const account = await service.createAIAccount(body);
+    
+    return c.json({ code: 201, data: account, msg: 'Account created successfully' }, 201);
+  } catch (error) {
+    console.error('Create AI account error:', error);
+    return c.json({ code: 500, data: null, msg: 'Failed to create account: ' + (error as Error).message }, 500);
+  }
 });
 
 accountRoutes.put('/ai/:id', async (c) => {

@@ -10,7 +10,7 @@ main = "src/index.ts"
 [vars]
 ADMIN_API_KEY = "admin-api-key-1234567890"
 CALLBACK_SECRET = "callback-secret-1234567890"
-ENCRYPTION_KEY = "encryption-key-32-bytes-minimum"
+ENCRYPTION_KEY = "encryption-key-32-bytes-minimum-length-key-xyz"
 JWT_SECRET = "jwt-secret-key-1234567890"
 ENVIRONMENT = "production"
 GITHUB_REPO_OWNER = "Dragontxl"
