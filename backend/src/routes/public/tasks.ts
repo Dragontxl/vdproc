@@ -131,10 +131,14 @@ taskRoutes.post('/:id/restart-phase', async (c) => {
     return c.json({ code: 400, data: null, msg: 'No active phase to restart' }, 400);
   }
   
-  await service.triggerPhase(c.req.param('id'), currentPhase as any);
-  
-  const updatedTask = await service.getTask(c.req.param('id'));
-  return c.json({ code: 200, data: updatedTask, msg: `Phase ${currentPhase} restarted` });
+  try {
+    await service.triggerPhase(c.req.param('id'), currentPhase as any);
+    const updatedTask = await service.getTask(c.req.param('id'));
+    return c.json({ code: 200, data: updatedTask, msg: `Phase ${currentPhase} restarted` });
+  } catch (error) {
+    console.error('Failed to restart phase:', error);
+    return c.json({ code: 500, data: null, msg: (error as Error).message }, 500);
+  }
 });
 
 taskRoutes.post('/:id/advance', async (c) => {
