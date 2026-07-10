@@ -103,9 +103,8 @@ for attempt in $(seq 1 $MAX_RETRIES); do
         --max-time 300 \
         -w "\n%{http_code}" \
         -H "Content-Type: application/json" \
-        -H "Authorization: Bearer $AI_API_KEY" \
+        -H "x-goog-api-key: $AI_API_KEY" \
         -d "{
-            \"model\": \"gemini-2.5-pro\",
             \"contents\": [{
                 \"parts\": [{
                     \"text\": \"$ANALYSIS_PROMPT\"
