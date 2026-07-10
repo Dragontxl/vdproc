@@ -1,0 +1,1 @@
+ALTER TABLE github_accounts ADD COLUMN is_limited BOOLEAN DEFAULT FALSE;

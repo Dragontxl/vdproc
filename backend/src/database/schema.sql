@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     total_frames INTEGER DEFAULT 0,
     processed_frames INTEGER DEFAULT 0,
     failed_frames INTEGER DEFAULT 0,
+    progress INTEGER DEFAULT 0,
     retry_count INTEGER DEFAULT 0,
     max_retries INTEGER DEFAULT 3,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

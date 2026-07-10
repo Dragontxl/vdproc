@@ -29,24 +29,30 @@ taskRoutes.get('/:id', async (c) => {
 
 taskRoutes.post('/', async (c) => {
   const service = new TaskService(c.env as Bindings);
-  const body = await c.req.json();
-  
-  const task = await service.createTask({
-    title: body.title,
-    videoPath: body.video_path,
-    fps: body.fps || 30,
-    prompt: body.prompt || '',
-    outputFps: body.output_fps || 30,
-    priority: body.priority || 0,
-    tags: body.tags || '',
-  });
   
   try {
-    await service.startTask(task.id);
-    return c.json({ code: 201, data: task, msg: 'Task created successfully' }, 201);
+    const body = await c.req.json();
+    
+    const task = await service.createTask({
+      title: body.title,
+      videoPath: body.video_path,
+      fps: body.fps || 30,
+      prompt: body.prompt || '',
+      outputFps: body.output_fps || 30,
+      priority: body.priority || 0,
+      tags: body.tags || '',
+    });
+    
+    try {
+      await service.startTask(task.id);
+      return c.json({ code: 201, data: task, msg: 'Task created successfully' }, 201);
+    } catch (error) {
+      console.error('Failed to start task:', error);
+      return c.json({ code: 201, data: task, msg: 'Task created but failed to start: ' + (error as Error).message }, 201);
+    }
   } catch (error) {
-    console.error('Failed to start task:', error);
-    return c.json({ code: 201, data: task, msg: 'Task created but failed to start: ' + (error as Error).message }, 201);
+    console.error('Failed to create task:', error);
+    return c.json({ code: 500, data: null, msg: 'Failed to create task: ' + (error as Error).message }, 500);
   }
 });
 

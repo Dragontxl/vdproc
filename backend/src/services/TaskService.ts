@@ -1,41 +1,9 @@
-function generateUUID(): string {
-  const array = new Uint8Array(16);
-  crypto.getRandomValues(array);
-  array[6] = (array[6] & 0x0F) | 0x40;
-  array[8] = (array[8] & 0x3F) | 0x80;
-  const bytes = array;
-  const hex = [];
-  for (let i = 0; i < 16; i++) {
-    hex.push(bytes[i].toString(16).padStart(2, '0'));
-  }
-  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10).join('')}`;
-}
 import { Bindings } from '../types/env';
-import { Task, TaskStatus, TaskPhase } from '../types';
+import { Task, TaskPhase, TaskStatus, Shot, Character, ShotDetail, CharacterFrame } from '../types';
 import { CryptoService } from './CryptoService';
+import { MaterialCheckService } from './MaterialCheckService';
 
-interface CreateTaskOptions {
-  title?: string;
-  videoPath: string;
-  fps?: number;
-  prompt?: string;
-  outputFps?: number;
-  priority?: number;
-  tags?: string;
-}
-
-interface ListTasksOptions {
-  status?: string;
-  page?: number;
-  limit?: number;
-}
-
-type D1ResultType = {
-  success: boolean;
-  meta?: {
-    changes?: number;
-  };
-};
+const phaseOrder: TaskPhase[] = ['DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
 
 const phaseStatusMap: Record<TaskPhase, { running: TaskStatus; done: TaskStatus }> = {
   DETECT: { running: 'DETECTING', done: 'DETECTED' },
@@ -48,20 +16,11 @@ const phaseStatusMap: Record<TaskPhase, { running: TaskStatus; done: TaskStatus 
   COMPOSE: { running: 'COMPOSING', done: 'COMPLETED' },
 };
 
-const phaseOrder: TaskPhase[] = [
-  'DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS',
-  'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'
-];
-
-const phasesRequiringAI: Record<TaskPhase, string> = {
-  ANALYZE: 'text',
-  GENERATE_CHARACTERS: '',
-  CONVERT_FRAMES: '',
-  GENERATE_SHOTS: '',
-  DETECT: '',
-  SELECT_FACES: '',
-  CROP_SHOTS: '',
-  COMPOSE: '',
+const phasesRequiringAI: Partial<Record<TaskPhase, string>> = {
+  ANALYZE: 'llm',
+  GENERATE_CHARACTERS: 'image',
+  CONVERT_FRAMES: 'image',
+  GENERATE_SHOTS: 'image',
 };
 
 export class TaskService {
@@ -71,217 +30,162 @@ export class TaskService {
     this.cryptoService = new CryptoService(env);
   }
 
-  async createTask(options: CreateTaskOptions): Promise<Task> {
-    const taskId = generateUUID();
-    
-    const result = await this.env.DB.prepare(`
-      INSERT INTO tasks (
-        id, user_id, title, status, video_path, fps, prompt, output_fps, 
-        priority, tags, max_retries, expires_at, current_phase
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      taskId,
-      'default_user',
-      options.title || `Task ${taskId.slice(0, 8)}`,
-      'PENDING',
-      options.videoPath,
-      options.fps || 30,
-      options.prompt || '',
-      options.outputFps || 24,
-      options.priority || 0,
-      options.tags || '',
-      3,
-      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      'DETECT'
-    ).run() as D1ResultType;
+  async createTask(data: {
+    title: string;
+    videoPath: string;
+    fps: number;
+    prompt: string;
+    outputFps: number;
+    priority?: number;
+    tags?: string;
+  }): Promise<Task> {
+    const task: Task = {
+      id: this.generateUUID(),
+      user_id: 'default_user',
+      title: data.title,
+      video_path: data.videoPath,
+      fps: data.fps,
+      prompt: data.prompt,
+      output_fps: data.outputFps,
+      priority: data.priority || 0,
+      tags: data.tags || '',
+      status: 'PENDING',
+      current_phase: 'DETECT',
+      progress: 0,
+      total_frames: 0,
+      processed_frames: 0,
+      failed_frames: 0,
+      retry_count: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
 
-    if (!result.success || (result.meta?.changes ?? 0) === 0) {
-      throw new Error('Failed to create task');
-    }
+    await this.env.DB.prepare(`
+      INSERT INTO tasks (id, user_id, title, status, current_phase, video_path, fps, prompt, output_fps, priority, tags, progress, total_frames, processed_frames, failed_frames, retry_count, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+      .bind(
+        task.id,
+        task.user_id,
+        task.title,
+        task.status,
+        task.current_phase,
+        task.video_path,
+        task.fps,
+        task.prompt,
+        task.output_fps,
+        task.priority,
+        task.tags,
+        task.progress,
+        task.total_frames,
+        task.processed_frames,
+        task.failed_frames || 0,
+        task.retry_count,
+        task.created_at,
+        task.updated_at
+      )
+      .run();
 
-    const task = await this.getTask(taskId);
-    if (!task) throw new Error('Failed to retrieve created task');
     return task;
   }
 
-  async getTask(taskId: string): Promise<Task | null> {
-    const result = await this.env.DB.prepare(`
-      SELECT * FROM tasks WHERE id = ?
-    `).bind(taskId).first();
-
-    if (!result) return null;
-    return result as unknown as Task;
+  async getTask(id: string): Promise<Task | null> {
+    const result = await this.env.DB.prepare(
+      `SELECT * FROM tasks WHERE id = ?`
+    ).bind(id).first();
+    return result as Task | null;
   }
 
-  async listTasks(options: ListTasksOptions = {}): Promise<Task[]> {
-    const { status, page = 1, limit = 20 } = options;
-    
-    let query = 'SELECT * FROM tasks';
+  async listTasks(filters: {
+    status?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<Task[]> {
+    const page = filters.page || 1;
+    const limit = filters.limit || 20;
+    const offset = (page - 1) * limit;
+
+    let query = `SELECT * FROM tasks WHERE 1=1`;
     const params: (string | number)[] = [];
-    
-    if (status) {
-      query += ' WHERE status = ?';
-      params.push(status);
+
+    if (filters.status) {
+      query += ` AND status = ?`;
+      params.push(filters.status);
     }
-    
-    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    params.push(limit, (page - 1) * limit);
+
+    query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
 
     const result = await this.env.DB.prepare(query).bind(...params).all();
-    
-    return result.results as unknown as Task[];
+    return result.results as Task[];
   }
 
-  async updateTask(taskId: string, updates: Partial<Task>): Promise<Task | null> {
-    const task = await this.getTask(taskId);
-    if (!task) return null;
+  async updateTask(id: string, data: Partial<Task>): Promise<Task | null> {
+    const fields = Object.keys(data).filter(k => k !== 'id');
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = fields.map(f => (data as any)[f]);
 
-    const updateFields: string[] = [];
-    const params: (string | number)[] = [];
+    await this.env.DB.prepare(`
+      UPDATE tasks SET ${setClause}, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?
+    `).bind(...values, id).run();
 
-    if (updates.title !== undefined) {
-      updateFields.push('title = ?');
-      params.push(updates.title);
-    }
-    if (updates.status !== undefined) {
-      updateFields.push('status = ?');
-      params.push(updates.status);
-    }
-    if (updates.prompt !== undefined) {
-      updateFields.push('prompt = ?');
-      params.push(updates.prompt);
-    }
-    if (updates.fps !== undefined) {
-      updateFields.push('fps = ?');
-      params.push(updates.fps);
-    }
-    if (updates.output_fps !== undefined) {
-      updateFields.push('output_fps = ?');
-      params.push(updates.output_fps);
-    }
-    if (updates.priority !== undefined) {
-      updateFields.push('priority = ?');
-      params.push(updates.priority);
-    }
-    if (updates.tags !== undefined) {
-      updateFields.push('tags = ?');
-      params.push(updates.tags);
-    }
-    if (updates.current_phase !== undefined) {
-      updateFields.push('current_phase = ?');
-      params.push(updates.current_phase);
+    return this.getTask(id);
+  }
+
+  async deleteTask(id: string): Promise<boolean> {
+    const result = await this.env.DB.prepare(
+      `DELETE FROM tasks WHERE id = ?`
+    ).bind(id).run();
+    return result.changes > 0;
+  }
+
+  async startTask(id: string): Promise<Task | null> {
+    const task = await this.getTask(id);
+    if (!task) {
+      return null;
     }
 
-    updateFields.push('updated_at = CURRENT_TIMESTAMP');
-    params.push(taskId);
+    if (task.status !== 'PENDING') {
+      return null;
+    }
 
-    if (updateFields.length === 1) {
+    await this.triggerPhase(id, 'DETECT');
+    return this.getTask(id);
+  }
+
+  async cancelTask(id: string): Promise<Task | null> {
+    const task = await this.getTask(id);
+    if (!task) {
+      return null;
+    }
+
+    if (task.status === 'COMPLETED' || task.status === 'CANCELLED') {
       return task;
     }
 
     await this.env.DB.prepare(`
-      UPDATE tasks SET ${updateFields.join(', ')} WHERE id = ?
-    `).bind(...params).run();
+      UPDATE tasks SET status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?
+    `).bind('CANCELLED', id).run();
 
-    return await this.getTask(taskId);
+    return this.getTask(id);
   }
 
-  async deleteTask(taskId: string): Promise<boolean> {
-    const result = await this.env.DB.prepare(`
-      DELETE FROM tasks WHERE id = ?
-    `).bind(taskId).run() as D1ResultType;
-
-    return result.success && (result.meta?.changes ?? 0) > 0;
-  }
-
-  async startTask(taskId: string): Promise<Task | null> {
-    const task = await this.getTask(taskId);
-    if (!task) return null;
-
-    if (task.status !== 'PENDING') {
-      throw new Error(`Task is not in PENDING state: ${task.status}`);
+  async retryTask(id: string): Promise<Task | null> {
+    const task = await this.getTask(id);
+    if (!task) {
+      return null;
     }
-
-    const currentPhase = (task.current_phase as TaskPhase) || 'DETECT';
-    return await this.startPhase(taskId, currentPhase);
-  }
-
-  async startPhase(taskId: string, phase: TaskPhase): Promise<Task | null> {
-    const task = await this.getTask(taskId);
-    if (!task) return null;
-
-    const accountService = await import('./AccountService');
-    const ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
-    
-    if (!ghAccount) {
-      throw new Error('No available GitHub account');
-    }
-
-    let aiAccount: any = null;
-    const requiredApiType = phasesRequiringAI[phase];
-    if (requiredApiType) {
-      aiAccount = await new accountService.AccountService(this.env).selectAIAccount(requiredApiType);
-      if (!aiAccount) {
-        throw new Error(`No available ${requiredApiType} AI account`);
-      }
-    }
-
-    const status = phaseStatusMap[phase].running;
-    
-    await this.env.DB.prepare(`
-      UPDATE tasks SET status = ?, current_phase = ?, started_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), github_account_id = ?
-      WHERE id = ?
-    `).bind(status, phase, ghAccount ? ghAccount.id : null, taskId).run();
-
-    if (aiAccount) {
-      await this.env.DB.prepare(`
-        UPDATE tasks SET ai_account_id = ? WHERE id = ?
-      `).bind(aiAccount ? aiAccount.id : null, taskId).run();
-    }
-
-    try {
-      await this.triggerPhase(taskId, phase);
-    } catch (error) {
-      await this.env.DB.prepare(`
-        UPDATE tasks SET status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ?
-      `).bind('PENDING', taskId).run();
-      throw error;
-    }
-
-    return await this.getTask(taskId);
-  }
-
-  async cancelTask(taskId: string): Promise<Task | null> {
-    const task = await this.getTask(taskId);
-    if (!task) return null;
-
-    await this.env.DB.prepare(`
-      UPDATE tasks SET status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-      WHERE id = ?
-    `).bind('CANCELLED', taskId).run();
-
-    return await this.getTask(taskId);
-  }
-
-  async retryFailedTask(taskId: string): Promise<Task | null> {
-    const task = await this.getTask(taskId);
-    if (!task) return null;
 
     if (task.status !== 'FAILED') {
-      throw new Error(`Task is not in FAILED state: ${task.status}`);
-    }
-
-    if (task.retry_count >= task.max_retries) {
-      throw new Error('Max retry count reached');
+      return null;
     }
 
     await this.env.DB.prepare(`
-      UPDATE tasks SET status = ?, retry_count = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-      WHERE id = ?
-    `).bind('PENDING', task.retry_count + 1, taskId).run();
+      UPDATE tasks SET status = ?, retry_count = retry_count + 1, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?
+    `).bind('PENDING', id).run();
 
-    return await this.getTask(taskId);
+    await this.triggerPhase(id, task.current_phase as TaskPhase);
+    return this.getTask(id);
   }
 
   async triggerPhase(taskId: string, phase: TaskPhase) {
@@ -299,35 +203,45 @@ export class TaskService {
 
     ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
     
-    const requiredApiType = phasesRequiringAI[phase];
-    if (requiredApiType) {
-      aiAccount = await new accountService.AccountService(this.env).selectAIAccount(requiredApiType);
-    }
-
-    await this.env.DB.prepare(`
-      UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-      WHERE id = ?
-    `).bind(phase, phaseStatusMap[phase].running, ghAccount ? ghAccount.id : null, taskId).run();
-
-    if (aiAccount) {
-      await this.env.DB.prepare(`
-        UPDATE tasks SET ai_account_id = ? WHERE id = ?
-      `).bind(aiAccount ? aiAccount.id : null, taskId).run();
-    }
-
     if (!ghAccount) {
       console.error('triggerPhase: No available GitHub account');
       throw new Error('No available GitHub account');
     }
-    if (!aiAccount && phasesRequiringAI[phase]) {
-      console.error('triggerPhase: No available AI account for phase:', phase);
-      throw new Error('No available AI account');
+
+    const requiredApiType = phasesRequiringAI[phase];
+    if (requiredApiType) {
+      aiAccount = await new accountService.AccountService(this.env).selectAIAccount(requiredApiType);
+      if (!aiAccount) {
+        console.error('triggerPhase: No available AI account for phase:', phase);
+        throw new Error('No available AI account');
+      }
     }
 
-    await this.dispatchGitHubWorkflow(taskId, phase, ghAccount?.id, aiAccount?.id);
+    try {
+      await this.dispatchGitHubWorkflow(taskId, phase, ghAccount?.id, aiAccount?.id);
+      
+      await this.env.DB.prepare(`
+        UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id = ?
+      `).bind(phase, phaseStatusMap[phase].running, ghAccount ? ghAccount.id : null, taskId).run();
 
-    await this.logTask(taskId, phase, 'INFO', `Phase ${phase} triggered`);
-    console.log('triggerPhase completed successfully:', { taskId, phase });
+      if (aiAccount) {
+        await this.env.DB.prepare(`
+          UPDATE tasks SET ai_account_id = ? WHERE id = ?
+        `).bind(aiAccount ? aiAccount.id : null, taskId).run();
+      }
+
+      await this.logTask(taskId, phase, 'INFO', `Phase ${phase} triggered`);
+      console.log('triggerPhase completed successfully:', { taskId, phase });
+    } catch (error) {
+      console.error('triggerPhase: Failed to dispatch workflow:', error);
+      await this.env.DB.prepare(`
+        UPDATE tasks SET status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id = ?
+      `).bind('FAILED', taskId).run();
+      await this.logTask(taskId, phase, 'ERROR', `Failed to trigger phase ${phase}: ${(error as Error).message}`);
+      throw error;
+    }
   }
 
   async dispatchGitHubWorkflow(taskId: string, phase: TaskPhase, ghAccountId?: number, aiAccountId?: number) {
@@ -362,12 +276,17 @@ export class TaskService {
         throw new Error('GitHub account token is empty');
       }
       
-      try {
-        ghApiKey = await this.cryptoService.decrypt(storedToken);
-        console.log('dispatchGitHubWorkflow: Token decrypted successfully, length:', ghApiKey.length);
-      } catch (decryptError) {
-        console.log('dispatchGitHubWorkflow: Decryption failed, using stored token as plaintext');
+      if (storedToken.startsWith('ghp_') || storedToken.startsWith('github_pat_')) {
+        console.log('dispatchGitHubWorkflow: Token is plaintext, using directly');
         ghApiKey = storedToken;
+      } else {
+        try {
+          ghApiKey = await this.cryptoService.decrypt(storedToken);
+          console.log('dispatchGitHubWorkflow: Token decrypted successfully, length:', ghApiKey.length);
+        } catch (decryptError) {
+          console.log('dispatchGitHubWorkflow: Decryption failed, using stored token as plaintext');
+          ghApiKey = storedToken;
+        }
       }
       
       if (!ghApiKey) {
@@ -432,8 +351,9 @@ export class TaskService {
       aiAccountsJson = JSON.stringify(decryptedAccounts);
     }
 
+    const eventType = phase.toLowerCase().replace(/_/g, '-');
     const payload = {
-      event_type: `video-processing-${phase.toLowerCase()}`,
+      event_type: `video-processing-${eventType}`,
       client_payload: {
         task_id: taskId,
         phase: phase,
@@ -451,37 +371,27 @@ export class TaskService {
 
     console.log('dispatchGitHubWorkflow: Sending request to:', `https://api.github.com/repos/${owner}/${repo}/dispatches`);
     
-    const authHeader = ghApiKey.startsWith('ghp_') || ghApiKey.startsWith('github_pat_') 
-      ? `Bearer ${ghApiKey}` 
-      : `token ${ghApiKey}`;
+    console.log('dispatchGitHubWorkflow: Attempting to dispatch workflow with token length:', ghApiKey.length);
 
-    const repoCheckResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': authHeader,
-          'User-Agent': 'AI-Video-Processor',
-        },
-      }
-    );
-    if (!repoCheckResponse.ok) {
-      const errorText = await repoCheckResponse.text();
-      throw new Error(`Cannot access repository ${owner}/${repo}: ${repoCheckResponse.status} ${errorText}`);
-    }
+    const authHeader = ghApiKey.startsWith('ghp_')
+      ? `token ${ghApiKey}`
+      : `Bearer ${ghApiKey}`;
 
-    const response = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/dispatches`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': authHeader,
-          'User-Agent': 'AI-Video-Processor',
-        },
-        body: JSON.stringify(payload),
-      }
-    );
+    const githubUrl = `https://api.github.com/repos/${owner}/${repo}/dispatches`;
+    console.log('dispatchGitHubWorkflow: Full URL:', githubUrl);
+    
+    const response = await fetch(githubUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader,
+        'User-Agent': 'AI-Video-Processor',
+        'Accept': 'application/vnd.github.v3+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+      body: JSON.stringify(payload),
+      redirect: 'follow',
+    });
 
     console.log('dispatchGitHubWorkflow: Response status:', response.status);
     
@@ -492,6 +402,59 @@ export class TaskService {
     }
 
     console.log('dispatchGitHubWorkflow: GitHub workflow dispatched successfully for task', taskId);
+    console.log('dispatchGitHubWorkflow: event_type sent:', eventType);
+  }
+
+  async updateTaskProgress(body: any) {
+    const { task_id: taskId, phase, processed_count: processedCount, total_count: totalCount, failed_count: failedCount } = body;
+    
+    console.log('updateTaskProgress called:', { taskId, phase, processedCount, totalCount, failedCount });
+    
+    const progress = totalCount > 0 ? Math.round((processedCount / totalCount) * 100) : 0;
+    
+    await this.env.DB.prepare(`
+      UPDATE tasks SET progress = ?, processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE id = ?
+    `).bind(progress, processedCount, totalCount, taskId).run();
+    
+    if (failedCount) {
+      await this.env.DB.prepare(`
+        UPDATE tasks SET failed_frames = ? WHERE id = ?
+      `).bind(failedCount, taskId).run();
+    }
+    
+    console.log('updateTaskProgress: Progress updated for task', taskId);
+    return { success: true, taskId, progress };
+  }
+
+  async handleTaskComplete(body: any) {
+    const { task_id: taskId, phase, data } = body;
+    
+    console.log('handleTaskComplete called:', { taskId, phase, data });
+    
+    await this.env.DB.prepare(`
+      UPDATE tasks SET status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE id = ?
+    `).bind('COMPLETED', taskId).run();
+    
+    await this.logTask(taskId, phase, 'INFO', `Task completed: ${JSON.stringify(data)}`);
+    console.log('handleTaskComplete: Task marked as completed:', taskId);
+    return { success: true, taskId };
+  }
+
+  async handleTaskError(body: any) {
+    const { task_id: taskId, phase, error } = body;
+    
+    console.log('handleTaskError called:', { taskId, phase, error });
+    
+    await this.env.DB.prepare(`
+      UPDATE tasks SET status = ?, failed_frames = failed_frames + 1, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE id = ?
+    `).bind('FAILED', taskId).run();
+    
+    await this.logTask(taskId, phase, 'ERROR', `Task error: ${error}`);
+    console.log('handleTaskError: Task marked as failed:', taskId);
+    return { success: true, taskId };
   }
 
   async handleGitHubCallback(body: any) {
@@ -507,75 +470,17 @@ export class TaskService {
     if (status === 'success') {
       try {
         await this.advancePhase(taskId);
-        console.log('advancePhase completed successfully for task:', taskId);
       } catch (error) {
-        console.error('Error in advancePhase:', error);
-        await this.logTask(taskId, phase, 'ERROR', `Failed to advance phase: ${(error as Error).message}`);
-        throw error;
+        console.error('handleGitHubCallback: Failed to advance phase:', error);
       }
-    } else if (status === 'failure') {
-      await this.handleTaskError({ taskId, error: body.error || 'Workflow failed' });
-    }
-
-    return { success: true };
-  }
-
-  async updateTaskProgress(body: any) {
-    const { task_id: taskId, processed_count: processedCount, total_count: totalCount } = body;
-    
-    await this.env.DB.prepare(`
-      UPDATE tasks SET processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-      WHERE id = ?
-    `).bind(processedCount, totalCount, taskId).run();
-
-    return { success: true };
-  }
-
-  async handleTaskComplete(body: any) {
-    const { task_id: taskId, final_video_url: finalVideoUrl } = body;
-    
-    const task = await this.getTask(taskId);
-    if (task && task.ai_account_id) {
-      await this.accountService.releaseAIAccount(task.ai_account_id);
-    }
-
-    await this.env.DB.prepare(`
-      UPDATE tasks SET status = ?, final_video_url = ?, completed_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-      WHERE id = ?
-    `).bind('COMPLETED', finalVideoUrl, taskId).run();
-
-    await this.logTask(taskId, 'COMPLETE', 'INFO', 'Task completed successfully');
-
-    return { success: true };
-  }
-
-  async handleTaskError(body: any) {
-    const { taskId, error } = body;
-    
-    const task = await this.getTask(taskId);
-    if (!task) return { success: false };
-
-    if (task.ai_account_id) {
-      await this.accountService.releaseAIAccount(task.ai_account_id);
-    }
-
-    if (task.retry_count >= task.max_retries) {
-      await this.env.DB.prepare(`
-        UPDATE tasks SET status = ?, error_msg = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ?
-      `).bind('FAILED', error, taskId).run();
-
-      await this.logTask(taskId, 'ERROR', 'ERROR', `Task failed: ${error}`);
     } else {
       await this.env.DB.prepare(`
-        UPDATE tasks SET status = ?, retry_count = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+        UPDATE tasks SET status = ?, failed_frames = failed_frames + 1, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?
-      `).bind('PENDING', task.retry_count + 1, taskId).run();
-
-      await this.logTask(taskId, 'ERROR', 'WARNING', `Task failed, retrying: ${error}`);
+      `).bind('FAILED', taskId).run();
+      
+      await this.logTask(taskId, phase, 'ERROR', `Phase ${phase} failed`);
     }
-
-    return { success: true };
   }
 
   async advancePhase(taskId: string) {
@@ -627,27 +532,23 @@ export class TaskService {
     const result = await this.env.DB.prepare(`
       SELECT * FROM operation_logs WHERE task_id = ? ORDER BY created_at DESC
     `).bind(taskId).all();
-
-    return result.results;
+    return result.results || [];
   }
 
-  async batchCreateTasks(tasks: CreateTaskOptions[]): Promise<Task[]> {
-    const results: Task[] = [];
+  async updateProgress(taskId: string, phase: string, processedCount: number, totalCount: number) {
+    const progress = totalCount > 0 ? Math.round((processedCount / totalCount) * 100) : 0;
     
-    for (const taskOptions of tasks) {
-      const task = await this.createTask(taskOptions);
-      results.push(task);
-    }
-
-    return results;
+    await this.env.DB.prepare(`
+      UPDATE tasks SET progress = ?, processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE id = ?
+    `).bind(progress, processedCount, totalCount, taskId).run();
   }
 
-  getNextPhase(phase: TaskPhase): TaskPhase | null {
-    const index = phaseOrder.indexOf(phase);
-    return phaseOrder[index + 1] || null;
-  }
-
-  getPhaseOrder(): TaskPhase[] {
-    return [...phaseOrder];
+  private generateUUID(): string {
+    const array = new Uint8Array(16);
+    crypto.getRandomValues(array);
+    array[6] = (array[6] & 0x0f) | 0x40;
+    array[8] = (array[8] & 0x3f) | 0x80;
+    return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
   }
 }
