@@ -41,29 +41,36 @@ fi
 echo "CSV file content:"
 cat "$SCENE_FILE"
 
-SHOT_COUNT=$(python3 -c "
+python3 << 'PYTHON_SCRIPT'
 import csv
+import sys
 
-count = 0
-with open('$SCENE_FILE', 'r') as f:
+scene_data = []
+with open('./scenes/input_video-Scenes.csv', 'r') as f:
     reader = csv.DictReader(f)
+    sys.stderr.write('CSV Headers: ' + str(reader.fieldnames) + '\n')
+    for row in reader:
+        sys.stderr.write('Row: ' + str(row) + '\n')
+        start_time = row.get('Start Time', row.get('start_time', row.get('Start', '')))
+        end_time = row.get('End Time', row.get('end_time', row.get('End', '')))
+        scene_data.append({
+            'start_time': start_time,
+            'end_time': end_time
+        })
+
+sys.stderr.write(f'Total shots: {len(scene_data)}\n')
+print(len(scene_data))
+PYTHON_SCRIPT
+SHOT_COUNT=$(python3 << 'PYTHON_SCRIPT'
+import csv
+with open('./scenes/input_video-Scenes.csv', 'r') as f:
+    reader = csv.DictReader(f)
+    count = 0
     for row in reader:
         count += 1
-        start_time = row.get('Start Time', row.get('Time Code', '').split(' --> ')[0] if ' --> ' in row.get('Time Code', '') else '')
-        end_time = row.get('End Time', row.get('Time Code', '').split(' --> ')[1] if ' --> ' in row.get('Time Code', '') else '')
-        print(f'Shot {count}: {start_time} -> {end_time}')
-print(f'Total shots: {count}')
-")
-
-SHOT_COUNT=$(python3 -c "
-import csv
-count = 0
-with open('$SCENE_FILE', 'r') as f:
-    reader = csv.DictReader(f)
-    for row in reader:
-        count += 1
-print(count)
-")
+    print(count)
+PYTHON_SCRIPT
+)
 
 echo "Total shots detected: $SHOT_COUNT"
 
