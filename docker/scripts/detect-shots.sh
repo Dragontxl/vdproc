@@ -31,7 +31,8 @@ echo "Running PySceneDetect..."
 scenedetect -i "./input_video.mp4" detect-content list-scenes -o "./scenes"
 
 echo "Parsing scene detection results..."
-SCENE_FILE="./scenes/scenes.csv"
+ls -la ./scenes/
+SCENE_FILE="./scenes/input_video-Scenes.csv"
 if [ ! -f "$SCENE_FILE" ]; then
     echo "Error: Scene detection failed, no output file"
     exit 1
