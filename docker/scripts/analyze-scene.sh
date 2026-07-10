@@ -27,8 +27,22 @@ aws s3 cp "s3://$R2_BUCKET_NAME/$VIDEO_PATH" "./input_video.mp4" \
     --endpoint-url "$R2_ENDPOINT_URL"
 
 echo "Downloading scene detection results..."
-aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/scenes/scenes.csv" "./scenes.csv" \
-    --endpoint-url "$R2_ENDPOINT_URL"
+aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/scenes/scenes.json" "./scenes.json" \
+    --endpoint-url "$R2_ENDPOINT_URL" || echo "Warning: scenes.json not found, trying CSV"
+
+if [ -f "./scenes.json" ]; then
+    python3 -c "
+import json
+with open('./scenes.json', 'r') as f:
+    data = json.load(f)
+for s in data:
+    print(f'Shot {s[\"scene_number\"]}: {s[\"start_timecode\"]} -> {s[\"end_timecode\"]} ({s[\"length_seconds\"]}s)')
+" > ./scenes.csv
+    echo "Parsed scenes.json to scenes.csv"
+else
+    aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/scenes/input_video-Scenes.csv" "./scenes.csv" \
+        --endpoint-url "$R2_ENDPOINT_URL"
+fi
 
 echo "Extracting sample frames for analysis..."
 mkdir -p ./analysis_frames

@@ -53,9 +53,9 @@ export class MaterialCheckService {
         }
         return this.checkR2FileExists(`${taskId}/input/video.mp4`);
       case 'shots':
-        return this.checkTableHasData('shots', taskId);
+        return this.checkR2PathExists(`${taskId}/scenes/`);
       case 'shot_details':
-        return this.checkTableHasData('shot_details', taskId);
+        return this.checkR2PathExists(`${taskId}/scenes/`);
       case 'character_frames':
         return this.checkTableHasData('character_frames', taskId);
       case 'character_avatars':
