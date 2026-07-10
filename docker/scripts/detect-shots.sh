@@ -111,6 +111,7 @@ aws s3 cp "./scenes/" \
     --recursive
 
 echo "Updating progress..."
+echo "CALLBACK_URL: $CALLBACK_URL"
 MAX_RETRIES=3
 RETRY_DELAY=5
 SUCCESS=0
@@ -123,6 +124,10 @@ for attempt in $(seq 1 $MAX_RETRIES); do
         -d "{\"task_id\":\"$TASK_ID\",\"phase\":\"DETECT\",\"processed_count\":$SHOT_COUNT,\"total_count\":$SHOT_COUNT}")
     
     HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+    BODY=$(echo "$RESPONSE" | head -n -1)
+    
+    echo "Progress callback response code: $HTTP_CODE"
+    echo "Progress callback response body: $BODY"
     
     if [ "$HTTP_CODE" -eq 200 ]; then
         SUCCESS=1
@@ -135,8 +140,7 @@ for attempt in $(seq 1 $MAX_RETRIES); do
 done
 
 if [ $SUCCESS -ne 1 ]; then
-    echo "ERROR: Failed to update progress"
-    exit 1
+    echo "WARNING: Failed to update progress, continuing..."
 fi
 
 echo "Phase 1 completed: $SHOT_COUNT shots detected"
