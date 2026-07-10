@@ -7,6 +7,28 @@ compatibility_flags = ["nodejs_compat"]
 name = "ai-video-worker"
 main = "src/index.ts"
 
+[env.production.vars]
+ADMIN_API_KEY = "admin-api-key-1234567890"
+CALLBACK_SECRET = "callback-secret-1234567890"
+ENCRYPTION_KEY = "encryption-key-32-bytes-minimum-length-key-xyz"
+JWT_SECRET = "jwt-secret-key-1234567890"
+ENVIRONMENT = "production"
+GITHUB_REPO_OWNER = "Dragontxl"
+GITHUB_REPO_NAME = "ai-video-process"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "ai-video-db"
+database_id = "e85ca381-6d56-4971-ae3e-bf91d82cf508"
+
+[[env.production.r2_buckets]]
+binding = "R2"
+bucket_name = "ai-video-bucket"
+
+[[env.production.kv_namespaces]]
+binding = "KV"
+id = "f657d34c477947e4b9ca003332b75073"
+
 [vars]
 ADMIN_API_KEY = "admin-api-key-1234567890"
 CALLBACK_SECRET = "callback-secret-1234567890"

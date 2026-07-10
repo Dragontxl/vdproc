@@ -10,14 +10,14 @@ interface CheckResult {
 export class MaterialCheckService {
   constructor(private env: Bindings) {}
 
-  async checkPhaseRequirements(taskId: string, phase: TaskPhase): Promise<CheckResult> {
+  async checkPhaseRequirements(taskId: string, phase: TaskPhase, videoPath?: string): Promise<CheckResult> {
     const requirements = this.getPhaseRequirements(phase);
     
     const missing: string[] = [];
     const available: string[] = [];
 
     for (const req of requirements) {
-      if (await this.isMaterialAvailable(taskId, req)) {
+      if (await this.isMaterialAvailable(taskId, req, videoPath)) {
         available.push(req);
       } else {
         missing.push(req);
@@ -45,9 +45,12 @@ export class MaterialCheckService {
     return requirements[phase] || [];
   }
 
-  private async isMaterialAvailable(taskId: string, material: string): Promise<boolean> {
+  private async isMaterialAvailable(taskId: string, material: string, videoPath?: string): Promise<boolean> {
     switch (material) {
       case 'video':
+        if (videoPath) {
+          return this.checkR2FileExists(videoPath);
+        }
         return this.checkR2FileExists(`${taskId}/input/video.mp4`);
       case 'shots':
         return this.checkTableHasData('shots', taskId);

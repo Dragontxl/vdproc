@@ -1,4 +1,15 @@
-import { v4 as uuidv4 } from 'uuid';
+function generateUUID(): string {
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  array[6] = (array[6] & 0x0F) | 0x40;
+  array[8] = (array[8] & 0x3F) | 0x80;
+  const bytes = array;
+  const hex = [];
+  for (let i = 0; i < 16; i++) {
+    hex.push(bytes[i].toString(16).padStart(2, '0'));
+  }
+  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10).join('')}`;
+}
 import { Bindings } from '../types/env';
 import { Task, TaskStatus, TaskPhase } from '../types';
 import { CryptoService } from './CryptoService';
@@ -61,7 +72,7 @@ export class TaskService {
   }
 
   async createTask(options: CreateTaskOptions): Promise<Task> {
-    const taskId = uuidv4();
+    const taskId = generateUUID();
     
     const result = await this.env.DB.prepare(`
       INSERT INTO tasks (
@@ -344,10 +355,20 @@ export class TaskService {
         throw new Error('GitHub account not found');
       }
 
-      const encryptedToken = (accountResult as { token_encrypted: string }).token_encrypted;
-      ghApiKey = encryptedToken ? await this.cryptoService.decrypt(encryptedToken) : '';
+      const storedToken = (accountResult as { token_encrypted: string }).token_encrypted;
       
-      console.log('dispatchGitHubWorkflow: ghApiKey length:', ghApiKey.length);
+      if (!storedToken) {
+        console.error('dispatchGitHubWorkflow: GitHub account token is empty');
+        throw new Error('GitHub account token is empty');
+      }
+      
+      try {
+        ghApiKey = await this.cryptoService.decrypt(storedToken);
+        console.log('dispatchGitHubWorkflow: Token decrypted successfully, length:', ghApiKey.length);
+      } catch (decryptError) {
+        console.log('dispatchGitHubWorkflow: Decryption failed, using stored token as plaintext');
+        ghApiKey = storedToken;
+      }
       
       if (!ghApiKey) {
         console.error('dispatchGitHubWorkflow: GitHub account token is empty');
@@ -374,8 +395,14 @@ export class TaskService {
       `).bind(aiAccountId).first();
 
       if (aiAccountResult) {
-        const encryptedKey = (aiAccountResult as { api_key_encrypted: string }).api_key_encrypted;
-        aiApiKey = encryptedKey ? await this.cryptoService.decrypt(encryptedKey) : '';
+        const storedKey = (aiAccountResult as { api_key_encrypted: string }).api_key_encrypted;
+        if (storedKey) {
+          try {
+            aiApiKey = await this.cryptoService.decrypt(storedKey);
+          } catch {
+            aiApiKey = storedKey;
+          }
+        }
         aiBaseUrl = (aiAccountResult as { base_url: string }).base_url || '';
       }
     }
@@ -387,12 +414,20 @@ export class TaskService {
     
     if (aiAccountsResult.results && aiAccountsResult.results.length > 0) {
       const decryptedAccounts = await Promise.all(
-        (aiAccountsResult.results as any[]).map(async (acc) => ({
-          ...acc,
-          api_key_encrypted: acc.api_key_encrypted 
-            ? await this.cryptoService.decrypt(acc.api_key_encrypted) 
-            : ''
-        }))
+        (aiAccountsResult.results as any[]).map(async (acc) => {
+          let decryptedKey = '';
+          if (acc.api_key_encrypted) {
+            try {
+              decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
+            } catch {
+              decryptedKey = acc.api_key_encrypted;
+            }
+          }
+          return {
+            ...acc,
+            api_key_encrypted: decryptedKey
+          };
+        })
       );
       aiAccountsJson = JSON.stringify(decryptedAccounts);
     }
@@ -416,13 +451,32 @@ export class TaskService {
 
     console.log('dispatchGitHubWorkflow: Sending request to:', `https://api.github.com/repos/${owner}/${repo}/dispatches`);
     
+    const authHeader = ghApiKey.startsWith('ghp_') || ghApiKey.startsWith('github_pat_') 
+      ? `Bearer ${ghApiKey}` 
+      : `token ${ghApiKey}`;
+
+    const repoCheckResponse = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': authHeader,
+          'User-Agent': 'AI-Video-Processor',
+        },
+      }
+    );
+    if (!repoCheckResponse.ok) {
+      const errorText = await repoCheckResponse.text();
+      throw new Error(`Cannot access repository ${owner}/${repo}: ${repoCheckResponse.status} ${errorText}`);
+    }
+
     const response = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/dispatches`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${ghApiKey}`,
+          'Authorization': authHeader,
           'User-Agent': 'AI-Video-Processor',
         },
         body: JSON.stringify(payload),

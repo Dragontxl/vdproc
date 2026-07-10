@@ -54,6 +54,7 @@ export default function Accounts() {
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
+      console.log('Saving account with values:', values);
 
       if (editMode) {
         if (accountType === 'github') {
@@ -73,8 +74,10 @@ export default function Accounts() {
 
       setIsModalOpen(false);
       loadAccounts();
-    } catch (error) {
-      message.error('保存账户失败');
+    } catch (error: any) {
+      console.error('Save account error:', error);
+      const errorMsg = error?.response?.data?.msg || error?.message || '保存账户失败';
+      message.error(`保存账户失败: ${errorMsg}`);
     }
   };
 

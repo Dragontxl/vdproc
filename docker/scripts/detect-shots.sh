@@ -8,6 +8,9 @@ export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 echo "=== Phase 1: Shot Detection ==="
 echo "Task ID: $TASK_ID"
 echo "Video Path: $VIDEO_PATH"
+echo "R2 Bucket: $R2_BUCKET_NAME"
+echo "R2 Endpoint: $R2_ENDPOINT_URL"
+echo "R2 Access Key: ${R2_ACCESS_KEY_ID:0:8}..."
 
 WORK_DIR="/tmp/$TASK_ID"
 mkdir -p "$WORK_DIR"
@@ -16,6 +19,9 @@ cd "$WORK_DIR"
 LOG_FILE="/tmp/detect-shots.log"
 exec 1> >(tee -a "$LOG_FILE")
 exec 2>&1
+
+echo "Listing R2 bucket contents..."
+aws s3 ls "s3://$R2_BUCKET_NAME/" --endpoint-url "$R2_ENDPOINT_URL"
 
 echo "Downloading video from R2..."
 aws s3 cp "s3://$R2_BUCKET_NAME/$VIDEO_PATH" "./input_video.mp4" \

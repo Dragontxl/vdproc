@@ -58,8 +58,9 @@ export default function Tasks() {
       setIsModalOpen(false);
       form.resetFields();
       loadTasks();
-    } catch (error) {
-      message.error('创建任务失败');
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.msg || error?.message || '创建任务失败';
+      message.error(`创建任务失败: ${errorMsg}`);
     }
   };
 

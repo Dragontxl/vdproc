@@ -41,9 +41,13 @@ taskRoutes.post('/', async (c) => {
     tags: body.tags || '',
   });
   
-  await service.startTask(task.id);
-  
-  return c.json({ code: 201, data: task, msg: 'Task created successfully' }, 201);
+  try {
+    await service.startTask(task.id);
+    return c.json({ code: 201, data: task, msg: 'Task created successfully' }, 201);
+  } catch (error) {
+    console.error('Failed to start task:', error);
+    return c.json({ code: 201, data: task, msg: 'Task created but failed to start: ' + (error as Error).message }, 201);
+  }
 });
 
 taskRoutes.put('/:id', async (c) => {
@@ -72,13 +76,18 @@ taskRoutes.delete('/:id', async (c) => {
 
 taskRoutes.post('/:id/start', async (c) => {
   const service = new TaskService(c.env as Bindings);
-  const result = await service.startTask(c.req.param('id'));
-  
-  if (!result) {
-    return c.json({ code: 400, data: null, msg: 'Failed to start task' }, 400);
+  try {
+    const result = await service.startTask(c.req.param('id'));
+    
+    if (!result) {
+      return c.json({ code: 400, data: null, msg: 'Failed to start task' }, 400);
+    }
+    
+    return c.json({ code: 200, data: result, msg: 'Task started successfully' });
+  } catch (error) {
+    console.error('Failed to start task:', error);
+    return c.json({ code: 500, data: null, msg: 'Failed to start task: ' + (error as Error).message }, 500);
   }
-  
-  return c.json({ code: 200, data: result, msg: 'Task started successfully' });
 });
 
 taskRoutes.post('/:id/cancel', async (c) => {

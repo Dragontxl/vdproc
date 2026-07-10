@@ -47,9 +47,13 @@ taskRoutes.delete('/:id', async (c) => {
 
 taskRoutes.get('/:id/check-phase/:phase', async (c) => {
   const { id, phase } = c.req.param();
+  const taskService = new TaskService(c.env as Bindings);
   const materialService = new MaterialCheckService(c.env as Bindings);
   
-  const result = await materialService.checkPhaseRequirements(id, phase as TaskPhase);
+  const task = await taskService.getTask(id);
+  const videoPath = task?.video_path;
+  
+  const result = await materialService.checkPhaseRequirements(id, phase as TaskPhase, videoPath);
   
   return c.json({
     code: 200,
@@ -68,7 +72,7 @@ taskRoutes.post('/:id/start-phase/:phase', async (c) => {
     return c.json({ code: 404, data: null, msg: '任务不存在' }, 404);
   }
   
-  const checkResult = await materialService.checkPhaseRequirements(id, phase as TaskPhase);
+  const checkResult = await materialService.checkPhaseRequirements(id, phase as TaskPhase, task.video_path);
   
   if (!checkResult.ready) {
     return c.json({
