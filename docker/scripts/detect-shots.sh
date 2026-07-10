@@ -41,34 +41,38 @@ fi
 echo "CSV file content:"
 cat "$SCENE_FILE"
 
-python3 << 'PYTHON_SCRIPT'
+SHOT_COUNT=$(python3 << 'PYTHON_SCRIPT'
 import csv
 import sys
 
 scene_data = []
 with open('./scenes/input_video-Scenes.csv', 'r') as f:
-    reader = csv.DictReader(f)
-    sys.stderr.write('CSV Headers: ' + str(reader.fieldnames) + '\n')
-    for row in reader:
+    lines = f.readlines()
+    if len(lines) < 2:
+        sys.stderr.write('Error: CSV file too short\n')
+        print(0)
+        exit(0)
+    
+    header_line = lines[1].strip()
+    headers = header_line.split(',')
+    sys.stderr.write('CSV Headers: ' + str(headers) + '\n')
+    
+    for line in lines[2:]:
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(',')
+        row = dict(zip(headers, parts))
         sys.stderr.write('Row: ' + str(row) + '\n')
-        start_time = row.get('Start Time', row.get('start_time', row.get('Start', '')))
-        end_time = row.get('End Time', row.get('end_time', row.get('End', '')))
         scene_data.append({
-            'start_time': start_time,
-            'end_time': end_time
+            'start_time': row.get('Start Timecode', ''),
+            'end_time': row.get('End Timecode', ''),
+            'start_frame': row.get('Start Frame', ''),
+            'end_frame': row.get('End Frame', '')
         })
 
 sys.stderr.write(f'Total shots: {len(scene_data)}\n')
 print(len(scene_data))
-PYTHON_SCRIPT
-SHOT_COUNT=$(python3 << 'PYTHON_SCRIPT'
-import csv
-with open('./scenes/input_video-Scenes.csv', 'r') as f:
-    reader = csv.DictReader(f)
-    count = 0
-    for row in reader:
-        count += 1
-    print(count)
 PYTHON_SCRIPT
 )
 
