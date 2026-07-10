@@ -17,7 +17,7 @@ const phaseStatusMap: Record<TaskPhase, { running: TaskStatus; done: TaskStatus 
 };
 
 const phasesRequiringAI: Partial<Record<TaskPhase, string>> = {
-  ANALYZE: 'llm',
+  ANALYZE: 'text',
   GENERATE_CHARACTERS: 'image',
   CONVERT_FRAMES: 'image',
   GENERATE_SHOTS: 'image',
@@ -472,6 +472,10 @@ export class TaskService {
         await this.advancePhase(taskId);
       } catch (error) {
         console.error('handleGitHubCallback: Failed to advance phase:', error);
+        await this.env.DB.prepare(`
+          UPDATE tasks SET status = ?, error_msg = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ?
+        `).bind('FAILED', (error as Error).message, taskId).run();
       }
     } else {
       await this.env.DB.prepare(`
