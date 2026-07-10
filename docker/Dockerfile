@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender-dev \
     git \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install --no-cache-dir \
