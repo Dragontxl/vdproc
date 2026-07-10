@@ -38,33 +38,32 @@ if [ ! -f "$SCENE_FILE" ]; then
     exit 1
 fi
 
-SHOT_COUNT=0
-while IFS=',' read -r frame_num time_code scene_num start_frame end_frame duration; do
-    if [[ "$frame_num" == "Frame Number" ]]; then
-        continue
-    fi
-    
-    START_TIME=$(echo "$time_code" | awk -F' --> ' '{print $1}')
-    END_TIME=$(echo "$time_code" | awk -F' --> ' '{print $2}')
-    
-    START_SEC=$(python3 -c "
-from datetime import datetime
-t = datetime.strptime('$START_TIME', '%H:%M:%S.%f')
-print(t.hour * 3600 + t.minute * 60 + t.second + t.microsecond / 1000000)
+echo "CSV file content:"
+cat "$SCENE_FILE"
+
+SHOT_COUNT=$(python3 -c "
+import csv
+
+count = 0
+with open('$SCENE_FILE', 'r') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        count += 1
+        start_time = row.get('Start Time', row.get('Time Code', '').split(' --> ')[0] if ' --> ' in row.get('Time Code', '') else '')
+        end_time = row.get('End Time', row.get('Time Code', '').split(' --> ')[1] if ' --> ' in row.get('Time Code', '') else '')
+        print(f'Shot {count}: {start_time} -> {end_time}')
+print(f'Total shots: {count}')
 ")
-    
-    END_SEC=$(python3 -c "
-from datetime import datetime
-t = datetime.strptime('$END_TIME', '%H:%M:%S.%f')
-print(t.hour * 3600 + t.minute * 60 + t.second + t.microsecond / 1000000)
+
+SHOT_COUNT=$(python3 -c "
+import csv
+count = 0
+with open('$SCENE_FILE', 'r') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        count += 1
+print(count)
 ")
-    
-    DURATION=$(echo "$END_SEC - $START_SEC" | bc)
-    
-    echo "Shot $SHOT_COUNT: $START_SEC -> $END_SEC (duration: $DURATION)"
-    
-    SHOT_COUNT=$((SHOT_COUNT + 1))
-done < "$SCENE_FILE"
 
 echo "Total shots detected: $SHOT_COUNT"
 
