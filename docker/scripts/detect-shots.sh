@@ -41,42 +41,68 @@ fi
 echo "CSV file content:"
 cat "$SCENE_FILE"
 
-SHOT_COUNT=$(python3 << 'PYTHON_SCRIPT'
+python3 << 'PYTHON_SCRIPT'
 import csv
+import json
 import sys
 
 scene_data = []
 with open('./scenes/input_video-Scenes.csv', 'r') as f:
-    lines = f.readlines()
+    reader = csv.reader(f)
+    lines = list(reader)
     if len(lines) < 2:
         sys.stderr.write('Error: CSV file too short\n')
-        print(0)
-        exit(0)
+        sys.exit(1)
     
-    header_line = lines[1].strip()
-    headers = header_line.split(',')
+    headers = lines[1]
     sys.stderr.write('CSV Headers: ' + str(headers) + '\n')
     
-    for line in lines[2:]:
-        line = line.strip()
-        if not line:
+    for row in lines[2:]:
+        if len(row) == 0:
             continue
-        parts = line.split(',')
-        row = dict(zip(headers, parts))
-        sys.stderr.write('Row: ' + str(row) + '\n')
+        row_dict = dict(zip(headers, row))
+        sys.stderr.write('Row: ' + str(row_dict) + '\n')
         scene_data.append({
-            'start_time': row.get('Start Timecode', ''),
-            'end_time': row.get('End Timecode', ''),
-            'start_frame': row.get('Start Frame', ''),
-            'end_frame': row.get('End Frame', '')
+            'scene_number': int(row_dict.get('Scene Number', '0')),
+            'start_frame': int(row_dict.get('Start Frame', '0')),
+            'start_timecode': row_dict.get('Start Timecode', ''),
+            'start_time_seconds': float(row_dict.get('Start Time (seconds)', '0')),
+            'end_frame': int(row_dict.get('End Frame', '0')),
+            'end_timecode': row_dict.get('End Timecode', ''),
+            'end_time_seconds': float(row_dict.get('End Time (seconds)', '0')),
+            'length_frames': int(row_dict.get('Length (frames)', '0')),
+            'length_seconds': float(row_dict.get('Length (seconds)', '0'))
         })
 
 sys.stderr.write(f'Total shots: {len(scene_data)}\n')
+
+with open('./scenes/scenes.json', 'w') as f:
+    json.dump(scene_data, f, indent=2)
+
+sys.stderr.write('Generated scenes.json\n')
 print(len(scene_data))
+PYTHON_SCRIPT
+SHOT_COUNT=$(python3 << 'PYTHON_SCRIPT'
+import csv
+
+with open('./scenes/input_video-Scenes.csv', 'r') as f:
+    reader = csv.reader(f)
+    lines = list(reader)
+    print(max(0, len(lines) - 2))
 PYTHON_SCRIPT
 )
 
 echo "Total shots detected: $SHOT_COUNT"
+
+if ! [[ "$SHOT_COUNT" =~ ^[0-9]+$ ]]; then
+    echo "Error: SHOT_COUNT is not a valid number"
+    exit 1
+fi
+
+if [ "$SHOT_COUNT" -eq 0 ]; then
+    echo "Error: No shots detected"
+    exit 1
+fi
 
 echo "Uploading scene detection results..."
 aws s3 cp "./scenes/" \
