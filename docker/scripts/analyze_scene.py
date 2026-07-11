@@ -331,8 +331,19 @@ def main():
         log("Result JSON written to /tmp/result.json")
         
     except Exception as e:
-        log(f"Error in scene analysis: {e}")
-        log(f"Traceback: {traceback.format_exc()}")
+        error_msg = f"Error in scene analysis: {e}\nTraceback: {traceback.format_exc()}"
+        log(error_msg)
+        
+        error_log_path = "./error_log.txt"
+        with open(error_log_path, 'w', encoding='utf-8') as f:
+            f.write(error_msg)
+        
+        try:
+            upload_to_r2(error_log_path, f"{TASK_ID}/error_log.txt", "text/plain")
+            log("Error log uploaded to R2")
+        except Exception as upload_err:
+            log(f"Failed to upload error log: {upload_err}")
+        
         sys.exit(1)
 
 if __name__ == "__main__":
