@@ -225,7 +225,7 @@ def main():
                     'role_id': f'R{len(characters)+1}',
                     'best_frame_path': best_face['path'],
                     'face_count': len(char_faces),
-                    'avg_confidence': sum(f['confidence'] for f in char_faces) / len(char_faces)
+                    'avg_confidence': float(sum(f['confidence'] for f in char_faces) / len(char_faces))
                 }
                 characters.append(character)
             
