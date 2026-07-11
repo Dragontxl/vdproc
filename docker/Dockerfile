@@ -41,6 +41,6 @@ WORKDIR /scripts
 
 COPY scripts/ /scripts/
 
-RUN chmod +x /scripts/*.sh
+RUN chmod +x /scripts/*.sh && chmod +x /scripts/*.py
 
 CMD ["bash", "-c", "echo 'AI Video Processor Ready' && sleep infinity"]
