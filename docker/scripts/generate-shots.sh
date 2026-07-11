@@ -115,16 +115,16 @@ print('%.3f' % duration)
     fi
     
     local selected_key="$AI_API_KEY"
-    local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/video/generations"
+    local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/videos"
     
     if [ -n "$ai_accounts" ]; then
         local account_index=$((shot_index % $(echo "$ai_accounts" | jq -r '. | length')))
         selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
         selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
         if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
-            selected_url="https://apihub.agnes-ai.com/v1/video/generations"
+            selected_url="https://apihub.agnes-ai.com/v1/videos"
         else
-            selected_url=$(echo "$selected_url" | sed 's|/v1/images/generations|/v1/video/generations|')
+            selected_url=$(echo "$selected_url" | sed 's|/v1/images/generations|/v1/videos|')
         fi
     fi
     
@@ -138,7 +138,8 @@ print('%.3f' % duration)
     MAX_RETRIES=3
     RETRY_DELAY=10
     API_SUCCESS=0
-    RESPONSE=""
+    TASK_ID=""
+    RESULT_URL=""
     
     for attempt in $(seq 1 $MAX_RETRIES); do
         local json_file="./request_${shot_index}_${attempt}.json"
@@ -148,10 +149,12 @@ print('%.3f' % duration)
 {
     "model": "agnes-video-v2.0",
     "prompt": "$MAIN_PROMPT",
-    "duration": $DURATION,
+    "num_frames": $FRAMES,
+    "frame_rate": $OUTPUT_FPS,
+    "height": 768,
+    "width": 1152,
     "extra_body": {
-        "image": ["data:image/jpeg;base64,$FIRST_FRAME_BASE64", "data:image/jpeg;base64,$LAST_FRAME_BASE64"],
-        "response_format": "url"
+        "image": ["data:image/jpeg;base64,$FIRST_FRAME_BASE64", "data:image/jpeg;base64,$LAST_FRAME_BASE64"]
     }
 }
 EOF
@@ -175,13 +178,62 @@ EOF
         fi
         
         if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-            API_SUCCESS=1
-            RESPONSE="$RESPONSE_BODY"
-            break
+            TASK_ID=$(echo "$RESPONSE_BODY" | jq -r '.task_id // .id // ""')
+            if [ -n "$TASK_ID" ] && [ "$TASK_ID" != "null" ]; then
+                echo "  Shot $shot_index: Task ID: $TASK_ID"
+                break
+            fi
         fi
         
         if [ $attempt -lt $MAX_RETRIES ]; then
             sleep $RETRY_DELAY
+        fi
+    done
+    
+    if [ -z "$TASK_ID" ] || [ "$TASK_ID" = "null" ]; then
+        flock -u 200
+        echo "Error: Failed to create video task for shot $shot_index"
+        rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file" "./request_${shot_index}_*.json"
+        echo "$shot_index:FAILED" >> "./shot_results.txt"
+        return 1
+    fi
+    
+    echo "  Shot $shot_index: Polling task status..."
+    POLL_INTERVAL=30
+    MAX_POLLS=60
+    
+    for poll in $(seq 1 $MAX_POLLS); do
+        STATUS_RESPONSE=$(curl -s -X GET \
+            --connect-timeout 30 \
+            --max-time 60 \
+            -w "\n%{http_code}" \
+            -H "Authorization: Bearer $selected_key" \
+            "$selected_url/$TASK_ID")
+        
+        STATUS_CODE=$(echo "$STATUS_RESPONSE" | tail -n1)
+        STATUS_BODY=$(echo "$STATUS_RESPONSE" | sed '$d')
+        
+        if [ "$STATUS_CODE" -ge 200 ] && [ "$STATUS_CODE" -lt 300 ]; then
+            STATUS=$(echo "$STATUS_BODY" | jq -r '.status // ""')
+            PROGRESS=$(echo "$STATUS_BODY" | jq -r '.progress // ""')
+            RESULT_URL=$(echo "$STATUS_BODY" | jq -r '.data.remixed_from_video_id // .data.url // .result_url // ""')
+            
+            echo "  Shot $shot_index: Status: $STATUS, Progress: $PROGRESS%"
+            
+            if [ "$STATUS" = "completed" ] || [ "$STATUS" = "SUCCESS" ]; then
+                if [ -n "$RESULT_URL" ] && [ "$RESULT_URL" != "null" ]; then
+                    API_SUCCESS=1
+                    break
+                fi
+            elif [ "$STATUS" = "failed" ] || [ "$STATUS" = "FAILED" ]; then
+                FAIL_REASON=$(echo "$STATUS_BODY" | jq -r '.fail_reason // .error // ""')
+                echo "  Shot $shot_index: Task failed: $FAIL_REASON"
+                break
+            fi
+        fi
+        
+        if [ $poll -lt $MAX_POLLS ]; then
+            sleep $POLL_INTERVAL
         fi
     done
     
@@ -194,7 +246,7 @@ EOF
         return 1
     fi
     
-    RESULT_URL=$(echo "$RESPONSE" | jq -r '.data[0].url // ""')
+    echo "  Shot $shot_index: Result URL: $RESULT_URL"
     if [ -z "$RESULT_URL" ]; then
         echo "Error: No result URL for shot $shot_index"
         rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file" "./request_${shot_index}_*.json"
