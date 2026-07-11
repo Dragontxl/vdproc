@@ -108,15 +108,17 @@ def main():
             log(f"Found analysis_result.json, reading...")
             with open(analysis_path, 'r') as f:
                 data = json.load(f)
-            for i, storyboard in enumerate(data.get('storyboards', [])):
+            storyboards = data.get('storyboards', [])
+            for i, storyboard in enumerate(storyboards):
                 scenes.append({
                     'start': parse_time(storyboard['start_time']),
                     'end': parse_time(storyboard['end_time']),
                     'index': i
                 })
             log(f"Loaded {len(scenes)} storyboards from analysis_result.json")
-        elif os.path.exists(scenes_json_path):
-            log(f"Found scenes.json, reading...")
+        
+        if len(scenes) == 0 and os.path.exists(scenes_json_path):
+            log(f"storyboards is empty, falling back to scenes.json...")
             with open(scenes_json_path, 'r') as f:
                 data = json.load(f)
             for s in data:
@@ -126,10 +128,11 @@ def main():
                     'index': s['scene_number'] - 1
                 })
             log(f"Loaded {len(scenes)} scenes from scenes.json")
-        else:
-            log(f"Error: Neither analysis_result.json nor scenes.json found")
+        
+        if len(scenes) == 0:
+            log(f"Error: No scenes found in analysis_result.json or scenes.json")
             log(f"Files in work dir: {os.listdir(WORK_DIR)}")
-            raise FileNotFoundError("Neither analysis_result.json nor scenes.json found")
+            raise FileNotFoundError("No scenes found in analysis_result.json or scenes.json")
 
         video_path = os.path.join(WORK_DIR, 'input_video.mp4')
         log(f"Video path: {video_path}")

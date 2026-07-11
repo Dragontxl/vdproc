@@ -245,7 +245,41 @@ def main():
    - 正向prompt（用于AI生成）
    - 反向prompt（用于排除不想要的元素）
 
-请以JSON格式输出结果。"""
+请严格按照以下JSON格式输出，必须包含 characters 和 storyboards 两个顶层键：
+
+{{
+  "characters": [
+    {{
+      "role_id": "R1",
+      "gender": "男",
+      "body_type": "中等身形",
+      "height": "中等偏高",
+      "permanent_features": "描述",
+      "differentiation_labels": ["标签1", "标签2"]
+    }}
+  ],
+  "storyboards": [
+    {{
+      "start_time": "00:00:00.000",
+      "end_time": "00:00:05.000",
+      "characters_present": ["R1"],
+      "speaker": "R1",
+      "subtitles": "台词内容",
+      "scene_description": "场景描述",
+      "lighting_description": "光影描述",
+      "camera_movement": "运镜描述",
+      "positive_prompt": "AI生成正向prompt",
+      "negative_prompt": "AI生成反向prompt"
+    }}
+  ]
+}}
+
+注意：
+- start_time 和 end_time 必须使用 HH:MM:SS.mmm 格式
+- storyboards 数组不能为空，必须至少包含一个分镜
+- characters_present 和 differentiation_labels 必须是数组
+- speaker 可以为 null
+- 不要添加任何额外的顶层键"""
         
         video_file = upload_video_to_gemini(video_local_path)
         
