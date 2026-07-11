@@ -129,7 +129,20 @@ process_shot() {
     RESPONSE=""
     
     for attempt in $(seq 1 $MAX_RETRIES); do
+        local json_file="./request_${shot_index}_${attempt}.json"
         echo "  Shot $shot_index: Attempt $attempt/$MAX_RETRIES..."
+        
+        cat > "$json_file" <<EOF
+{
+    "model": "agnes-video",
+    "prompt": "$MAIN_PROMPT",
+    "duration": $DURATION,
+    "extra_body": {
+        "image": ["data:image/jpeg;base64,$FIRST_FRAME_BASE64", "data:image/jpeg;base64,$LAST_FRAME_BASE64"],
+        "response_format": "url"
+    }
+}
+EOF
         
         RESPONSE=$(curl -s -X POST \
             --connect-timeout 60 \
@@ -137,15 +150,7 @@ process_shot() {
             -w "\n%{http_code}" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $selected_key" \
-            -d "{
-                \"model\": \"agnes-video\",
-                \"prompt\": \"$MAIN_PROMPT\",
-                \"duration\": $DURATION,
-                \"extra_body\": {
-                    \"image\": [\"data:image/jpeg;base64,$FIRST_FRAME_BASE64\", \"data:image/jpeg;base64,$LAST_FRAME_BASE64\"],
-                    \"response_format\": \"url\"
-                }
-            }" \
+            -d "@$json_file" \
             "$selected_url")
         
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
@@ -166,7 +171,7 @@ process_shot() {
     
     if [ $API_SUCCESS -ne 1 ]; then
         echo "Error: Failed to generate shot $shot_index"
-        rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file"
+        rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file" "./request_${shot_index}_*.json"
         echo "$shot_index:FAILED" >> "./shot_results.txt"
         return 1
     fi
@@ -174,7 +179,7 @@ process_shot() {
     RESULT_URL=$(echo "$RESPONSE" | jq -r '.data[0].url // ""')
     if [ -z "$RESULT_URL" ]; then
         echo "Error: No result URL for shot $shot_index"
-        rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file"
+        rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file" "./request_${shot_index}_*.json"
         echo "$shot_index:FAILED" >> "./shot_results.txt"
         return 1
     fi
@@ -184,12 +189,12 @@ process_shot() {
     
     if [ ! -f "./generated_shots/shot_${shot_index}.mp4" ] || [ ! -s "./generated_shots/shot_${shot_index}.mp4" ]; then
         echo "Error: Downloaded video is empty for shot $shot_index"
-        rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file"
+        rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file" "./request_${shot_index}_*.json"
         echo "$shot_index:FAILED" >> "./shot_results.txt"
         return 1
     fi
     
-    rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file"
+    rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file" "./request_${shot_index}_*.json"
     echo "$shot_index:SUCCESS" >> "./shot_results.txt"
     echo "Successfully generated shot $shot_index"
     
