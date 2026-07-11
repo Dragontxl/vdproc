@@ -80,18 +80,24 @@ print('%.3f' % duration)
     local has_first_frame=0
     local has_last_frame=0
     
-    if aws s3 cp "s3://$R2_BUCKET_NAME/$FIRST_FRAME_KEY" "./first_frame_${shot_index}.jpg" --endpoint-url "$R2_ENDPOINT_URL"; then
-        has_first_frame=1
-        FIRST_FRAME_BASE64=$(base64 -w0 "./first_frame_${shot_index}.jpg" | tr -d '\n\r')
+    FIRST_FRAME_URL=$(aws s3 presign "s3://$R2_BUCKET_NAME/$FIRST_FRAME_KEY" --endpoint-url "$R2_ENDPOINT_URL" --expires-in 3600)
+    LAST_FRAME_URL=$(aws s3 presign "s3://$R2_BUCKET_NAME/$LAST_FRAME_KEY" --endpoint-url "$R2_ENDPOINT_URL" --expires-in 3600)
+    
+    echo "Shot $shot_index: First frame URL: ${FIRST_FRAME_URL:0:80}..."
+    echo "Shot $shot_index: Last frame URL: ${LAST_FRAME_URL:0:80}..."
+    
+    if [ -z "$FIRST_FRAME_URL" ]; then
+        echo "Warning: First frame URL generation failed"
+        has_first_frame=0
     else
-        echo "Warning: First frame $FIRST_FRAME_KEY not found"
+        has_first_frame=1
     fi
     
-    if aws s3 cp "s3://$R2_BUCKET_NAME/$LAST_FRAME_KEY" "./last_frame_${shot_index}.jpg" --endpoint-url "$R2_ENDPOINT_URL"; then
-        has_last_frame=1
-        LAST_FRAME_BASE64=$(base64 -w0 "./last_frame_${shot_index}.jpg" | tr -d '\n\r')
+    if [ -z "$LAST_FRAME_URL" ]; then
+        echo "Warning: Last frame URL generation failed"
+        has_last_frame=0
     else
-        echo "Warning: Last frame $LAST_FRAME_KEY not found"
+        has_last_frame=1
     fi
     
     if [ $has_first_frame -eq 0 ] && [ $has_last_frame -eq 0 ]; then
@@ -102,11 +108,11 @@ print('%.3f' % duration)
     fi
     
     if [ $has_first_frame -eq 0 ]; then
-        FIRST_FRAME_BASE64="$LAST_FRAME_BASE64"
+        FIRST_FRAME_URL="$LAST_FRAME_URL"
     fi
     
     if [ $has_last_frame -eq 0 ]; then
-        LAST_FRAME_BASE64="$FIRST_FRAME_BASE64"
+        LAST_FRAME_URL="$FIRST_FRAME_URL"
     fi
     
     MAIN_PROMPT="$POSITIVE_PROMPT, American animation style, anime style, high quality, $SCENE_DESC"
@@ -135,6 +141,8 @@ print('%.3f' % duration)
     
     echo "Shot $shot_index: Using AI account index $account_index"
     
+    sleep $((shot_index * 40))
+    
     MAX_RETRIES=3
     RETRY_DELAY=10
     API_SUCCESS=0
@@ -147,25 +155,32 @@ print('%.3f' % duration)
         
         python3 -c "
 import json
-import os
+
+num_frames = $FRAME_COUNT
+n = (num_frames - 1) // 8
+adjusted_frames = 8 * n + 1
+if adjusted_frames < 9:
+    adjusted_frames = 9
 
 data = {
     'model': 'agnes-video-v2.0',
     'prompt': '$MAIN_PROMPT',
-    'num_frames': $FRAME_COUNT,
+    'num_frames': adjusted_frames,
     'frame_rate': $OUTPUT_FPS,
-    'height': 768,
-    'width': 1152
+    'height': 480,
+    'width': 854,
+    'seed': 42,
+    'extra_body': {
+        'image': ['$FIRST_FRAME_URL', '$LAST_FRAME_URL'],
+        'mode': 'keyframes'
+    }
 }
-
-if os.path.exists('./first_frame_${shot_index}.jpg'):
-    with open('./first_frame_${shot_index}.jpg', 'rb') as f:
-        import base64
-        first_base64 = base64.b64encode(f.read()).decode('ascii')
-    data['image'] = 'data:image/jpeg;base64,' + first_base64
 
 with open('$json_file', 'w') as f:
     json.dump(data, f)
+
+print('Adjusted frames:', adjusted_frames)
+print('Images:', ['$FIRST_FRAME_URL', '$LAST_FRAME_URL'])
 "
         
         RESPONSE=$(curl -s -X POST \
@@ -225,7 +240,7 @@ with open('$json_file', 'w') as f:
         if [ "$STATUS_CODE" -ge 200 ] && [ "$STATUS_CODE" -lt 300 ]; then
             STATUS=$(echo "$STATUS_BODY" | jq -r '.status // ""')
             PROGRESS=$(echo "$STATUS_BODY" | jq -r '.progress // ""')
-            RESULT_URL=$(echo "$STATUS_BODY" | jq -r '.data.remixed_from_video_id // .data.url // .result_url // ""')
+            RESULT_URL=$(echo "$STATUS_BODY" | jq -r '.remixed_from_video_id // .url // .video_url // .output_url // .data.url // ""')
             
             echo "  Shot $shot_index: Status: $STATUS, Progress: $PROGRESS%"
             
