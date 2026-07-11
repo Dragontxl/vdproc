@@ -197,11 +197,6 @@ if [ $SUCCESS_COUNT -eq 0 ]; then
     exit 1
 fi
 
-if [ $FAILED_COUNT -gt 0 ]; then
-    echo "Error: Some frames failed to convert. Need $((SHOT_COUNT * 2)) frames but only got $SUCCESS_COUNT."
-    exit 1
-fi
-
 echo "Uploading converted frames..."
 aws s3 sync "./ai_shot_frames" "s3://$R2_BUCKET_NAME/${TASK_ID}/ai_shot_frames" \
     --endpoint-url "$R2_ENDPOINT_URL"

@@ -188,47 +188,6 @@ export class TaskService {
     return this.getTask(id);
   }
 
-  async startPhase(taskId: string, phase: TaskPhase) {
-    const task = await this.getTask(taskId);
-    if (!task) {
-      throw new Error('Task not found');
-    }
-
-    const currentPhaseIndex = phaseOrder.indexOf(task.current_phase as TaskPhase);
-    const targetPhaseIndex = phaseOrder.indexOf(phase);
-
-    if (targetPhaseIndex <= currentPhaseIndex && task.status !== 'FAILED') {
-      throw new Error(`Cannot start phase ${phase} before completing previous phases`);
-    }
-
-    if (task.status === 'FAILED') {
-      await this.env.DB.prepare(`
-        UPDATE tasks SET status = ?, error_msg = NULL, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?
-      `).bind('PENDING', taskId).run();
-    }
-
-    await this.triggerPhase(taskId, phase);
-    return this.getTask(taskId);
-  }
-
-  async restartPhase(taskId: string) {
-    const task = await this.getTask(taskId);
-    if (!task) {
-      throw new Error('Task not found');
-    }
-
-    if (task.status !== 'FAILED') {
-      throw new Error('Can only restart failed tasks');
-    }
-
-    await this.env.DB.prepare(`
-      UPDATE tasks SET status = ?, retry_count = retry_count + 1, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?
-    `).bind('PENDING', taskId).run();
-
-    await this.triggerPhase(taskId, task.current_phase as TaskPhase);
-    return this.getTask(taskId);
-  }
-
   async triggerPhase(taskId: string, phase: TaskPhase) {
     console.log('triggerPhase called:', { taskId, phase });
     
@@ -272,12 +231,7 @@ export class TaskService {
         `).bind(aiAccount ? aiAccount.id : null, taskId).run();
       }
 
-      try {
-        await this.logTask(taskId, phase, 'INFO', `Phase ${phase} triggered`);
-        console.log('triggerPhase: Logged task successfully');
-      } catch (logError) {
-        console.warn('triggerPhase: Failed to log task:', (logError as Error).message);
-      }
+      await this.logTask(taskId, phase, 'INFO', `Phase ${phase} triggered`);
       console.log('triggerPhase completed successfully:', { taskId, phase });
     } catch (error) {
       console.error('triggerPhase: Failed to dispatch workflow:', error);
@@ -394,23 +348,23 @@ export class TaskService {
       `).all();
 
       if (aiAccountsResult.results && aiAccountsResult.results.length > 0) {
-        const decryptedAccounts: any[] = [];
-        for (const acc of aiAccountsResult.results as any[]) {
-          if (acc.api_key_encrypted) {
-            try {
-              const decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
-              decryptedAccounts.push({
-                ...acc,
-                api_key_encrypted: decryptedKey
-              });
-            } catch (e) {
-              console.log('Failed to decrypt AI account', acc.id, e);
+        const decryptedAccounts = await Promise.all(
+          (aiAccountsResult.results as any[]).map(async (acc) => {
+            let decryptedKey = '';
+            if (acc.api_key_encrypted) {
+              try {
+                decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
+              } catch {
+                decryptedKey = acc.api_key_encrypted;
+              }
             }
-          }
-        }
-        if (decryptedAccounts.length > 0) {
-          aiAccountsJson = JSON.stringify(decryptedAccounts);
-        }
+            return {
+              ...acc,
+              api_key_encrypted: decryptedKey
+            };
+          })
+        );
+        aiAccountsJson = JSON.stringify(decryptedAccounts);
       }
     }
 
