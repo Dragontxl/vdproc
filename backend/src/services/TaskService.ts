@@ -348,23 +348,23 @@ export class TaskService {
       `).all();
 
       if (aiAccountsResult.results && aiAccountsResult.results.length > 0) {
-        const decryptedAccounts = await Promise.all(
-          (aiAccountsResult.results as any[]).map(async (acc) => {
-            let decryptedKey = '';
-            if (acc.api_key_encrypted) {
-              try {
-                decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
-              } catch {
-                decryptedKey = acc.api_key_encrypted;
-              }
+        const decryptedAccounts: any[] = [];
+        for (const acc of aiAccountsResult.results as any[]) {
+          if (acc.api_key_encrypted) {
+            try {
+              const decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
+              decryptedAccounts.push({
+                ...acc,
+                api_key_encrypted: decryptedKey
+              });
+            } catch (e) {
+              console.log('Failed to decrypt AI account', acc.id, e);
             }
-            return {
-              ...acc,
-              api_key_encrypted: decryptedKey
-            };
-          })
-        );
-        aiAccountsJson = JSON.stringify(decryptedAccounts);
+          }
+        }
+        if (decryptedAccounts.length > 0) {
+          aiAccountsJson = JSON.stringify(decryptedAccounts);
+        }
       }
     }
 

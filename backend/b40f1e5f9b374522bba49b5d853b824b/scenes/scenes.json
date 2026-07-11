@@ -1,0 +1,68 @@
+[
+  {
+    "scene_number": 1,
+    "start_frame": 1,
+    "start_timecode": "00:00:00.000",
+    "start_time_seconds": 0.0,
+    "end_frame": 37,
+    "end_timecode": "00:00:01.233",
+    "end_time_seconds": 1.233,
+    "length_frames": 37,
+    "length_seconds": 1.233
+  },
+  {
+    "scene_number": 2,
+    "start_frame": 38,
+    "start_timecode": "00:00:01.233",
+    "start_time_seconds": 1.233,
+    "end_frame": 124,
+    "end_timecode": "00:00:04.133",
+    "end_time_seconds": 4.133,
+    "length_frames": 87,
+    "length_seconds": 2.9
+  },
+  {
+    "scene_number": 3,
+    "start_frame": 125,
+    "start_timecode": "00:00:04.133",
+    "start_time_seconds": 4.133,
+    "end_frame": 161,
+    "end_timecode": "00:00:05.367",
+    "end_time_seconds": 5.367,
+    "length_frames": 37,
+    "length_seconds": 1.233
+  },
+  {
+    "scene_number": 4,
+    "start_frame": 162,
+    "start_timecode": "00:00:05.367",
+    "start_time_seconds": 5.367,
+    "end_frame": 184,
+    "end_timecode": "00:00:06.133",
+    "end_time_seconds": 6.133,
+    "length_frames": 23,
+    "length_seconds": 0.767
+  },
+  {
+    "scene_number": 5,
+    "start_frame": 185,
+    "start_timecode": "00:00:06.133",
+    "start_time_seconds": 6.133,
+    "end_frame": 206,
+    "end_timecode": "00:00:06.867",
+    "end_time_seconds": 6.867,
+    "length_frames": 22,
+    "length_seconds": 0.733
+  },
+  {
+    "scene_number": 6,
+    "start_frame": 207,
+    "start_timecode": "00:00:06.867",
+    "start_time_seconds": 6.867,
+    "end_frame": 212,
+    "end_timecode": "00:00:07.067",
+    "end_time_seconds": 7.067,
+    "length_frames": 6,
+    "length_seconds": 0.2
+  }
+]

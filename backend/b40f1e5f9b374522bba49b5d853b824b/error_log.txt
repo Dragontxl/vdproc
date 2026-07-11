@@ -1,0 +1,7 @@
+Error in scene analysis: File upload failed: 400 Multipart body contains multiple files.
+Traceback: Traceback (most recent call last):
+  File "/scripts/analyze_scene.py", line 336, in main
+    file_uri = upload_video_to_gemini(video_local_path)
+  File "/scripts/analyze_scene.py", line 122, in upload_video_to_gemini
+    raise Exception(f"File upload failed: {response.status_code} {response.text}")
+Exception: File upload failed: 400 Multipart body contains multiple files.

@@ -1,0 +1,74 @@
+{
+  "characters": [
+    {
+      "role_id": "R1",
+      "gender": "男",
+      "body_type": "中等身形",
+      "height": "中等偏高",
+      "permanent_features": "留有小胡须，神情冷峻而沧桑，常戴着一顶宽大的竹编斗笠遮住额头。",
+      "differentiation_labels": [
+        "斗笠剑客",
+        "带胡须的刺客",
+        "冷酷汉子"
+      ]
+    },
+    {
+      "role_id": "R2",
+      "gender": "男",
+      "body_type": "壮硕彪悍",
+      "height": "高大",
+      "permanent_features": "光头，头顶有金色梵文状的刺青/伤疤，面目凶恶，留有短络腮胡。",
+      "differentiation_labels": [
+        "光头大汉",
+        "头部刺青",
+        "土匪头子"
+      ]
+    }
+  ],
+  "storyboards": [
+    {
+      "start_time": "00:00:00.000",
+      "end_time": "00:00:01.233",
+      "characters_present": [
+        "R1"
+      ],
+      "speaker": "R1",
+      "subtitles": "你的人头值八百钱",
+      "scene_description": "昏暗的古代客栈内，戴着竹斗笠的剑客R1神色冷静，微微低头，开口向对方发出死亡宣告。",
+      "lighting_description": "暖色调侧光照亮其面部下半部分，背景黑暗，营造出神秘而危险的气氛。",
+      "camera_movement": "近景特写，微弱的手持呼吸感。",
+      "positive_prompt": "1man, close-up shot, Chinese swordsman R1 wearing a conical bamboo hat, black traditional clothing, mustache, intense eyes, in an ancient Chinese tavern, dim warm lighting, cinematic film grain, 8k resolution.",
+      "negative_prompt": "modern, blurry, bright daylight, female, clean shaven"
+    },
+    {
+      "start_time": "00:00:01.233",
+      "end_time": "00:00:04.133",
+      "characters_present": [
+        "R2",
+        "R1"
+      ],
+      "speaker": null,
+      "subtitles": "",
+      "scene_description": "光头大汉R2正坐在桌前，手里撕咬着一块干粮。听到R1的挑衅后，他的动作瞬间凝固，眼神变得极其凶狠和警惕，死死盯住对面的R1。",
+      "lighting_description": "昏暗的暖光灯火，高光打在R2的光头和面部，阴影深重，凸显其面部狰狞的肌肉和刺青。",
+      "camera_movement": "中景镜头，聚焦于光头大汉R2，前景有R1的模糊肩膀，形成对峙感。",
+      "positive_prompt": "1man, close-up shot of a fierce bald bandit leader R2 with golden scalp tattoos, wearing rugged dark armor, holding a piece of bread, shocked and angry expression, inside a dusty ancient Chinese inn, dramatic candle light, high contrast.",
+      "negative_prompt": "hair, smiling, modern background, soft photography, bright colors"
+    },
+    {
+      "start_time": "00:00:04.133",
+      "end_time": "00:00:07.067",
+      "characters_present": [
+        "R1",
+        "R2"
+      ],
+      "speaker": null,
+      "subtitles": "",
+      "scene_description": "剑客R1与光头大汉R2无声对峙。R1的手迅速伸向腰间，握住剑柄准备拔剑。随后镜头快速切到R2，他意识到了危险的逼近，神色一震。",
+      "lighting_description": "强烈的明暗对比，昏暗的客栈内部，光影交错，暗示冲突一触即发。",
+      "camera_movement": "快速剪辑。先是R1中景，随后特写其手部伸向剑柄，接着快速拉回R2的脸部特写，富有节奏感和压迫感。",
+      "positive_prompt": "action sequence, close-up of a hand grabbing a sword hilt, martial arts tension, swordsman wearing bamboo hat R1, bald bandit R2 reacting with alarm, ancient Chinese tavern, dim and dusty atmosphere, fast-paced cinematic editing.",
+      "negative_prompt": "peaceful, smiling, modern, bright daylight, static camera"
+    }
+  ]
+}

@@ -33,17 +33,7 @@ def adjust_frames(frame_count):
     n = (frame_count - 1) // 8
     return 8 * n + 1
 
-def get_presigned_url(bucket_name, key, endpoint_url):
-    cmd = f"aws s3 presign 's3://{bucket_name}/{key}' --endpoint-url '{endpoint_url}' --expires-in 3600"
-    rc, output = run_command(cmd)
-    if rc == 0 and output:
-        return output.strip()
-    return None
-
 def create_video_task(api_url, api_key, json_data):
-    import urllib.request
-    import urllib.error
-    
     req = urllib.request.Request(
         api_url,
         data=json_data.encode('utf-8'),
@@ -117,7 +107,7 @@ def poll_video_task(api_url, api_key, task_id):
     
     return None
 
-def process_shot(shot_index, result, task_id, output_fps, r2_bucket_name, r2_endpoint_url, ai_api_key, ai_base_url, ai_accounts):
+def process_shot(shot_index, result, task_id, output_fps, r2_public_domain, ai_api_key, ai_base_url, ai_accounts):
     storyboards = result.get('storyboards', [])
     if shot_index >= len(storyboards):
         print(f"Shot {shot_index}: Index out of range")
@@ -138,42 +128,14 @@ def process_shot(shot_index, result, task_id, output_fps, r2_bucket_name, r2_end
     
     print(f"Processing shot {shot_index}: duration={duration:.3f}s, frames={frame_count}, adjusted_frames={adjusted_frames}")
     
-    first_frame_key = f"{task_id}/ai_shot_frames/shot_{shot_index}_first.jpg"
-    last_frame_key = f"{task_id}/ai_shot_frames/shot_{shot_index}_last.jpg"
+    first_frame_url = f"https://{r2_public_domain}/{task_id}/ai_shot_frames/shot_{shot_index}_first.jpg"
+    last_frame_url = f"https://{r2_public_domain}/{task_id}/ai_shot_frames/shot_{shot_index}_last.jpg"
     
-    first_frame_path = f"./first_frame_{shot_index}.jpg"
-    last_frame_path = f"./last_frame_{shot_index}.jpg"
-    
-    rc1, _ = run_command(f"aws s3 cp 's3://{r2_bucket_name}/{first_frame_key}' '{first_frame_path}' --endpoint-url '{r2_endpoint_url}'")
-    rc2, _ = run_command(f"aws s3 cp 's3://{r2_bucket_name}/{last_frame_key}' '{last_frame_path}' --endpoint-url '{r2_endpoint_url}'")
-    
-    has_first = os.path.exists(first_frame_path) and os.path.getsize(first_frame_path) > 0
-    has_last = os.path.exists(last_frame_path) and os.path.getsize(last_frame_path) > 0
-    
-    print(f"Shot {shot_index}: First frame downloaded: {has_first}")
-    print(f"Shot {shot_index}: Last frame downloaded: {has_last}")
-    
-    if not has_first and not has_last:
-        print(f"Shot {shot_index}: No frames found, skipping")
-        return shot_index, 'SKIPPED'
-    
-    if not has_first:
-        first_frame_path = last_frame_path
-    if not has_last:
-        last_frame_path = first_frame_path
-    
-    import base64
-    with open(first_frame_path, 'rb') as f:
-        first_base64 = base64.b64encode(f.read()).decode('ascii')
-    
-    with open(last_frame_path, 'rb') as f:
-        last_base64 = base64.b64encode(f.read()).decode('ascii')
-    
-    print(f"Shot {shot_index}: First base64 length: {len(first_base64)}")
-    print(f"Shot {shot_index}: Last base64 length: {len(last_base64)}")
+    print(f"Shot {shot_index}: First frame URL: {first_frame_url}")
+    print(f"Shot {shot_index}: Last frame URL: {last_frame_url}")
     
     base_prompt = "在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。"
-    main_prompt = f"{base_prompt}{positive_prompt}, American animation style, anime style, high quality"
+    main_prompt = f"{base_prompt}{positive_prompt}"
     if scene_desc:
         main_prompt += f", {scene_desc}"
     if dialogue:
@@ -204,7 +166,10 @@ def process_shot(shot_index, result, task_id, output_fps, r2_bucket_name, r2_end
         'width': 854,
         'height': 480,
         'seed': 42,
-        'image': f"data:image/jpeg;base64,{first_base64}"
+        'extra_body': {
+            'image': [first_frame_url, last_frame_url],
+            'mode': 'keyframes'
+        }
     }
     
     json_data = json.dumps(request_data)
@@ -272,8 +237,7 @@ def main():
     os.makedirs(work_dir, exist_ok=True)
     os.chdir(work_dir)
     
-    r2_bucket_name = os.environ.get('R2_BUCKET_NAME')
-    r2_endpoint_url = os.environ.get('R2_ENDPOINT_URL')
+    r2_public_domain = os.environ.get('R2_PUBLIC_DOMAIN', 'aivideobucket.ldragon.xyz')
     ai_api_key = os.environ.get('AI_API_KEY')
     ai_base_url = os.environ.get('AI_BASE_URL')
     ai_accounts_json = os.environ.get('AI_ACCOUNTS', '[]')
@@ -284,7 +248,11 @@ def main():
     except:
         pass
     
+    print(f"R2 Public Domain: {r2_public_domain}")
     print(f"Available AI accounts: {len(ai_accounts)}")
+    
+    r2_bucket_name = os.environ.get('R2_BUCKET_NAME')
+    r2_endpoint_url = os.environ.get('R2_ENDPOINT_URL')
     
     print("Downloading analysis result...")
     run_command(f"aws s3 cp 's3://{r2_bucket_name}/{task_id}/analysis_result.json' ./analysis_result.json --endpoint-url '{r2_endpoint_url}'")
@@ -300,7 +268,7 @@ def main():
     
     results = []
     for i in range(shot_count):
-        shot_idx, status = process_shot(i, result, task_id, output_fps, r2_bucket_name, r2_endpoint_url, ai_api_key, ai_base_url, ai_accounts)
+        shot_idx, status = process_shot(i, result, task_id, output_fps, r2_public_domain, ai_api_key, ai_base_url, ai_accounts)
         results.append((shot_idx, status))
         print(f"Shot {shot_idx}: {status}")
     

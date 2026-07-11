@@ -1,0 +1,18 @@
+{
+  "characters": [
+    {
+      "role_id": "R1",
+      "best_frame_path": "/tmp/b40f1e5f9b374522bba49b5d853b824b/face_frames/face_2_10_6.jpg",
+      "face_count": 3,
+      "avg_confidence": 0.859389066696167
+    },
+    {
+      "role_id": "R2",
+      "best_frame_path": "/tmp/b40f1e5f9b374522bba49b5d853b824b/face_frames/face_1_50_2.jpg",
+      "face_count": 6,
+      "avg_confidence": 0.840775728225708
+    }
+  ],
+  "total_faces": 10,
+  "character_count": 2
+}
