@@ -68,13 +68,38 @@ process_shot() {
     LAST_FRAME_KEY="${TASK_ID}/ai_shot_frames/shot_${shot_index}_last.jpg"
     
     echo "Downloading AI frames..."
-    aws s3 cp "s3://$R2_BUCKET_NAME/$FIRST_FRAME_KEY" "./first_frame_${shot_index}.jpg" \
-        --endpoint-url "$R2_ENDPOINT_URL"
-    aws s3 cp "s3://$R2_BUCKET_NAME/$LAST_FRAME_KEY" "./last_frame_${shot_index}.jpg" \
-        --endpoint-url "$R2_ENDPOINT_URL"
     
-    FIRST_FRAME_BASE64=$(base64 -w0 "./first_frame_${shot_index}.jpg")
-    LAST_FRAME_BASE64=$(base64 -w0 "./last_frame_${shot_index}.jpg")
+    local has_first_frame=0
+    local has_last_frame=0
+    
+    if aws s3 cp "s3://$R2_BUCKET_NAME/$FIRST_FRAME_KEY" "./first_frame_${shot_index}.jpg" --endpoint-url "$R2_ENDPOINT_URL"; then
+        has_first_frame=1
+        FIRST_FRAME_BASE64=$(base64 -w0 "./first_frame_${shot_index}.jpg")
+    else
+        echo "Warning: First frame $FIRST_FRAME_KEY not found"
+    fi
+    
+    if aws s3 cp "s3://$R2_BUCKET_NAME/$LAST_FRAME_KEY" "./last_frame_${shot_index}.jpg" --endpoint-url "$R2_ENDPOINT_URL"; then
+        has_last_frame=1
+        LAST_FRAME_BASE64=$(base64 -w0 "./last_frame_${shot_index}.jpg")
+    else
+        echo "Warning: Last frame $LAST_FRAME_KEY not found"
+    fi
+    
+    if [ $has_first_frame -eq 0 ] && [ $has_last_frame -eq 0 ]; then
+        echo "Error: No AI frames found for shot $shot_index, skipping..."
+        rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg"
+        echo "$shot_index:SKIPPED" >> "./shot_results.txt"
+        return 0
+    fi
+    
+    if [ $has_first_frame -eq 0 ]; then
+        FIRST_FRAME_BASE64="$LAST_FRAME_BASE64"
+    fi
+    
+    if [ $has_last_frame -eq 0 ]; then
+        LAST_FRAME_BASE64="$FIRST_FRAME_BASE64"
+    fi
     
     MAIN_PROMPT="$POSITIVE_PROMPT, American animation style, anime style, high quality, $SCENE_DESC"
     if [ -n "$DIALOGUE" ]; then
