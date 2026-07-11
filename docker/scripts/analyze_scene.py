@@ -61,34 +61,52 @@ def upload_video_to_gemini(video_path):
     file_size = os.path.getsize(video_path)
     log(f"Video file size: {file_size} bytes")
     
-    url = "https://generativelanguage.googleapis.com/upload/v1beta/files"
+    url = "https://generativelanguage.googleapis.com/v1beta/files"
     
     with open(video_path, 'rb') as f:
         video_data = f.read()
     
     headers = {
         'x-goog-api-key': AI_API_KEY,
-        'X-Goog-Upload-Protocol': 'raw',
-        'X-Goog-Upload-File-Name': os.path.basename(video_path),
         'Content-Type': 'video/mp4',
     }
     
+    payload = {
+        "displayName": os.path.basename(video_path),
+        "mimeType": "video/mp4",
+    }
+    
     try:
-        response = requests.post(url, headers=headers, data=video_data, timeout=300)
+        response = requests.post(url, headers=headers, json=payload, timeout=300)
     except requests.exceptions.RequestException as e:
         log(f"Request exception: {e}")
         raise
     
     if response.status_code != 200:
-        log(f"File upload failed: HTTP {response.status_code}")
+        log(f"File create failed: HTTP {response.status_code}")
         log(f"Response: {response.text[:2000]}")
-        raise Exception(f"File upload failed: {response.status_code} {response.text}")
+        
+        log("Trying direct upload with media...")
+        url_upload = "https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=media"
+        
+        try:
+            response = requests.post(url_upload, headers=headers, data=video_data, timeout=300)
+        except requests.exceptions.RequestException as e:
+            log(f"Direct upload exception: {e}")
+            raise
+        
+        if response.status_code != 200:
+            log(f"Direct upload failed: HTTP {response.status_code}")
+            log(f"Response: {response.text[:2000]}")
+            raise Exception(f"File upload failed: {response.status_code} {response.text}")
     
     result = response.json()
-    file_uri = result.get('fileUri') or result.get('file_uri')
+    log(f"Full upload response: {json.dumps(result)}")
+    
+    file_uri = result.get('fileUri') or result.get('file_uri') or result.get('uri')
     
     if not file_uri:
-        log(f"File upload response: {json.dumps(result)}")
+        log(f"Available keys in response: {list(result.keys())}")
         raise Exception("fileUri not found in upload response")
     
     log(f"Upload successful, file_uri: {file_uri}")
