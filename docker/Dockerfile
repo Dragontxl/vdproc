@@ -31,7 +31,8 @@ RUN pip3 install --no-cache-dir \
     httpx \
     pydantic \
     requests \
-    google-generativeai
+    google-generativeai \
+    scikit-learn
 
 RUN mkdir -p /root/.insightface/models
 RUN curl -sL https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip -o /tmp/buffalo_l.zip \
