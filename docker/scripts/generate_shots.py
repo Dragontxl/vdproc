@@ -141,20 +141,36 @@ def process_shot(shot_index, result, task_id, output_fps, r2_bucket_name, r2_end
     first_frame_key = f"{task_id}/ai_shot_frames/shot_{shot_index}_first.jpg"
     last_frame_key = f"{task_id}/ai_shot_frames/shot_{shot_index}_last.jpg"
     
-    first_url = get_presigned_url(r2_bucket_name, first_frame_key, r2_endpoint_url)
-    last_url = get_presigned_url(r2_bucket_name, last_frame_key, r2_endpoint_url)
+    first_frame_path = f"./first_frame_{shot_index}.jpg"
+    last_frame_path = f"./last_frame_{shot_index}.jpg"
     
-    print(f"Shot {shot_index}: First URL: {first_url[:80] if first_url else 'None'}")
-    print(f"Shot {shot_index}: Last URL: {last_url[:80] if last_url else 'None'}")
+    rc1, _ = run_command(f"aws s3 cp 's3://{r2_bucket_name}/{first_frame_key}' '{first_frame_path}' --endpoint-url '{r2_endpoint_url}'")
+    rc2, _ = run_command(f"aws s3 cp 's3://{r2_bucket_name}/{last_frame_key}' '{last_frame_path}' --endpoint-url '{r2_endpoint_url}'")
     
-    if not first_url and not last_url:
+    has_first = os.path.exists(first_frame_path) and os.path.getsize(first_frame_path) > 0
+    has_last = os.path.exists(last_frame_path) and os.path.getsize(last_frame_path) > 0
+    
+    print(f"Shot {shot_index}: First frame downloaded: {has_first}")
+    print(f"Shot {shot_index}: Last frame downloaded: {has_last}")
+    
+    if not has_first and not has_last:
         print(f"Shot {shot_index}: No frames found, skipping")
         return shot_index, 'SKIPPED'
     
-    if not first_url:
-        first_url = last_url
-    if not last_url:
-        last_url = first_url
+    if not has_first:
+        first_frame_path = last_frame_path
+    if not has_last:
+        last_frame_path = first_frame_path
+    
+    import base64
+    with open(first_frame_path, 'rb') as f:
+        first_base64 = base64.b64encode(f.read()).decode('ascii')
+    
+    with open(last_frame_path, 'rb') as f:
+        last_base64 = base64.b64encode(f.read()).decode('ascii')
+    
+    print(f"Shot {shot_index}: First base64 length: {len(first_base64)}")
+    print(f"Shot {shot_index}: Last base64 length: {len(last_base64)}")
     
     base_prompt = "在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。"
     main_prompt = f"{base_prompt}{positive_prompt}, American animation style, anime style, high quality"
@@ -188,8 +204,9 @@ def process_shot(shot_index, result, task_id, output_fps, r2_bucket_name, r2_end
         'width': 854,
         'height': 480,
         'seed': 42,
+        'image': f"data:image/jpeg;base64,{first_base64}",
         'extra_body': {
-            'image': [first_url, last_url],
+            'image': [f"data:image/jpeg;base64,{first_base64}", f"data:image/jpeg;base64,{last_base64}"],
             'mode': 'keyframes'
         }
     }
