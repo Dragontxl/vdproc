@@ -58,12 +58,15 @@ process_shot() {
     NEGATIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].negative_prompt")
     
     DURATION=$(python3 -c "
+import sys
 from datetime import datetime
-start = datetime.strptime('$START_TIME', '%H:%M:%S.%f')
-end = datetime.strptime('$END_TIME', '%H:%M:%S.%f')
+start_str = sys.argv[1]
+end_str = sys.argv[2]
+start = datetime.strptime(start_str, '%H:%M:%S.%f')
+end = datetime.strptime(end_str, '%H:%M:%S.%f')
 duration = (end - start).total_seconds()
-print(f'{duration:.3f}')
-")
+print('%.3f' % duration)
+" "$START_TIME" "$END_TIME")
     
     FRAME_COUNT=$(echo "$DURATION * $OUTPUT_FPS" | bc | awk '{print int($1+0.5)}')
     
@@ -164,6 +167,12 @@ EOF
         
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
         RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
+        
+        echo "  Shot $shot_index: HTTP code: $HTTP_CODE"
+        echo "  Shot $shot_index: API URL: $selected_url"
+        if [ ${#RESPONSE_BODY} -gt 0 ]; then
+            echo "  Shot $shot_index: Response (first 1000 chars): ${RESPONSE_BODY:0:1000}"
+        fi
         
         if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
             API_SUCCESS=1
