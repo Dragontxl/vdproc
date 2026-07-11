@@ -57,20 +57,13 @@ process_shot() {
     POSITIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].positive_prompt")
     NEGATIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].negative_prompt")
     
-    DURATION=$(echo "$START_TIME $END_TIME" | awk '{
-        function parse_time(t) {
-            split(t, parts, ":")
-            h = parts[1]
-            m = parts[2]
-            split(parts[3], s, ".")
-            s_sec = s[1]
-            s_ms = s[2]
-            return h * 3600000 + m * 60000 + s_sec * 1000 + s_ms
-        }
-        start_ms = parse_time($1)
-        end_ms = parse_time($2)
-        printf "%.3f", (end_ms - start_ms) / 1000
-    }')
+    DURATION=$(python3 -c "
+from datetime import datetime
+start = datetime.strptime('$START_TIME', '%H:%M:%S.%f')
+end = datetime.strptime('$END_TIME', '%H:%M:%S.%f')
+duration = (end - start).total_seconds()
+print(f'{duration:.3f}')
+")
     
     FRAME_COUNT=$(echo "$DURATION * $OUTPUT_FPS" | bc | awk '{print int($1+0.5)}')
     
@@ -127,6 +120,8 @@ process_shot() {
         selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
         if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
             selected_url="https://apihub.agnes-ai.com/v1/videos/generations"
+        else
+            selected_url=$(echo "$selected_url" | sed 's|/v1/images/generations|/v1/videos/generations|')
         fi
     fi
     
