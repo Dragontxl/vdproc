@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { AccountService } from '../../services/AccountService';
+import { CryptoService } from '../../services/CryptoService';
 import { Bindings } from '../../types/env';
 
 const accountRoutes = new Hono();
@@ -92,8 +93,53 @@ accountRoutes.delete('/ai/:id', async (c) => {
 accountRoutes.post('/ai/:id/health', async (c) => {
   const service = new AccountService(c.env as Bindings);
   const result = await service.checkAIAccountHealth(parseInt(c.req.param('id')));
-  
+
   return c.json({ code: 200, data: result, msg: 'Health check completed' });
+});
+
+accountRoutes.get('/ai/:id/debug', async (c) => {
+  const cryptoService = new CryptoService(c.env as Bindings);
+  const result = await c.env.DB.prepare('SELECT id, api_key_encrypted, base_url FROM ai_accounts WHERE id = ?')
+    .bind(parseInt(c.req.param('id'))).first();
+
+  if (!result) {
+    return c.json({ code: 404, data: null, msg: 'Not found' }, 404);
+  }
+
+  const storedKey = (result as any).api_key_encrypted;
+  let decryptedKey = '';
+  let decryptError = '';
+
+  try {
+    decryptedKey = await cryptoService.decrypt(storedKey);
+  } catch (e) {
+    decryptError = (e as Error).message;
+  }
+
+  const testEncrypt = await cryptoService.encrypt('test-key-123');
+  let testDecrypt = '';
+  let testDecryptError = '';
+  try {
+    testDecrypt = await cryptoService.decrypt(testEncrypt);
+  } catch (e) {
+    testDecryptError = (e as Error).message;
+  }
+
+  return c.json({
+    code: 200,
+    data: {
+      id: (result as any).id,
+      storedKeyLength: storedKey?.length,
+      storedKeyPrefix: storedKey?.substring(0, 10),
+      decryptedKeyLength: decryptedKey.length,
+      decryptedKeyPrefix: decryptedKey.substring(0, 4),
+      decryptError,
+      testEncryptLength: testEncrypt.length,
+      testDecryptResult: testDecrypt,
+      testDecryptError,
+    },
+    msg: 'Debug info'
+  });
 });
 
 export { accountRoutes };

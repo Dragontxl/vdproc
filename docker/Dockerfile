@@ -29,7 +29,8 @@ RUN pip3 install --no-cache-dir \
     insightface \
     Pillow \
     httpx \
-    pydantic
+    pydantic \
+    requests
 
 RUN mkdir -p /root/.insightface/models
 RUN curl -sL https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip -o /tmp/buffalo_l.zip \

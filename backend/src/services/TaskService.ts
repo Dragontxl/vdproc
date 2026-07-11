@@ -201,29 +201,29 @@ export class TaskService {
     let ghAccount: any = null;
     let aiAccount: any = null;
 
-    ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
-    
-    if (!ghAccount) {
-      console.error('triggerPhase: No available GitHub account');
-      throw new Error('No available GitHub account');
-    }
-
-    const requiredApiType = phasesRequiringAI[phase];
-    if (requiredApiType) {
-      aiAccount = await new accountService.AccountService(this.env).selectAIAccount(requiredApiType);
-      if (!aiAccount) {
-        console.error('triggerPhase: No available AI account for phase:', phase);
-        throw new Error('No available AI account');
-      }
-    }
-
     try {
+      ghAccount = await new accountService.AccountService(this.env).selectAvailableGitHubAccount();
+      
+      if (!ghAccount) {
+        console.error('triggerPhase: No available GitHub account');
+        throw new Error('No available GitHub account');
+      }
+
+      const requiredApiType = phasesRequiringAI[phase];
+      if (requiredApiType) {
+        aiAccount = await new accountService.AccountService(this.env).selectAIAccount(requiredApiType);
+        if (!aiAccount) {
+          console.error('triggerPhase: No available AI account for phase:', phase);
+          throw new Error('No available AI account');
+        }
+      }
+
       await this.dispatchGitHubWorkflow(taskId, phase, ghAccount?.id, aiAccount?.id);
       
       await this.env.DB.prepare(`
-        UPDATE tasks SET current_phase = ?, status = ?, github_account_id = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+        UPDATE tasks SET github_account_id = ?, current_phase = ?, status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?
-      `).bind(phase, phaseStatusMap[phase].running, ghAccount ? ghAccount.id : null, taskId).run();
+      `).bind(ghAccount ? ghAccount.id : null, phase, phaseStatusMap[phase].running, taskId).run();
 
       if (aiAccount) {
         await this.env.DB.prepare(`
@@ -235,11 +235,22 @@ export class TaskService {
       console.log('triggerPhase completed successfully:', { taskId, phase });
     } catch (error) {
       console.error('triggerPhase: Failed to dispatch workflow:', error);
+      const errMsg = (error as Error).message;
+
+      if (aiAccount) {
+        try {
+          await new accountService.AccountService(this.env).releaseAIAccount(aiAccount.id);
+          console.log('triggerPhase: Released AI account', aiAccount.id, 'after failure');
+        } catch (releaseErr) {
+          console.error('triggerPhase: Failed to release AI account:', releaseErr);
+        }
+      }
+
       await this.env.DB.prepare(`
-        UPDATE tasks SET status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+        UPDATE tasks SET status = ?, error_msg = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?
-      `).bind('FAILED', taskId).run();
-      await this.logTask(taskId, phase, 'ERROR', `Failed to trigger phase ${phase}: ${(error as Error).message}`);
+      `).bind('FAILED', errMsg, taskId).run();
+      await this.logTask(taskId, phase, 'ERROR', `Failed to trigger phase ${phase}: ${errMsg}`);
       throw error;
     }
   }
@@ -318,7 +329,10 @@ export class TaskService {
         if (storedKey) {
           try {
             aiApiKey = await this.cryptoService.decrypt(storedKey);
-          } catch {
+            console.log('dispatchGitHubWorkflow: AI API key decrypted successfully, length:', aiApiKey.length, 'starts with:', aiApiKey.substring(0, 4));
+          } catch (decryptErr) {
+            console.error('dispatchGitHubWorkflow: AI API key decryption failed:', (decryptErr as Error).message);
+            console.log('dispatchGitHubWorkflow: Stored key length:', storedKey.length, 'starts with:', storedKey.substring(0, 4));
             aiApiKey = storedKey;
           }
         }
@@ -326,29 +340,32 @@ export class TaskService {
       }
     }
 
-    const aiAccountsResult = await this.env.DB.prepare(`
-      SELECT id, api_key_encrypted, base_url, model_name FROM ai_accounts 
-      WHERE is_active = TRUE AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-    `).all();
-    
-    if (aiAccountsResult.results && aiAccountsResult.results.length > 0) {
-      const decryptedAccounts = await Promise.all(
-        (aiAccountsResult.results as any[]).map(async (acc) => {
-          let decryptedKey = '';
-          if (acc.api_key_encrypted) {
-            try {
-              decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
-            } catch {
-              decryptedKey = acc.api_key_encrypted;
+    const phasesNeedingAllAccounts: TaskPhase[] = ['GENERATE_CHARACTERS', 'CONVERT_FRAMES', 'GENERATE_SHOTS'];
+    if (phasesNeedingAllAccounts.includes(phase)) {
+      const aiAccountsResult = await this.env.DB.prepare(`
+        SELECT id, api_key_encrypted, base_url, model_name FROM ai_accounts
+        WHERE is_active = TRUE AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      `).all();
+
+      if (aiAccountsResult.results && aiAccountsResult.results.length > 0) {
+        const decryptedAccounts = await Promise.all(
+          (aiAccountsResult.results as any[]).map(async (acc) => {
+            let decryptedKey = '';
+            if (acc.api_key_encrypted) {
+              try {
+                decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
+              } catch {
+                decryptedKey = acc.api_key_encrypted;
+              }
             }
-          }
-          return {
-            ...acc,
-            api_key_encrypted: decryptedKey
-          };
-        })
-      );
-      aiAccountsJson = JSON.stringify(decryptedAccounts);
+            return {
+              ...acc,
+              api_key_encrypted: decryptedKey
+            };
+          })
+        );
+        aiAccountsJson = JSON.stringify(decryptedAccounts);
+      }
     }
 
     const eventType = phase.toLowerCase().replace(/_/g, '-');
@@ -358,7 +375,6 @@ export class TaskService {
         task_id: taskId,
         phase: phase,
         gh_account_id: ghAccountId,
-        ai_account_id: aiAccountId,
         ai_api_key: aiApiKey,
         ai_base_url: aiBaseUrl,
         ai_accounts: aiAccountsJson,
@@ -369,9 +385,7 @@ export class TaskService {
       },
     };
 
-    console.log('dispatchGitHubWorkflow: Sending request to:', `https://api.github.com/repos/${owner}/${repo}/dispatches`);
-    
-    console.log('dispatchGitHubWorkflow: Attempting to dispatch workflow with token length:', ghApiKey.length);
+    console.log('dispatchGitHubWorkflow: owner:', JSON.stringify(owner), 'repo:', JSON.stringify(repo));
 
     const authHeader = ghApiKey.startsWith('ghp_')
       ? `token ${ghApiKey}`
@@ -379,6 +393,13 @@ export class TaskService {
 
     const githubUrl = `https://api.github.com/repos/${owner}/${repo}/dispatches`;
     console.log('dispatchGitHubWorkflow: Full URL:', githubUrl);
+    console.log('dispatchGitHubWorkflow: event_type:', payload.event_type);
+
+    const payloadStr = JSON.stringify(payload);
+    console.log('dispatchGitHubWorkflow: payload size:', payloadStr.length, 'bytes');
+    console.log('dispatchGitHubWorkflow: client_payload field count:', Object.keys(payload.client_payload).length);
+    console.log('dispatchGitHubWorkflow: ai_api_key length:', aiApiKey.length, 'ai_base_url length:', aiBaseUrl.length);
+    console.log('dispatchGitHubWorkflow: ai_accounts length:', aiAccountsJson.length);
     
     const response = await fetch(githubUrl, {
       method: 'POST',
@@ -459,9 +480,24 @@ export class TaskService {
 
   async handleGitHubCallback(body: any) {
     const { task_id: taskId, phase, status, run_id: runId } = body;
-    
+
     console.log('handleGitHubCallback called:', { taskId, phase, status, runId });
-    
+
+    const task = await this.getTask(taskId);
+    if (task) {
+      if (task.ai_account_id) {
+        const accountService = new (await import('./AccountService')).AccountService(this.env);
+        await accountService.releaseAIAccount(task.ai_account_id);
+        console.log('handleGitHubCallback: Released AI account', task.ai_account_id);
+      }
+      if (task.github_account_id) {
+        await this.env.DB.prepare(`
+          UPDATE github_accounts SET monthly_used_minutes = monthly_used_minutes + 1
+          WHERE id = ?
+        `).bind(task.github_account_id).run();
+      }
+    }
+
     await this.env.DB.prepare(`
       UPDATE tasks SET current_run_id = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ?
@@ -479,10 +515,10 @@ export class TaskService {
       }
     } else {
       await this.env.DB.prepare(`
-        UPDATE tasks SET status = ?, failed_frames = failed_frames + 1, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+        UPDATE tasks SET status = ?, failed_frames = failed_frames + 1, error_msg = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?
-      `).bind('FAILED', taskId).run();
-      
+      `).bind('FAILED', `Phase ${phase} failed in GitHub Actions run ${runId}`, taskId).run();
+
       await this.logTask(taskId, phase, 'ERROR', `Phase ${phase} failed`);
     }
   }

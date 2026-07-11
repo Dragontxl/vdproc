@@ -92,12 +92,20 @@ export class CryptoService {
     combined.set(iv, 0);
     combined.set(encryptedArray, iv.length);
 
-    return this.uint8ArrayToBase64(combined);
+    let binary = '';
+    for (let i = 0; i < combined.length; i++) {
+      binary += String.fromCharCode(combined[i]);
+    }
+    return btoa(binary);
   }
 
   async decrypt(encryptedText: string): Promise<string> {
     const key = await this.getKey();
-    const bytes = this.base64ToUint8Array(encryptedText);
+    const binary = atob(encryptedText);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
 
     const iv = bytes.slice(0, 12);
     const encryptedData = bytes.slice(12);
