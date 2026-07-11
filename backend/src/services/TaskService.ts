@@ -188,6 +188,23 @@ export class TaskService {
     return this.getTask(id);
   }
 
+  async startPhase(taskId: string, phase: TaskPhase) {
+    const task = await this.getTask(taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    const currentPhaseIndex = phaseOrder.indexOf(task.current_phase as TaskPhase);
+    const targetPhaseIndex = phaseOrder.indexOf(phase);
+
+    if (targetPhaseIndex <= currentPhaseIndex && task.status !== 'FAILED') {
+      throw new Error(`Cannot start phase ${phase} before completing previous phases`);
+    }
+
+    await this.triggerPhase(taskId, phase);
+    return this.getTask(taskId);
+  }
+
   async triggerPhase(taskId: string, phase: TaskPhase) {
     console.log('triggerPhase called:', { taskId, phase });
     
