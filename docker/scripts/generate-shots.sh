@@ -215,8 +215,13 @@ rm -f "./shot_results.txt"
 echo "$RESULT" | jq -r '.storyboards | to_entries[] | .key' | \
     xargs -P "$ACCOUNT_COUNT" -I {} bash -c 'process_shot "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS" || true
 
-SUCCESS_COUNT=$(grep -c ':SUCCESS' "./shot_results.txt" 2>/dev/null || echo 0)
-FAILED_COUNT=$(grep -c ':FAILED' "./shot_results.txt" 2>/dev/null || echo 0)
+SUCCESS_COUNT=$(grep -c ':SUCCESS' "./shot_results.txt" 2>/dev/null)
+SUCCESS_COUNT=${SUCCESS_COUNT:-0}
+SUCCESS_COUNT=$(echo "$SUCCESS_COUNT" | tr -d '\n')
+
+FAILED_COUNT=$(grep -c ':FAILED' "./shot_results.txt" 2>/dev/null)
+FAILED_COUNT=${FAILED_COUNT:-0}
+FAILED_COUNT=$(echo "$FAILED_COUNT" | tr -d '\n')
 
 echo "=== Shot Generation Complete ==="
 echo "Total: $SHOT_COUNT"
