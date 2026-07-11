@@ -21,8 +21,14 @@ aws s3 cp "s3://$R2_BUCKET_NAME/$VIDEO_PATH" "./input_video.mp4" \
     --endpoint-url "$R2_ENDPOINT_URL"
 
 echo "Downloading scene detection results..."
-aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/scenes/scenes.csv" "./scenes.csv" \
-    --endpoint-url "$R2_ENDPOINT_URL"
+if aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/analysis_result.json" "./analysis_result.json" --endpoint-url "$R2_ENDPOINT_URL"; then
+    echo "Using AI-analyzed storyboards from analysis_result.json"
+elif aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/scenes/scenes.json" "./scenes.json" --endpoint-url "$R2_ENDPOINT_URL"; then
+    echo "Using scenes.json from DETECT phase"
+else
+    echo "Error: Neither analysis_result.json nor scenes.json found"
+    exit 1
+fi
 
 echo "Running face selection Python script..."
 
@@ -38,23 +44,40 @@ import numpy as np
 app = FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider'])
 app.prepare(ctx_id=0, det_size=(640, 640))
 
+def parse_time(t):
+    h, m, s = t.split(':')
+    s, ms = s.split('.')
+    return int(h)*3600 + int(m)*60 + int(s) + int(ms)/1000
+
 scenes = []
-with open('/tmp/'+os.environ['TASK_ID']+'/scenes.csv', 'r') as f:
-    reader = csv.DictReader(f)
-    for row in reader:
-        time_range = row['Timecode']
-        start_str, end_str = time_range.split(' --> ')
-        
-        def parse_time(t):
-            h, m, s = t.split(':')
-            s, ms = s.split('.')
-            return int(h)*3600 + int(m)*60 + int(s) + int(ms)/1000
-        
+work_dir = '/tmp/'+os.environ['TASK_ID']
+
+analysis_path = os.path.join(work_dir, 'analysis_result.json')
+scenes_json_path = os.path.join(work_dir, 'scenes.json')
+
+if os.path.exists(analysis_path):
+    with open(analysis_path, 'r') as f:
+        data = json.load(f)
+    for i, storyboard in enumerate(data.get('storyboards', [])):
         scenes.append({
-            'start': parse_time(start_str),
-            'end': parse_time(end_str),
-            'index': len(scenes)
+            'start': parse_time(storyboard['start_time']),
+            'end': parse_time(storyboard['end_time']),
+            'index': i
         })
+    print(f"Loaded {len(scenes)} storyboards from analysis_result.json")
+elif os.path.exists(scenes_json_path):
+    with open(scenes_json_path, 'r') as f:
+        data = json.load(f)
+    for s in data:
+        scenes.append({
+            'start': parse_time(s['start_timecode']),
+            'end': parse_time(s['end_timecode']),
+            'index': s['scene_number'] - 1
+        })
+    print(f"Loaded {len(scenes)} scenes from scenes.json")
+else:
+    print("Error: Neither analysis_result.json nor scenes.json found")
+    exit(1)
 
 video_path = '/tmp/'+os.environ['TASK_ID']+'/input_video.mp4'
 cap = cv2.VideoCapture(video_path)
