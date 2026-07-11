@@ -32,17 +32,38 @@ echo "Found $SHOT_COUNT shots to process"
 mkdir -p ./shot_frames
 mkdir -p ./shot_videos
 
+echo "Getting video duration..."
+VIDEO_DURATION=$(ffmpeg -i ./input_video.mp4 2>&1 | grep -oP 'Duration: \K[0-9:.]+')
+echo "Video duration: $VIDEO_DURATION"
+
+VIDEO_SECONDS=$(echo "$VIDEO_DURATION" | awk -F: '{print ($1 * 3600) + ($2 * 60) + $3}')
+echo "Video duration in seconds: $VIDEO_SECONDS"
+
 for i in $(seq 0 $((SHOT_COUNT - 1))); do
     START_TIME=$(echo "$RESULT" | jq -r ".storyboards[$i].start_time")
     END_TIME=$(echo "$RESULT" | jq -r ".storyboards[$i].end_time")
     
     echo "Processing shot $i: $START_TIME -> $END_TIME"
     
+    END_SECONDS=$(echo "$END_TIME" | awk -F: '{print ($1 * 3600) + ($2 * 60) + $3}')
+    echo "End time in seconds: $END_SECONDS"
+    
     echo "Extracting first frame..."
     ffmpeg -ss "$START_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_first.jpg"
     
     echo "Extracting last frame..."
-    ffmpeg -ss "$END_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_last.jpg"
+    ffmpeg -ss "$END_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_last.jpg" 2>&1 || true
+    
+    if [ ! -f "./shot_frames/shot_${i}_last.jpg" ]; then
+        echo "Failed to extract last frame at $END_TIME, trying -sseof (0.5s before end)..."
+        ffmpeg -sseof -0.5 -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_last.jpg" 2>&1 || true
+    fi
+    
+    if [ ! -f "./shot_frames/shot_${i}_last.jpg" ]; then
+        echo "Failed to extract last frame, trying fallback to first frame of shot..."
+        cp "./shot_frames/shot_${i}_first.jpg" "./shot_frames/shot_${i}_last.jpg"
+        echo "Using first frame as fallback for last frame"
+    fi
     
     echo "Cropping shot video..."
     ffmpeg -ss "$START_TIME" -to "$END_TIME" -i ./input_video.mp4 -c:v libx264 -crf 20 -pix_fmt yuv420p "./shot_videos/shot_${i}.mp4"
