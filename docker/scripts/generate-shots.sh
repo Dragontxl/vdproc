@@ -28,7 +28,7 @@ aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/analysis_result.json" "./analysis_res
     --endpoint-url "$R2_ENDPOINT_URL"
 
 RESULT=$(cat ./analysis_result.json)
-SHOT_COUNT=$(echo "$RESULT" | jq -r '.shots | length')
+SHOT_COUNT=$(echo "$RESULT" | jq -r '.storyboards | length')
 
 echo "Found $SHOT_COUNT shots to generate"
 
@@ -50,15 +50,15 @@ process_shot() {
     
     cd "$work_dir"
     
-    START_TIME=$(echo "$RESULT" | jq -r ".shots[$shot_index].start_time")
-    END_TIME=$(echo "$RESULT" | jq -r ".shots[$shot_index].end_time")
-    DURATION=$(echo "$RESULT" | jq -r ".shots[$shot_index].duration")
-    CHARACTERS=$(echo "$RESULT" | jq -r ".shots[$shot_index].characters")
-    SPEAKER=$(echo "$RESULT" | jq -r ".shots[$shot_index].speaker")
-    DIALOGUE=$(echo "$RESULT" | jq -r ".shots[$shot_index].dialogue")
-    SCENE_DESC=$(echo "$RESULT" | jq -r ".shots[$shot_index].scene_description")
-    POSITIVE_PROMPT=$(echo "$RESULT" | jq -r ".shots[$shot_index].positive_prompt")
-    NEGATIVE_PROMPT=$(echo "$RESULT" | jq -r ".shots[$shot_index].negative_prompt")
+    START_TIME=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].start_time")
+    END_TIME=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].end_time")
+    DURATION=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].duration")
+    CHARACTERS=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].characters")
+    SPEAKER=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].speaker")
+    DIALOGUE=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].dialogue")
+    SCENE_DESC=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].scene_description")
+    POSITIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].positive_prompt")
+    NEGATIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].negative_prompt")
     
     FRAME_COUNT=$(echo "$DURATION * $OUTPUT_FPS" | bc | awk '{print int($1+0.5)}')
     
@@ -184,7 +184,7 @@ export AI_BASE_URL
 
 rm -f "./shot_results.txt"
 
-echo "$RESULT" | jq -r '.shots | to_entries[] | .key' | \
+echo "$RESULT" | jq -r '.storyboards | to_entries[] | .key' | \
     xargs -P "$ACCOUNT_COUNT" -I {} bash -c 'process_shot "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS"
 
 SUCCESS_COUNT=$(grep -c ':SUCCESS' "./shot_results.txt" 2>/dev/null || echo 0)
