@@ -272,7 +272,12 @@ export class TaskService {
         `).bind(aiAccount ? aiAccount.id : null, taskId).run();
       }
 
-      await this.logTask(taskId, phase, 'INFO', `Phase ${phase} triggered`);
+      try {
+        await this.logTask(taskId, phase, 'INFO', `Phase ${phase} triggered`);
+        console.log('triggerPhase: Logged task successfully');
+      } catch (logError) {
+        console.warn('triggerPhase: Failed to log task:', (logError as Error).message);
+      }
       console.log('triggerPhase completed successfully:', { taskId, phase });
     } catch (error) {
       console.error('triggerPhase: Failed to dispatch workflow:', error);
