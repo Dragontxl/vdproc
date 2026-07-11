@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 
@@ -210,7 +208,7 @@ export AI_BASE_URL
 rm -f "./shot_results.txt"
 
 echo "$RESULT" | jq -r '.storyboards | to_entries[] | .key' | \
-    xargs -P "$ACCOUNT_COUNT" -I {} bash -c 'process_shot "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS"
+    xargs -P "$ACCOUNT_COUNT" -I {} bash -c 'process_shot "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS" || true
 
 SUCCESS_COUNT=$(grep -c ':SUCCESS' "./shot_results.txt" 2>/dev/null || echo 0)
 FAILED_COUNT=$(grep -c ':FAILED' "./shot_results.txt" 2>/dev/null || echo 0)
@@ -219,6 +217,11 @@ echo "=== Shot Generation Complete ==="
 echo "Total: $SHOT_COUNT"
 echo "Success: $SUCCESS_COUNT"
 echo "Failed: $FAILED_COUNT"
+
+if [ $SUCCESS_COUNT -eq 0 ]; then
+    echo "Error: No shots generated successfully"
+    exit 1
+fi
 
 if [ "$FAILED_COUNT" -gt 0 ]; then
     echo "Warning: Some shots failed to generate"
