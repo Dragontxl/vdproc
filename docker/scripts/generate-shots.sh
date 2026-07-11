@@ -50,13 +50,27 @@ process_shot() {
     
     START_TIME=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].start_time")
     END_TIME=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].end_time")
-    DURATION=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].duration")
     CHARACTERS=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].characters")
     SPEAKER=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].speaker")
     DIALOGUE=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].dialogue")
     SCENE_DESC=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].scene_description")
     POSITIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].positive_prompt")
     NEGATIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].negative_prompt")
+    
+    DURATION=$(echo "$START_TIME $END_TIME" | awk '{
+        function parse_time(t) {
+            split(t, parts, ":")
+            h = parts[1]
+            m = parts[2]
+            split(parts[3], s, ".")
+            s_sec = s[1]
+            s_ms = s[2]
+            return h * 3600000 + m * 60000 + s_sec * 1000 + s_ms
+        }
+        start_ms = parse_time($1)
+        end_ms = parse_time($2)
+        printf "%.3f", (end_ms - start_ms) / 1000
+    }')
     
     FRAME_COUNT=$(echo "$DURATION * $OUTPUT_FPS" | bc | awk '{print int($1+0.5)}')
     
