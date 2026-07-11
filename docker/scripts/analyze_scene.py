@@ -3,9 +3,9 @@ import os
 import sys
 import json
 import time
-import requests
-import subprocess
 import traceback
+import io
+import google.generativeai as genai
 
 TASK_ID = os.environ.get('TASK_ID')
 AI_API_KEY = os.environ.get('AI_API_KEY')
@@ -16,8 +16,8 @@ R2_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY')
 R2_ENDPOINT_URL = os.environ.get('R2_ENDPOINT_URL')
 R2_BUCKET_NAME = os.environ.get('R2_BUCKET_NAME')
 
-PRIMARY_MODEL_URL = AI_BASE_URL or "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
-FALLBACK_MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
+PRIMARY_MODEL = "models/gemini-3.5-flash"
+FALLBACK_MODEL = "models/gemini-3.1-flash-lite"
 
 WORK_DIR = f"/tmp/{TASK_ID}"
 
@@ -26,6 +26,7 @@ def log(msg):
     print(f"[{timestamp}] {msg}")
 
 def run_command(cmd, capture_output=True):
+    import subprocess
     log(f"Running command: {cmd}")
     try:
         result = subprocess.run(cmd, shell=True, capture_output=capture_output, text=True, check=True)
@@ -53,7 +54,7 @@ def read_file(path):
         return f.read()
 
 def upload_video_to_gemini(video_path):
-    log("Uploading video to Gemini File API...")
+    log("Uploading video to Gemini using google.generativeai SDK...")
     
     if not os.path.exists(video_path):
         raise Exception(f"Video file not found: {video_path}")
@@ -61,146 +62,56 @@ def upload_video_to_gemini(video_path):
     file_size = os.path.getsize(video_path)
     log(f"Video file size: {file_size} bytes")
     
-    url = "https://generativelanguage.googleapis.com/upload/v1beta/files"
-    
     with open(video_path, 'rb') as f:
         video_data = f.read()
     
-    headers = {
-        'x-goog-api-key': AI_API_KEY,
-    }
+    video_stream = io.BytesIO(video_data)
     
-    metadata = {
-        "displayName": os.path.basename(video_path),
-        "mimeType": "video/mp4",
-    }
+    log("Calling genai.upload_file...")
+    video_file = genai.upload_file(
+        path=video_stream,
+        mime_type="video/mp4"
+    )
     
-    files = {
-        'metadata': ('metadata', json.dumps(metadata), 'application/json'),
-        'file': (os.path.basename(video_path), video_data, 'video/mp4'),
-    }
+    log(f"Upload started, file name: {video_file.name}, state: {video_file.state.name}")
     
-    try:
-        response = requests.post(url, headers=headers, files=files, timeout=300)
-    except requests.exceptions.RequestException as e:
-        log(f"Request exception: {e}")
-        raise
+    log("Waiting for video processing...")
+    while video_file.state.name == "PROCESSING":
+        time.sleep(2)
+        video_file = genai.get_file(video_file.name)
+        log(f"Processing state: {video_file.state.name}")
     
-    log(f"Upload response status: {response.status_code}")
-    log(f"Full upload response: {response.text[:2000]}")
+    if video_file.state.name == "FAILED":
+        raise ValueError("视频处理失败")
     
-    if response.status_code != 200:
-        log(f"File upload failed: HTTP {response.status_code}")
-        log(f"Response: {response.text[:2000]}")
-        
-        log("Trying resumable upload...")
-        url_resumable = "https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=resumable"
-        
-        try:
-            init_response = requests.post(url_resumable, headers={
-                'x-goog-api-key': AI_API_KEY,
-                'Content-Type': 'application/json',
-            }, json=metadata, timeout=300)
-            
-            log(f"Resumable init status: {init_response.status_code}")
-            log(f"Resumable init response: {init_response.text[:500]}")
-            
-            if init_response.status_code == 200:
-                location = init_response.headers.get('Location')
-                if location:
-                    log(f"Resumable upload location: {location}")
-                    response = requests.put(location, headers={
-                        'Content-Type': 'video/mp4',
-                        'Content-Length': str(file_size),
-                    }, data=video_data, timeout=300)
-                    log(f"Resumable upload status: {response.status_code}")
-                    log(f"Resumable upload response: {response.text[:2000]}")
-        except requests.exceptions.RequestException as e:
-            log(f"Resumable upload exception: {e}")
-        
-        if response.status_code != 200:
-            raise Exception(f"File upload failed: {response.status_code} {response.text}")
-    
-    try:
-        result = response.json()
-    except json.JSONDecodeError:
-        log(f"Response is not JSON: {response.text[:500]}")
-        raise Exception(f"File upload response is not JSON: {response.text[:500]}")
-    
-    log(f"Parsed upload response: {json.dumps(result)}")
-    
-    file_uri = result.get('fileUri') or result.get('file_uri') or result.get('uri')
-    
-    if not file_uri:
-        log(f"Available keys in response: {list(result.keys())}")
-        raise Exception("fileUri not found in upload response")
-    
-    log(f"Upload successful, file_uri: {file_uri}")
-    return file_uri
+    log(f"Video processing completed, file URI: {video_file.uri}")
+    return video_file
 
-def call_gemini_api(file_uri, prompt_text, model_url=PRIMARY_MODEL_URL, attempt=1):
-    log(f"Calling Gemini API (attempt {attempt}, model: {model_url})...")
+def call_gemini_api(video_file, prompt_text, model_name=PRIMARY_MODEL, attempt=1):
+    log(f"Calling Gemini API (attempt {attempt}, model: {model_name})...")
     log(f"Prompt text length: {len(prompt_text)} chars")
     
-    payload = {
-        "contents": [{
-            "parts": [
-                {
-                    "text": prompt_text
-                },
-                {
-                    "file_data": {
-                        "mime_type": "video/mp4",
-                        "file_uri": file_uri
-                    }
-                }
-            ]
-        }],
-        "generationConfig": {
-            "temperature": 0.3,
-            "maxOutputTokens": 65536,
-            "responseMimeType": "application/json"
-        }
-    }
-    
-    headers = {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': AI_API_KEY
-    }
-    
     try:
-        response = requests.post(model_url, headers=headers, json=payload, timeout=300)
+        model = genai.GenerativeModel(model_name)
+        response = model.generate_content([prompt_text, video_file])
         
-        log(f"API response status: {response.status_code}")
+        if response.parts and len(response.parts) > 0:
+            text = response.text
+            log(f"API response text length: {len(text)} chars")
+            return text
         
-        if response.status_code == 200:
-            result = response.json()
-            log(f"API response received, parsing...")
-            
-            candidates = result.get('candidates', [])
-            if candidates and candidates[0].get('content', {}).get('parts'):
-                text = candidates[0]['content']['parts'][0].get('text', '')
-                log(f"API response text length: {len(text)} chars")
-                return text
-            
-            log(f"No valid response found in candidates")
-            log(f"Full response: {json.dumps(result)[:2000]}")
-        
-        else:
-            log(f"API call failed: HTTP {response.status_code}")
-            log(f"Response: {response.text[:2000]}")
-            
-            if response.status_code in [429, 503, 500]:
-                if model_url == PRIMARY_MODEL_URL and attempt <= 3:
-                    log(f"Retrying with fallback model: {FALLBACK_MODEL_URL}")
-                    return call_gemini_api(file_uri, prompt_text, FALLBACK_MODEL_URL, attempt + 1)
+        log(f"No valid response found")
+        if response.candidates:
+            log(f"Candidates: {json.dumps(response.candidates[:1], default=str)[:2000]}")
         
         return None
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         log(f"API call exception: {e}")
-        if model_url == PRIMARY_MODEL_URL and attempt <= 3:
-            log(f"Retrying with fallback model: {FALLBACK_MODEL_URL}")
-            return call_gemini_api(file_uri, prompt_text, FALLBACK_MODEL_URL, attempt + 1)
+        log(f"Exception type: {type(e).__name__}")
+        
+        if model_name == PRIMARY_MODEL and attempt <= 3:
+            log(f"Retrying with fallback model: {FALLBACK_MODEL}")
+            return call_gemini_api(video_file, prompt_text, FALLBACK_MODEL, attempt + 1)
         return None
 
 def extract_scene_content(scenes_path):
@@ -269,7 +180,10 @@ def main():
         log(f"  AI_BASE_URL: {AI_BASE_URL}")
         log(f"  VIDEO_PATH: {VIDEO_PATH}")
         log(f"  R2_BUCKET_NAME: {R2_BUCKET_NAME}")
-        log(f"  PRIMARY_MODEL_URL: {PRIMARY_MODEL_URL}")
+        log(f"  PRIMARY_MODEL: {PRIMARY_MODEL}")
+        
+        genai.configure(api_key=AI_API_KEY)
+        log("Google GenerativeAI configured")
         
         os.makedirs(WORK_DIR, exist_ok=True)
         os.chdir(WORK_DIR)
@@ -333,7 +247,7 @@ def main():
 
 请以JSON格式输出结果。"""
         
-        file_uri = upload_video_to_gemini(video_local_path)
+        video_file = upload_video_to_gemini(video_local_path)
         
         max_retries = 3
         retry_delay = 10
@@ -341,7 +255,7 @@ def main():
         
         for attempt in range(1, max_retries + 1):
             log(f"API call attempt {attempt}/{max_retries}")
-            result_text = call_gemini_api(file_uri, prompt_text)
+            result_text = call_gemini_api(video_file, prompt_text)
             if result_text:
                 log("API call successful")
                 break
