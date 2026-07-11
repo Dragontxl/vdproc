@@ -61,47 +61,73 @@ def upload_video_to_gemini(video_path):
     file_size = os.path.getsize(video_path)
     log(f"Video file size: {file_size} bytes")
     
-    url = "https://generativelanguage.googleapis.com/v1beta/files"
+    url = "https://generativelanguage.googleapis.com/upload/v1beta/files"
     
     with open(video_path, 'rb') as f:
         video_data = f.read()
     
     headers = {
         'x-goog-api-key': AI_API_KEY,
-        'Content-Type': 'video/mp4',
     }
     
-    payload = {
+    metadata = {
         "displayName": os.path.basename(video_path),
         "mimeType": "video/mp4",
     }
     
+    files = {
+        'metadata': ('metadata', json.dumps(metadata), 'application/json'),
+        'file': (os.path.basename(video_path), video_data, 'video/mp4'),
+    }
+    
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=300)
+        response = requests.post(url, headers=headers, files=files, timeout=300)
     except requests.exceptions.RequestException as e:
         log(f"Request exception: {e}")
         raise
     
+    log(f"Upload response status: {response.status_code}")
+    log(f"Full upload response: {response.text[:2000]}")
+    
     if response.status_code != 200:
-        log(f"File create failed: HTTP {response.status_code}")
+        log(f"File upload failed: HTTP {response.status_code}")
         log(f"Response: {response.text[:2000]}")
         
-        log("Trying direct upload with media...")
-        url_upload = "https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=media"
+        log("Trying resumable upload...")
+        url_resumable = "https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=resumable"
         
         try:
-            response = requests.post(url_upload, headers=headers, data=video_data, timeout=300)
+            init_response = requests.post(url_resumable, headers={
+                'x-goog-api-key': AI_API_KEY,
+                'Content-Type': 'application/json',
+            }, json=metadata, timeout=300)
+            
+            log(f"Resumable init status: {init_response.status_code}")
+            log(f"Resumable init response: {init_response.text[:500]}")
+            
+            if init_response.status_code == 200:
+                location = init_response.headers.get('Location')
+                if location:
+                    log(f"Resumable upload location: {location}")
+                    response = requests.put(location, headers={
+                        'Content-Type': 'video/mp4',
+                        'Content-Length': str(file_size),
+                    }, data=video_data, timeout=300)
+                    log(f"Resumable upload status: {response.status_code}")
+                    log(f"Resumable upload response: {response.text[:2000]}")
         except requests.exceptions.RequestException as e:
-            log(f"Direct upload exception: {e}")
-            raise
+            log(f"Resumable upload exception: {e}")
         
         if response.status_code != 200:
-            log(f"Direct upload failed: HTTP {response.status_code}")
-            log(f"Response: {response.text[:2000]}")
             raise Exception(f"File upload failed: {response.status_code} {response.text}")
     
-    result = response.json()
-    log(f"Full upload response: {json.dumps(result)}")
+    try:
+        result = response.json()
+    except json.JSONDecodeError:
+        log(f"Response is not JSON: {response.text[:500]}")
+        raise Exception(f"File upload response is not JSON: {response.text[:500]}")
+    
+    log(f"Parsed upload response: {json.dumps(result)}")
     
     file_uri = result.get('fileUri') or result.get('file_uri') or result.get('uri')
     
