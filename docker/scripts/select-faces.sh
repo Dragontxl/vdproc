@@ -4,21 +4,31 @@ set -e
 
 export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+export AWS_DEFAULT_REGION="us-east-1"
 
 echo "=== Phase 3: Face Selection ==="
 echo "Task ID: $TASK_ID"
+echo "VIDEO_PATH: $VIDEO_PATH"
+echo "R2_BUCKET_NAME: $R2_BUCKET_NAME"
+echo "R2_ENDPOINT_URL: $R2_ENDPOINT_URL"
+echo "R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:0:10}..."
 
 WORK_DIR="/tmp/$TASK_ID"
+echo "WORK_DIR: $WORK_DIR"
 mkdir -p "$WORK_DIR"
 cd "$WORK_DIR"
+echo "Current directory after cd: $(pwd)"
 
 LOG_FILE="/tmp/select-faces.log"
 exec 1> >(tee -a "$LOG_FILE")
 exec 2>&1
 
 echo "Downloading video from R2..."
+echo "Command: aws s3 cp s3://$R2_BUCKET_NAME/$VIDEO_PATH ./input_video.mp4 --endpoint-url $R2_ENDPOINT_URL"
 aws s3 cp "s3://$R2_BUCKET_NAME/$VIDEO_PATH" "./input_video.mp4" \
     --endpoint-url "$R2_ENDPOINT_URL"
+echo "Video download completed, checking file..."
+ls -la ./input_video.mp4
 
 echo "Downloading scene detection results..."
 if aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/analysis_result.json" "./analysis_result.json" --endpoint-url "$R2_ENDPOINT_URL"; then
