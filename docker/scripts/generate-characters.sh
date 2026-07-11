@@ -88,6 +88,8 @@ process_character() {
     
     for attempt in $(seq 1 $MAX_RETRIES); do
         echo "  Character $ROLE_ID: Attempt $attempt/$MAX_RETRIES..."
+        echo "  Character $ROLE_ID: API URL: ${selected_url:0:50}..."
+        echo "  Character $ROLE_ID: API Key: ${selected_key:0:10}..."
         
         RESPONSE=$(curl -s -X POST \
             --connect-timeout 30 \
@@ -108,6 +110,11 @@ process_character() {
         
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
         RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
+        
+        echo "  Character $ROLE_ID: HTTP code: $HTTP_CODE"
+        if [ ${#RESPONSE_BODY} -gt 0 ]; then
+            echo "  Character $ROLE_ID: Response (first 500 chars): ${RESPONSE_BODY:0:500}"
+        fi
         
         if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
             API_SUCCESS=1
@@ -165,7 +172,7 @@ export AI_BASE_URL
 rm -f "./character_results.txt"
 
 echo "$RESULT" | jq -r '.characters | to_entries[] | .key' | \
-    xargs -P "$ACCOUNT_COUNT" -I {} bash -c 'process_character "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS"
+    xargs -P "$ACCOUNT_COUNT" -I {} bash -c 'process_character "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS" || true
 
 SUCCESS_COUNT=$(grep -c ':SUCCESS' "./character_results.txt" 2>/dev/null || echo 0)
 FAILED_COUNT=$(grep -c ':FAILED' "./character_results.txt" 2>/dev/null || echo 0)
@@ -174,6 +181,11 @@ echo "=== Character Generation Complete ==="
 echo "Total: $ROLE_COUNT"
 echo "Success: $SUCCESS_COUNT"
 echo "Failed: $FAILED_COUNT"
+
+if [ $FAILED_COUNT -eq $ROLE_COUNT ]; then
+    echo "Error: All character generation failed"
+    exit 1
+fi
 
 echo "Uploading character images..."
 aws s3 sync "./characters" "s3://$R2_BUCKET_NAME/${TASK_ID}/characters" \
