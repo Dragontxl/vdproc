@@ -273,7 +273,7 @@ jobs:
             -e AI_ACCOUNTS="$AI_ACCOUNTS" \
             -e COOLDOWN_SECONDS="$COOLDOWN_SECONDS" \
             ai-video-processor \
-            bash /scripts/generate-shots.sh
+            python3 /scripts/generate_shots.py
 
       - name: Run composition phase
         if: ${{ inputs.phase == 'COMPOSE' || github.event.client_payload.phase == 'COMPOSE' }}
