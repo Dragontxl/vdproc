@@ -32,6 +32,8 @@ echo "Found $SHOT_COUNT shots to process"
 mkdir -p ./shot_frames
 mkdir -p ./shot_videos
 
+FAILED_SHOTS=""
+
 for i in $(seq 0 $((SHOT_COUNT - 1))); do
     START_TIME=$(echo "$RESULT" | jq -r ".storyboards[$i].start_time")
     END_TIME=$(echo "$RESULT" | jq -r ".storyboards[$i].end_time")
@@ -39,14 +41,40 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
     echo "Processing shot $i: $START_TIME -> $END_TIME"
     
     echo "Extracting first frame..."
-    ffmpeg -ss "$START_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_first.jpg"
+    ffmpeg -y -i ./input_video.mp4 -ss "$START_TIME" -vframes 1 -q:v 2 "./shot_frames/shot_${i}_first.jpg"
+    
+    if [ ! -f "./shot_frames/shot_${i}_first.jpg" ] || [ ! -s "./shot_frames/shot_${i}_first.jpg" ]; then
+        echo "Error: Failed to extract first frame for shot $i"
+        FAILED_SHOTS="$FAILED_SHOTS shot_${i}_first"
+    fi
     
     echo "Extracting last frame..."
-    ffmpeg -ss "$END_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_last.jpg"
+    ffmpeg -y -i ./input_video.mp4 -ss "$END_TIME" -vframes 1 -q:v 2 "./shot_frames/shot_${i}_last.jpg"
+    
+    if [ ! -f "./shot_frames/shot_${i}_last.jpg" ] || [ ! -s "./shot_frames/shot_${i}_last.jpg" ]; then
+        echo "Error: Failed to extract last frame for shot $i at $END_TIME, trying 0.1s before..."
+        END_TIME_ADJUSTED=$(echo "$END_TIME" | awk -F: '{h=$1; m=$2; s=$3; total=h*3600+m*60+s-0.1; printf "%02d:%02d:%06.3f\n", int(total/3600), int((total%3600)/60), total%60}')
+        ffmpeg -y -i ./input_video.mp4 -ss "$END_TIME_ADJUSTED" -vframes 1 -q:v 2 "./shot_frames/shot_${i}_last.jpg"
+    fi
+    
+    if [ ! -f "./shot_frames/shot_${i}_last.jpg" ] || [ ! -s "./shot_frames/shot_${i}_last.jpg" ]; then
+        echo "Error: Failed to extract last frame for shot $i"
+        FAILED_SHOTS="$FAILED_SHOTS shot_${i}_last"
+    fi
     
     echo "Cropping shot video..."
-    ffmpeg -ss "$START_TIME" -to "$END_TIME" -i ./input_video.mp4 -c:v libx264 -crf 20 -pix_fmt yuv420p "./shot_videos/shot_${i}.mp4"
+    ffmpeg -y -i ./input_video.mp4 -ss "$START_TIME" -to "$END_TIME" -c:v libx264 -crf 20 -pix_fmt yuv420p "./shot_videos/shot_${i}.mp4"
+    
+    if [ ! -f "./shot_videos/shot_${i}.mp4" ] || [ ! -s "./shot_videos/shot_${i}.mp4" ]; then
+        echo "Error: Failed to crop video for shot $i"
+        FAILED_SHOTS="$FAILED_SHOTS shot_${i}_video"
+    fi
 done
+
+if [ -n "$FAILED_SHOTS" ]; then
+    echo "Error: Failed to process the following items:$FAILED_SHOTS"
+    exit 1
+fi
 
 echo "Uploading shot frames..."
 aws s3 cp ./shot_frames/ \
