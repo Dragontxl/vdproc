@@ -68,8 +68,11 @@ process_frame() {
     
     echo "Processing shot $shot_index, ${frame_type} frame..."
     
-    aws s3 cp "s3://$R2_BUCKET_NAME/$FRAME_KEY" "./input_${shot_index}_${frame_type}.jpg" \
-        --endpoint-url "$R2_ENDPOINT_URL"
+    if ! aws s3 cp "s3://$R2_BUCKET_NAME/$FRAME_KEY" "./input_${shot_index}_${frame_type}.jpg" --endpoint-url "$R2_ENDPOINT_URL"; then
+        echo "Warning: Frame $FRAME_KEY not found, skipping..."
+        echo "${shot_index}_${frame_type}:SKIPPED" >> "./frame_results.txt"
+        return 0
+    fi
     
     INPUT_IMAGE_BASE64=$(base64 -w0 "./input_${shot_index}_${frame_type}.jpg")
     
@@ -179,7 +182,7 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
     for frame_type in first last; do
         echo "$i $frame_type"
     done
-done | xargs -P "$ACCOUNT_COUNT" -n 2 bash -c 'process_frame "$@"' _
+done | xargs -P "$ACCOUNT_COUNT" -n 2 bash -c 'process_frame "$@"' _ || true
 
 SUCCESS_COUNT=$(grep -c ':SUCCESS' "./frame_results.txt" 2>/dev/null || echo 0)
 FAILED_COUNT=$(grep -c ':FAILED' "./frame_results.txt" 2>/dev/null || echo 0)
@@ -188,6 +191,11 @@ echo "=== Frame Conversion Complete ==="
 echo "Total: $((SHOT_COUNT * 2))"
 echo "Success: $SUCCESS_COUNT"
 echo "Failed: $FAILED_COUNT"
+
+if [ $SUCCESS_COUNT -eq 0 ]; then
+    echo "Error: No frames converted successfully"
+    exit 1
+fi
 
 echo "Uploading converted frames..."
 aws s3 sync "./ai_shot_frames" "s3://$R2_BUCKET_NAME/${TASK_ID}/ai_shot_frames" \
