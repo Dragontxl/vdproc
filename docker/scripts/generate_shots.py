@@ -204,11 +204,7 @@ def process_shot(shot_index, result, task_id, output_fps, r2_bucket_name, r2_end
         'width': 854,
         'height': 480,
         'seed': 42,
-        'image': f"data:image/jpeg;base64,{first_base64}",
-        'extra_body': {
-            'image': [f"data:image/jpeg;base64,{first_base64}", f"data:image/jpeg;base64,{last_base64}"],
-            'mode': 'keyframes'
-        }
+        'image': f"data:image/jpeg;base64,{first_base64}"
     }
     
     json_data = json.dumps(request_data)
