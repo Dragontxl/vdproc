@@ -205,6 +205,24 @@ export class TaskService {
     return this.getTask(taskId);
   }
 
+  async restartPhase(taskId: string) {
+    const task = await this.getTask(taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    if (task.status !== 'FAILED') {
+      throw new Error('Can only restart failed tasks');
+    }
+
+    await this.env.DB.prepare(`
+      UPDATE tasks SET status = ?, retry_count = retry_count + 1, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?
+    `).bind('PENDING', taskId).run();
+
+    await this.triggerPhase(taskId, task.current_phase as TaskPhase);
+    return this.getTask(taskId);
+  }
+
   async triggerPhase(taskId: string, phase: TaskPhase) {
     console.log('triggerPhase called:', { taskId, phase });
     
