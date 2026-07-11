@@ -147,6 +147,7 @@ print('%.3f' % duration)
         
         python3 -c "
 import json
+import os
 
 data = {
     'model': 'agnes-video-v2.0',
@@ -154,11 +155,14 @@ data = {
     'num_frames': $FRAME_COUNT,
     'frame_rate': $OUTPUT_FPS,
     'height': 768,
-    'width': 1152,
-    'extra_body': {
-        'image': ['data:image/jpeg;base64,$FIRST_FRAME_BASE64', 'data:image/jpeg;base64,$LAST_FRAME_BASE64']
-    }
+    'width': 1152
 }
+
+if os.path.exists('./first_frame_${shot_index}.jpg'):
+    with open('./first_frame_${shot_index}.jpg', 'rb') as f:
+        import base64
+        first_base64 = base64.b64encode(f.read()).decode('ascii')
+    data['image'] = 'data:image/jpeg;base64,' + first_base64
 
 with open('$json_file', 'w') as f:
     json.dump(data, f)
