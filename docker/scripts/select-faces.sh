@@ -184,7 +184,12 @@ print(f"Found {len(characters)} characters from {len(all_faces)} faces")
 PYEOF
 
 mkdir -p ./face_frames
-python3 /tmp/face_selection.py
+echo "Current directory: $(pwd)"
+echo "List files: $(ls -la)"
+echo "Running Python script..."
+python3 /tmp/face_selection.py 2>&1 || { echo "Python script failed with exit code $?"; exit 1; }
+echo "Python script completed"
+echo "List files after script: $(ls -la)"
 
 echo "Uploading face selection result..."
 aws s3 cp ./face_selection_result.json \
