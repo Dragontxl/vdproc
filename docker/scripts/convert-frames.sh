@@ -27,9 +27,14 @@ aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/analysis_result.json" "./analysis_res
     --endpoint-url "$R2_ENDPOINT_URL"
 
 RESULT=$(cat ./analysis_result.json)
-SHOT_COUNT=$(echo "$RESULT" | jq -r '.shots | length')
+SHOT_COUNT=$(echo "$RESULT" | jq -r '.storyboards | length')
 
 echo "Found $SHOT_COUNT shots to process"
+
+if [ "$SHOT_COUNT" -eq 0 ]; then
+    echo "Error: No shots found in analysis_result.json"
+    exit 1
+fi
 
 mkdir -p ./ai_shot_frames
 mkdir -p ./locks
@@ -50,9 +55,9 @@ process_frame() {
     
     cd "$work_dir"
     
-    CHARACTERS=$(echo "$RESULT" | jq -r ".shots[$shot_index].characters")
-    POSITIVE_PROMPT=$(echo "$RESULT" | jq -r ".shots[$shot_index].positive_prompt")
-    NEGATIVE_PROMPT=$(echo "$RESULT" | jq -r ".shots[$shot_index].negative_prompt")
+    CHARACTERS=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].characters_present")
+    POSITIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].positive_prompt")
+    NEGATIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].negative_prompt")
     
     MAIN_PROMPT="$POSITIVE_PROMPT, American animation style, anime style, high quality"
     if [ -n "$NEGATIVE_PROMPT" ]; then

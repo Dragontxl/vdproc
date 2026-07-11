@@ -25,18 +25,18 @@ aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/analysis_result.json" "./analysis_res
     --endpoint-url "$R2_ENDPOINT_URL"
 
 RESULT=$(cat ./analysis_result.json)
-SHOT_COUNT=$(echo "$RESULT" | jq -r '.shots | length')
+SHOT_COUNT=$(echo "$RESULT" | jq -r '.storyboards | length')
 
 echo "Found $SHOT_COUNT shots to process"
 
 mkdir -p ./shot_frames
+mkdir -p ./shot_videos
 
 for i in $(seq 0 $((SHOT_COUNT - 1))); do
-    START_TIME=$(echo "$RESULT" | jq -r ".shots[$i].start_time")
-    END_TIME=$(echo "$RESULT" | jq -r ".shots[$i].end_time")
-    DURATION=$(echo "$RESULT" | jq -r ".shots[$i].duration")
+    START_TIME=$(echo "$RESULT" | jq -r ".storyboards[$i].start_time")
+    END_TIME=$(echo "$RESULT" | jq -r ".storyboards[$i].end_time")
     
-    echo "Processing shot $i: $START_TIME -> $END_TIME (duration: $DURATION)"
+    echo "Processing shot $i: $START_TIME -> $END_TIME"
     
     echo "Extracting first frame..."
     ffmpeg -ss "$START_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_first.jpg"
@@ -45,10 +45,8 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
     ffmpeg -ss "$END_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_last.jpg"
     
     echo "Cropping shot video..."
-    ffmpeg -ss "$START_TIME" -i ./input_video.mp4 -t "$DURATION" -c:v libx264 -crf 20 -pix_fmt yuv420p "./shot_videos/shot_${i}.mp4"
+    ffmpeg -ss "$START_TIME" -to "$END_TIME" -i ./input_video.mp4 -c:v libx264 -crf 20 -pix_fmt yuv420p "./shot_videos/shot_${i}.mp4"
 done
-
-mkdir -p ./shot_videos
 
 echo "Uploading shot frames..."
 aws s3 cp ./shot_frames/ \
