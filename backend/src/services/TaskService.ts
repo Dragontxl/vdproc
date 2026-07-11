@@ -201,6 +201,12 @@ export class TaskService {
       throw new Error(`Cannot start phase ${phase} before completing previous phases`);
     }
 
+    if (task.status === 'FAILED') {
+      await this.env.DB.prepare(`
+        UPDATE tasks SET status = ?, error_msg = NULL, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?
+      `).bind('PENDING', taskId).run();
+    }
+
     await this.triggerPhase(taskId, phase);
     return this.getTask(taskId);
   }
