@@ -22,4 +22,10 @@ if [ -z "$AI_API_KEY" ]; then
     exit 1
 fi
 
+echo "Checking Python3 availability..."
+which python3
+python3 --version
+echo "Checking script path..."
+ls -la /scripts/analyze_scene.py
+echo "Starting Python script..."
 python3 /scripts/analyze_scene.py
