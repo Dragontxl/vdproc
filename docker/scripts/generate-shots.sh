@@ -115,16 +115,16 @@ print('%.3f' % duration)
     fi
     
     local selected_key="$AI_API_KEY"
-    local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/videos/generations"
+    local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/video/generations"
     
     if [ -n "$ai_accounts" ]; then
         local account_index=$((shot_index % $(echo "$ai_accounts" | jq -r '. | length')))
         selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
         selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
         if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
-            selected_url="https://apihub.agnes-ai.com/v1/videos/generations"
+            selected_url="https://apihub.agnes-ai.com/v1/video/generations"
         else
-            selected_url=$(echo "$selected_url" | sed 's|/v1/images/generations|/v1/videos/generations|')
+            selected_url=$(echo "$selected_url" | sed 's|/v1/images/generations|/v1/video/generations|')
         fi
     fi
     
@@ -146,7 +146,7 @@ print('%.3f' % duration)
         
         cat > "$json_file" <<EOF
 {
-    "model": "agnes-video",
+    "model": "agnes-video-v2.0",
     "prompt": "$MAIN_PROMPT",
     "duration": $DURATION,
     "extra_body": {
