@@ -82,14 +82,14 @@ print('%.3f' % duration)
     
     if aws s3 cp "s3://$R2_BUCKET_NAME/$FIRST_FRAME_KEY" "./first_frame_${shot_index}.jpg" --endpoint-url "$R2_ENDPOINT_URL"; then
         has_first_frame=1
-        FIRST_FRAME_BASE64=$(base64 -w0 "./first_frame_${shot_index}.jpg")
+        FIRST_FRAME_BASE64=$(base64 -w0 "./first_frame_${shot_index}.jpg" | tr -d '\n\r')
     else
         echo "Warning: First frame $FIRST_FRAME_KEY not found"
     fi
     
     if aws s3 cp "s3://$R2_BUCKET_NAME/$LAST_FRAME_KEY" "./last_frame_${shot_index}.jpg" --endpoint-url "$R2_ENDPOINT_URL"; then
         has_last_frame=1
-        LAST_FRAME_BASE64=$(base64 -w0 "./last_frame_${shot_index}.jpg")
+        LAST_FRAME_BASE64=$(base64 -w0 "./last_frame_${shot_index}.jpg" | tr -d '\n\r')
     else
         echo "Warning: Last frame $LAST_FRAME_KEY not found"
     fi
@@ -145,19 +145,24 @@ print('%.3f' % duration)
         local json_file="./request_${shot_index}_${attempt}.json"
         echo "  Shot $shot_index: Attempt $attempt/$MAX_RETRIES..."
         
-        cat > "$json_file" <<EOF
-{
-    "model": "agnes-video-v2.0",
-    "prompt": "$MAIN_PROMPT",
-    "num_frames": $FRAME_COUNT,
-    "frame_rate": $OUTPUT_FPS,
-    "height": 768,
-    "width": 1152,
-    "extra_body": {
-        "image": ["data:image/jpeg;base64,$FIRST_FRAME_BASE64", "data:image/jpeg;base64,$LAST_FRAME_BASE64"]
+        python3 -c "
+import json
+
+data = {
+    'model': 'agnes-video-v2.0',
+    'prompt': '$MAIN_PROMPT',
+    'num_frames': $FRAME_COUNT,
+    'frame_rate': $OUTPUT_FPS,
+    'height': 768,
+    'width': 1152,
+    'extra_body': {
+        'image': ['data:image/jpeg;base64,$FIRST_FRAME_BASE64', 'data:image/jpeg;base64,$LAST_FRAME_BASE64']
     }
 }
-EOF
+
+with open('$json_file', 'w') as f:
+    json.dump(data, f)
+"
         
         RESPONSE=$(curl -s -X POST \
             --connect-timeout 60 \
