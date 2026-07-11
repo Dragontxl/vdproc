@@ -149,7 +149,7 @@ print('%.3f' % duration)
 {
     "model": "agnes-video-v2.0",
     "prompt": "$MAIN_PROMPT",
-    "num_frames": $FRAMES,
+    "num_frames": $FRAME_COUNT,
     "frame_rate": $OUTPUT_FPS,
     "height": 768,
     "width": 1152,
