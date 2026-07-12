@@ -79,15 +79,22 @@ process_shot() {
     
     local selected_key="$AI_API_KEY"
     local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/videos/generations"
+    local selected_model="agnes-video"
     
     if [ -n "$ai_accounts" ]; then
         local account_index=$((shot_index % $(echo "$ai_accounts" | jq -r '. | length')))
         selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
         selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
+        selected_model=$(echo "$ai_accounts" | jq -r ".[$account_index].model_name")
         if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
             selected_url="https://apihub.agnes-ai.com/v1/videos/generations"
         fi
+        if [ "$selected_model" = "null" ] || [ -z "$selected_model" ]; then
+            selected_model="agnes-video"
+        fi
     fi
+    
+    echo "Shot $shot_index: Using model $selected_model at $selected_url"
     
     local lock_file="./locks/account_${shot_index}.lock"
     
@@ -111,7 +118,7 @@ process_shot() {
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $selected_key" \
             -d "{
-                \"model\": \"agnes-video\",
+                \"model\": \"$selected_model\",
                 \"prompt\": \"在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。$MAIN_PROMPT\",
                 \"extra_body\": {
                     \"image\": [\"$FIRST_FRAME_URL\", \"$LAST_FRAME_URL\"],
