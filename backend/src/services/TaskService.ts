@@ -360,7 +360,9 @@ export class TaskService {
             }
             return {
               ...acc,
-              api_key_encrypted: decryptedKey
+              api_key_encrypted: decryptedKey,
+              base_url: (acc.base_url || '').trim(),
+              model_name: (acc.model_name || '').trim()
             };
           })
         );
@@ -387,7 +389,9 @@ export class TaskService {
             }
             return {
               ...acc,
-              api_key_encrypted: decryptedKey
+              api_key_encrypted: decryptedKey,
+              base_url: (acc.base_url || '').trim(),
+              model_name: (acc.model_name || '').trim()
             };
           })
         );

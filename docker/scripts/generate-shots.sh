@@ -120,9 +120,12 @@ def generate_video(account, image_urls, prompt, shot_index):
             print(f"  Shot {shot_index}: Response: {resp_body[:500]}...")
             
             task_id_result = resp_data.get('task_id') or resp_data.get('id') or resp_data.get('taskId')
+            video_id_result = resp_data.get('video_id')
             
             if task_id_result:
                 print(f"  Shot {shot_index}: Got task ID: {task_id_result}")
+                if video_id_result:
+                    print(f"  Shot {shot_index}: Got video ID: {video_id_result}")
                 break
                 
             url = resp_data.get('remixed_from_video_id') or resp_data.get('video_url') or resp_data.get('output_url') or resp_data.get('url')
@@ -143,10 +146,12 @@ def generate_video(account, image_urls, prompt, shot_index):
     max_polls = 90
     poll_interval = 10
     
+    query_id = video_id_result if video_id_result else task_id_result
+    
     for poll_attempt in range(max_polls):
         time.sleep(poll_interval)
         try:
-            poll_url = f"{base_url}/{task_id_result}"
+            poll_url = f"https://apihub.agnes-ai.com/agnesapi?video_id={query_id}"
             req = urllib.request.Request(poll_url, headers={'Authorization': 'Bearer ' + api_key}, method='GET')
             resp = urllib.request.urlopen(req, timeout=30)
             resp_body = resp.read().decode('utf-8')
@@ -158,9 +163,7 @@ def generate_video(account, image_urls, prompt, shot_index):
             
             if status == 'completed':
                 print(f"  Shot {shot_index}: Completed response: {resp_body[:2000]}")
-                url = resp_data.get('remixed_from_video_id') or resp_data.get('video_url') or resp_data.get('output_url') or resp_data.get('url')
-                if isinstance(resp_data.get('data'), dict):
-                    url = url or resp_data.get('data').get('url')
+                url = resp_data.get('url')
                 if url:
                     print(f"  Shot {shot_index}: Got video URL: {url}")
                     return url
