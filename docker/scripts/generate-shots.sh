@@ -98,7 +98,10 @@ process_shot() {
         selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
         selected_model=$(echo "$ai_accounts" | jq -r ".[$account_index].model_name")
         if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
-            selected_url="https://apihub.agnes-ai.com/v1/videos/generations"
+            selected_url="https://apihub.agnes-ai.com/v1/videos"
+        fi
+        if ! echo "$selected_url" | grep -q "^https\?://"; then
+            selected_url="https://$selected_url"
         fi
         if [ "$selected_model" = "null" ] || [ -z "$selected_model" ]; then
             selected_model="agnes-video"
