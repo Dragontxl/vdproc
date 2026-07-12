@@ -157,6 +157,7 @@ def generate_video(account, image_urls, prompt, shot_index):
             print(f"  Shot {shot_index}: Poll {poll_attempt+1}/{max_polls} - Status: {status}, Progress: {progress}%")
             
             if status == 'completed':
+                print(f"  Shot {shot_index}: Completed response: {resp_body[:2000]}")
                 url = resp_data.get('remixed_from_video_id') or resp_data.get('video_url') or resp_data.get('output_url') or resp_data.get('url')
                 if isinstance(resp_data.get('data'), dict):
                     url = url or resp_data.get('data').get('url')
