@@ -62,19 +62,15 @@ process_shot() {
     
     FRAME_COUNT=$(echo "$DURATION * $OUTPUT_FPS" | bc | awk '{print int($1+0.5)}')
     
-    echo "Processing shot $shot_index: duration=$DURATIONs, frames=$FRAME_COUNT"
-    
     FIRST_FRAME_KEY="${TASK_ID}/ai_shot_frames/shot_${shot_index}_first.jpg"
     LAST_FRAME_KEY="${TASK_ID}/ai_shot_frames/shot_${shot_index}_last.jpg"
     
-    echo "Downloading AI frames..."
-    aws s3 cp "s3://$R2_BUCKET_NAME/$FIRST_FRAME_KEY" "./first_frame_${shot_index}.jpg" \
-        --endpoint-url "$R2_ENDPOINT_URL"
-    aws s3 cp "s3://$R2_BUCKET_NAME/$LAST_FRAME_KEY" "./last_frame_${shot_index}.jpg" \
-        --endpoint-url "$R2_ENDPOINT_URL"
+    FIRST_FRAME_URL="https://aivideobucket.ldragon.xyz/${FIRST_FRAME_KEY}"
+    LAST_FRAME_URL="https://aivideobucket.ldragon.xyz/${LAST_FRAME_KEY}"
     
-    FIRST_FRAME_BASE64=$(base64 -w0 "./first_frame_${shot_index}.jpg")
-    LAST_FRAME_BASE64=$(base64 -w0 "./last_frame_${shot_index}.jpg")
+    echo "Processing shot $shot_index: duration=$DURATIONs, frames=$FRAME_COUNT"
+    echo "First frame URL: $FIRST_FRAME_URL"
+    echo "Last frame URL: $LAST_FRAME_URL"
     
     MAIN_PROMPT="$POSITIVE_PROMPT, American animation style, anime style, high quality, $SCENE_DESC"
     if [ -n "$DIALOGUE" ]; then
@@ -116,12 +112,16 @@ process_shot() {
             -H "Authorization: Bearer $selected_key" \
             -d "{
                 \"model\": \"agnes-video\",
-                \"prompt\": \"$MAIN_PROMPT\",
-                \"duration\": $DURATION,
+                \"prompt\": \"在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。$MAIN_PROMPT\",
                 \"extra_body\": {
-                    \"image\": [\"data:image/jpeg;base64,$FIRST_FRAME_BASE64\", \"data:image/jpeg;base64,$LAST_FRAME_BASE64\"],
-                    \"response_format\": \"url\"
-                }
+                    \"image\": [\"$FIRST_FRAME_URL\", \"$LAST_FRAME_URL\"],
+                    \"mode\": \"keyframes\"
+                },
+                \"num_frames\": 361,
+                \"frame_rate\": 24,
+                \"width\": 854,
+                \"height\": 480,
+                \"seed\": 42
             }" \
             "$selected_url")
         
@@ -143,7 +143,7 @@ process_shot() {
     
     if [ $API_SUCCESS -ne 1 ]; then
         echo "Error: Failed to generate shot $shot_index"
-        rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file"
+        rm -f "$lock_file"
         echo "$shot_index:FAILED" >> "./shot_results.txt"
         return 1
     fi
@@ -151,7 +151,7 @@ process_shot() {
     RESULT_URL=$(echo "$RESPONSE" | jq -r '.data[0].url // ""')
     if [ -z "$RESULT_URL" ]; then
         echo "Error: No result URL for shot $shot_index"
-        rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file"
+        rm -f "$lock_file"
         echo "$shot_index:FAILED" >> "./shot_results.txt"
         return 1
     fi
@@ -161,12 +161,12 @@ process_shot() {
     
     if [ ! -f "./generated_shots/shot_${shot_index}.mp4" ] || [ ! -s "./generated_shots/shot_${shot_index}.mp4" ]; then
         echo "Error: Downloaded video is empty for shot $shot_index"
-        rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file"
+        rm -f "$lock_file"
         echo "$shot_index:FAILED" >> "./shot_results.txt"
         return 1
     fi
     
-    rm -f "./first_frame_${shot_index}.jpg" "./last_frame_${shot_index}.jpg" "$lock_file"
+    rm -f "$lock_file"
     echo "$shot_index:SUCCESS" >> "./shot_results.txt"
     echo "Successfully generated shot $shot_index"
     
