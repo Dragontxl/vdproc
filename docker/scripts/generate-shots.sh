@@ -89,7 +89,7 @@ process_shot() {
     fi
     
     local selected_key="$AI_API_KEY"
-    local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/videos/generations"
+    local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com/v1/videos}"
     local selected_model="agnes-video"
     
     if [ -n "$ai_accounts" ]; then
