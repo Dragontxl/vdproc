@@ -143,7 +143,7 @@ process_shot() {
                 \"height\": 480,
                 \"seed\": 42
             }" \
-            "$selected_url/generations")
+            "$selected_url")
         
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
         RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
@@ -172,10 +172,10 @@ process_shot() {
     fi
     
     TASK_ID=$(echo "$RESPONSE" | jq -r '.task_id // .id // .taskId // ""')
-    RESULT_URL=$(echo "$RESPONSE" | jq -r '.data[0].url // .url // ""')
+    RESULT_URL=$(echo "$RESPONSE" | jq -r '.remixed_from_video_id // .video_url // .output_url // .url // .data[0].url // .data.url // ""')
     
     if [ -n "$RESULT_URL" ] && [ "$RESULT_URL" != "null" ]; then
-        echo "  Shot $shot_index: Got direct result URL"
+        echo "  Shot $shot_index: Got direct result URL: $RESULT_URL"
     elif [ -n "$TASK_ID" ] && [ "$TASK_ID" != "null" ]; then
         echo "  Shot $shot_index: Got task ID: $TASK_ID, polling for result..."
         POLL_INTERVAL=15
@@ -198,7 +198,7 @@ process_shot() {
             
             if [ "$POLL_HTTP_CODE" -ge 200 ] && [ "$POLL_HTTP_CODE" -lt 300 ]; then
                 STATUS=$(echo "$POLL_BODY" | jq -r '.status // ""')
-                RESULT_URL=$(echo "$POLL_BODY" | jq -r '.data[0].url // .url // ""')
+                RESULT_URL=$(echo "$POLL_BODY" | jq -r '.remixed_from_video_id // .video_url // .output_url // .url // .data[0].url // .data.url // ""')
                 
                 echo "  Shot $shot_index: Status: $STATUS, URL: $RESULT_URL"
                 
