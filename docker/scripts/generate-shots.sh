@@ -33,7 +33,6 @@ SHOT_COUNT=$(echo "$RESULT" | jq -r '.storyboards | length')
 echo "Found $SHOT_COUNT shots to generate"
 
 mkdir -p ./generated_shots
-mkdir -p ./locks
 
 ACCOUNT_COUNT=1
 if [ -n "$AI_ACCOUNTS" ]; then
@@ -43,238 +42,196 @@ fi
 echo "Available AI accounts: $ACCOUNT_COUNT"
 echo "Concurrency: $ACCOUNT_COUNT"
 
-parse_time() {
-    local t="$1"
-    local h=$(echo "$t" | cut -d: -f1)
-    local m=$(echo "$t" | cut -d: -f2)
-    local s=$(echo "$t" | cut -d: -f3 | cut -d. -f1)
-    local ms=$(echo "$t" | cut -d. -f2)
-    awk "BEGIN {printf \"%.3f\", $h*3600 + $m*60 + $s + $ms/1000}"
-}
+python3 << PYTHON_SCRIPT
+import json
+import os
+import sys
+import time
+import urllib.request
+import urllib.error
+import ssl
 
-process_shot() {
-    local shot_index="$1"
-    local work_dir="$2"
-    local ai_accounts="$3"
+ssl._create_default_https_context = ssl._create_unverified_context
+
+task_id = os.environ.get('TASK_ID')
+ai_accounts_json = os.environ.get('AI_ACCOUNTS', '[]')
+r2_bucket = os.environ.get('R2_BUCKET_NAME')
+r2_endpoint = os.environ.get('R2_ENDPOINT_URL')
+
+with open('./analysis_result.json', 'r') as f:
+    result = json.load(f)
+
+storyboards = result.get('storyboards', [])
+accounts = json.loads(ai_accounts_json)
+
+def parse_time(time_str):
+    parts = time_str.split(':')
+    h = int(parts[0])
+    m = int(parts[1])
+    s_parts = parts[2].split('.')
+    s = int(s_parts[0])
+    ms = int(s_parts[1]) if len(s_parts) > 1 else 0
+    return h * 3600 + m * 60 + s + ms / 1000
+
+def generate_video(account, image_urls, prompt, shot_index):
+    api_key = account.get('api_key_encrypted', '')
+    base_url = account.get('base_url', 'https://apihub.agnes-ai.com/v1/videos')
+    model_name = account.get('model_name', 'agnes-video-v2.0')
     
-    cd "$work_dir"
+    if not base_url.startswith('http'):
+        base_url = 'https://' + base_url
     
-    START_TIME=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].start_time")
-    END_TIME=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].end_time")
-    CHARACTERS=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].characters_present")
-    SPEAKER=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].speaker")
-    DIALOGUE=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].subtitles")
-    SCENE_DESC=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].scene_description")
-    POSITIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].positive_prompt")
-    NEGATIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].negative_prompt")
+    full_prompt = "在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。" + prompt
     
-    START_SEC=$(parse_time "$START_TIME")
-    END_SEC=$(parse_time "$END_TIME")
-    DURATION=$(awk "BEGIN {printf \"%.3f\", $END_SEC - $START_SEC}")
+    request_body = {
+        'model': model_name,
+        'prompt': full_prompt,
+        'extra_body': {
+            'image': image_urls,
+            'mode': 'keyframes'
+        },
+        'num_frames': 361,
+        'frame_rate': 24,
+        'width': 854,
+        'height': 480,
+        'seed': 42
+    }
     
-    echo "Processing shot $shot_index: $START_TIME - $END_TIME (duration=$DURATIONs)"
+    json_data = json.dumps(request_body).encode('utf-8')
     
-    FIRST_FRAME_KEY="${TASK_ID}/ai_shot_frames/shot_${shot_index}_first.jpg"
-    LAST_FRAME_KEY="${TASK_ID}/ai_shot_frames/shot_${shot_index}_last.jpg"
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + api_key
+    }
     
-    FIRST_FRAME_URL="https://aivideobucket.ldragon.xyz/${FIRST_FRAME_KEY}"
-    LAST_FRAME_URL="https://aivideobucket.ldragon.xyz/${LAST_FRAME_KEY}"
+    task_id_result = None
+    max_retries = 3
+    retry_delay = 10
     
-    echo "First frame URL: $FIRST_FRAME_URL"
-    echo "Last frame URL: $LAST_FRAME_URL"
-    
-    MAIN_PROMPT="$POSITIVE_PROMPT, American animation style, anime style, high quality, $SCENE_DESC"
-    if [ -n "$DIALOGUE" ] && [ "$DIALOGUE" != "null" ]; then
-        MAIN_PROMPT="$MAIN_PROMPT, dialogue: $DIALOGUE"
-    fi
-    
-    local selected_key="$AI_API_KEY"
-    local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com/v1/videos}"
-    local selected_model="agnes-video"
-    
-    if [ -n "$ai_accounts" ]; then
-        local account_index=$((shot_index % $(echo "$ai_accounts" | jq -r '. | length')))
-        selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
-        selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
-        selected_model=$(echo "$ai_accounts" | jq -r ".[$account_index].model_name")
-        if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
-            selected_url="https://apihub.agnes-ai.com/v1/videos"
-        fi
-        if ! echo "$selected_url" | grep -q "^https\?://"; then
-            selected_url="https://$selected_url"
-        fi
-        if [ "$selected_model" = "null" ] || [ -z "$selected_model" ]; then
-            selected_model="agnes-video"
-        fi
-    fi
-    
-    echo "Shot $shot_index: Using model $selected_model at $selected_url"
-    
-    local lock_file="./locks/account_${shot_index}.lock"
-    
-    exec 200>"$lock_file"
-    flock -x 200
-    
-    echo "Shot $shot_index: Using AI account index $account_index"
-    
-    MAX_RETRIES=3
-    RETRY_DELAY=10
-    API_SUCCESS=0
-    RESPONSE=""
-    
-    for attempt in $(seq 1 $MAX_RETRIES); do
-        echo "  Shot $shot_index: Attempt $attempt/$MAX_RETRIES..."
-        echo "  Shot $shot_index: Request URL: $selected_url"
-        echo "  Shot $shot_index: API Key: ${selected_key:0:10}..."
-        
-        RESPONSE=$(curl -v -X POST \
-            --connect-timeout 60 \
-            --max-time 300 \
-            -w "\n%{http_code}" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $selected_key" \
-            -d "{
-                \"model\": \"$selected_model\",
-                \"prompt\": \"在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。$MAIN_PROMPT\",
-                \"extra_body\": {
-                    \"image\": [\"$FIRST_FRAME_URL\", \"$LAST_FRAME_URL\"],
-                    \"mode\": \"keyframes\"
-                },
-                \"num_frames\": 361,
-                \"frame_rate\": 24,
-                \"width\": 854,
-                \"height\": 480,
-                \"seed\": 42
-            }" \
-            "$selected_url")
-        
-        HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-        RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
-        
-        echo "  Shot $shot_index: HTTP Code: $HTTP_CODE"
-        echo "  Shot $shot_index: Response Body: $RESPONSE_BODY"
-        
-        if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-            API_SUCCESS=1
-            RESPONSE="$RESPONSE_BODY"
-            break
-        fi
-        
-        if [ $attempt -lt $MAX_RETRIES ]; then
-            sleep $RETRY_DELAY
-        fi
-    done
-    
-    flock -u 200
-    
-    if [ $API_SUCCESS -ne 1 ]; then
-        echo "Error: Failed to generate shot $shot_index"
-        rm -f "$lock_file"
-        echo "$shot_index:FAILED" >> "./shot_results.txt"
-        return 1
-    fi
-    
-    TASK_ID=$(echo "$RESPONSE" | jq -r '.task_id // .id // .taskId // ""')
-    RESULT_URL=$(echo "$RESPONSE" | jq -r '.remixed_from_video_id // .video_url // .output_url // .url // .data[0].url // .data.url // ""')
-    
-    if [ -n "$RESULT_URL" ] && [ "$RESULT_URL" != "null" ]; then
-        echo "  Shot $shot_index: Got direct result URL: $RESULT_URL"
-    elif [ -n "$TASK_ID" ] && [ "$TASK_ID" != "null" ]; then
-        echo "  Shot $shot_index: Got task ID: $TASK_ID, polling for result..."
-        POLL_INTERVAL=15
-        MAX_POLL_ATTEMPTS=60
-        
-        for poll_attempt in $(seq 1 $MAX_POLL_ATTEMPTS); do
-            sleep $POLL_INTERVAL
+    for attempt in range(max_retries):
+        try:
+            req = urllib.request.Request(base_url, data=json_data, headers=headers, method='POST')
+            resp = urllib.request.urlopen(req, timeout=300)
+            resp_body = resp.read().decode('utf-8')
+            resp_data = json.loads(resp_body)
             
-            POLL_RESPONSE=$(curl -s -X GET \
-                --connect-timeout 30 \
-                --max-time 60 \
-                -w "\n%{http_code}" \
-                -H "Authorization: Bearer $selected_key" \
-                "$selected_url/$TASK_ID")
+            print(f"  Shot {shot_index}: Attempt {attempt+1}/{max_retries} - HTTP 200")
+            print(f"  Shot {shot_index}: Response: {resp_body[:500]}...")
             
-            POLL_HTTP_CODE=$(echo "$POLL_RESPONSE" | tail -n1)
-            POLL_BODY=$(echo "$POLL_RESPONSE" | sed '$d')
+            task_id_result = resp_data.get('task_id') or resp_data.get('id') or resp_data.get('taskId')
             
-            echo "  Shot $shot_index: Poll attempt $poll_attempt/$MAX_POLL_ATTEMPTS, HTTP: $POLL_HTTP_CODE"
-            
-            if [ "$POLL_HTTP_CODE" -ge 200 ] && [ "$POLL_HTTP_CODE" -lt 300 ]; then
-                STATUS=$(echo "$POLL_BODY" | jq -r '.status // ""')
-                RESULT_URL=$(echo "$POLL_BODY" | jq -r '.remixed_from_video_id // .video_url // .output_url // .url // .data[0].url // .data.url // ""')
+            if task_id_result:
+                print(f"  Shot {shot_index}: Got task ID: {task_id_result}")
+                break
                 
-                echo "  Shot $shot_index: Status: $STATUS, URL: $RESULT_URL"
+            url = resp_data.get('remixed_from_video_id') or resp_data.get('video_url') or resp_data.get('output_url') or resp_data.get('url')
+            if url:
+                print(f"  Shot {shot_index}: Got direct URL: {url}")
+                return url
                 
-                if [ "$STATUS" = "completed" ] && [ -n "$RESULT_URL" ] && [ "$RESULT_URL" != "null" ]; then
-                    RESPONSE="$POLL_BODY"
-                    break
-                fi
-                
-                if [ "$STATUS" = "failed" ] || [ "$STATUS" = "error" ]; then
-                    echo "  Shot $shot_index: Task failed"
-                    rm -f "$lock_file"
-                    echo "$shot_index:FAILED" >> "./shot_results.txt"
-                    return 1
-                fi
-            fi
+        except Exception as e:
+            print(f"  Shot {shot_index}: Attempt {attempt+1}/{max_retries} failed: {str(e)}")
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+    
+    if not task_id_result:
+        print(f"  Shot {shot_index}: Failed to get task ID after {max_retries} attempts")
+        return None
+    
+    print(f"  Shot {shot_index}: Polling for result...")
+    max_polls = 90
+    poll_interval = 10
+    
+    for poll_attempt in range(max_polls):
+        time.sleep(poll_interval)
+        try:
+            poll_url = f"{base_url}/{task_id_result}"
+            req = urllib.request.Request(poll_url, headers={'Authorization': 'Bearer ' + api_key}, method='GET')
+            resp = urllib.request.urlopen(req, timeout=30)
+            resp_body = resp.read().decode('utf-8')
+            resp_data = json.loads(resp_body)
             
-            if [ $poll_attempt -eq $MAX_POLL_ATTEMPTS ]; then
-                echo "  Shot $shot_index: Polling timeout"
-                rm -f "$lock_file"
-                echo "$shot_index:FAILED" >> "./shot_results.txt"
-                return 1
-            fi
-        done
-    else
-        echo "Error: No task ID or result URL for shot $shot_index"
-        rm -f "$lock_file"
-        echo "$shot_index:FAILED" >> "./shot_results.txt"
-        return 1
-    fi
+            status = resp_data.get('status', '')
+            progress = resp_data.get('progress', 0)
+            print(f"  Shot {shot_index}: Poll {poll_attempt+1}/{max_polls} - Status: {status}, Progress: {progress}%")
+            
+            if status == 'completed':
+                url = resp_data.get('remixed_from_video_id') or resp_data.get('video_url') or resp_data.get('output_url') or resp_data.get('url') or (resp_data.get('data', {}).get('url') if isinstance(resp_data.get('data'), dict) else None)
+                if url:
+                    print(f"  Shot {shot_index}: Got video URL: {url}")
+                    return url
+                print(f"  Shot {shot_index}: Task completed but no URL found")
+                return None
+            elif status in ['failed', 'error']:
+                error_msg = resp_data.get('error', 'Unknown error')
+                print(f"  Shot {shot_index}: Task failed: {error_msg}")
+                return None
+                
+        except Exception as e:
+            print(f"  Shot {shot_index}: Poll {poll_attempt+1} failed: {str(e)}")
     
-    echo "Downloading generated video for shot $shot_index..."
-    curl -s --connect-timeout 60 --max-time 120 -o "./generated_shots/shot_${shot_index}.mp4" "$RESULT_URL"
+    print(f"  Shot {shot_index}: Polling timeout")
+    return None
+
+success_count = 0
+failed_count = 0
+
+for shot_index, shot in enumerate(storyboards):
+    start_time = shot.get('start_time', '00:00:00.000')
+    end_time = shot.get('end_time', '00:00:00.000')
+    start_sec = parse_time(start_time)
+    end_sec = parse_time(end_time)
+    duration = end_sec - start_sec
     
-    if [ ! -f "./generated_shots/shot_${shot_index}.mp4" ] || [ ! -s "./generated_shots/shot_${shot_index}.mp4" ]; then
-        echo "Error: Downloaded video is empty for shot $shot_index"
-        rm -f "$lock_file"
-        echo "$shot_index:FAILED" >> "./shot_results.txt"
-        return 1
-    fi
+    print(f"Processing shot {shot_index}: {start_time} - {end_time} (duration={duration:.3f}s)")
     
-    rm -f "$lock_file"
-    echo "$shot_index:SUCCESS" >> "./shot_results.txt"
-    echo "Successfully generated shot $shot_index"
+    first_frame_url = f"https://aivideobucket.ldragon.xyz/{task_id}/ai_shot_frames/shot_{shot_index}_first.jpg"
+    last_frame_url = f"https://aivideobucket.ldragon.xyz/{task_id}/ai_shot_frames/shot_{shot_index}_last.jpg"
     
-    return 0
-}
+    print(f"First frame URL: {first_frame_url}")
+    print(f"Last frame URL: {last_frame_url}")
+    
+    characters = shot.get('characters_present', [])
+    speaker = shot.get('speaker', '')
+    dialogue = shot.get('subtitles', '')
+    scene_desc = shot.get('scene_description', '')
+    positive_prompt = shot.get('positive_prompt', '')
+    negative_prompt = shot.get('negative_prompt', '')
+    
+    main_prompt = f"{positive_prompt}, American animation style, anime style, high quality, {scene_desc}"
+    if dialogue and dialogue != 'null':
+        main_prompt += f", dialogue: {dialogue}"
+    
+    account_index = shot_index % len(accounts) if accounts else 0
+    account = accounts[account_index] if accounts else {'api_key_encrypted': os.environ.get('AI_API_KEY', ''), 'base_url': os.environ.get('AI_BASE_URL', 'https://apihub.agnes-ai.com/v1/videos'), 'model_name': 'agnes-video-v2.0'}
+    
+    print(f"Shot {shot_index}: Using model {account.get('model_name', 'agnes-video-v2.0')} at {account.get('base_url', '')}")
+    print(f"Shot {shot_index}: Using AI account index {account_index}")
+    
+    video_url = generate_video(account, [first_frame_url, last_frame_url], main_prompt, shot_index)
+    
+    if video_url:
+        print(f"Downloading generated video for shot {shot_index}...")
+        try:
+            urllib.request.urlretrieve(video_url, f'./generated_shots/shot_{shot_index}.mp4')
+            print(f"Successfully generated shot {shot_index}")
+            success_count += 1
+        except Exception as e:
+            print(f"Error downloading video for shot {shot_index}: {str(e)}")
+            failed_count += 1
+    else:
+        print(f"Error: Failed to generate shot {shot_index}")
+        failed_count += 1
 
-export -f process_shot
-export -f parse_time
-export RESULT
-export TASK_ID
-export OUTPUT_FPS
-export R2_BUCKET_NAME
-export R2_ENDPOINT_URL
-export AI_API_KEY
-export AI_BASE_URL
+print("=== Shot Generation Complete ===")
+print(f"Total: {len(storyboards)}")
+print(f"Success: {success_count}")
+print(f"Failed: {failed_count}")
 
-rm -f "./shot_results.txt"
+if failed_count > 0:
+    print("Warning: Some shots failed to generate")
 
-echo "$RESULT" | jq -r '.storyboards | to_entries[] | .key' | \
-    xargs -P "$ACCOUNT_COUNT" -I {} bash -c 'process_shot "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS"
-
-SUCCESS_COUNT=$(grep -c ':SUCCESS' "./shot_results.txt" 2>/dev/null || echo 0)
-FAILED_COUNT=$(grep -c ':FAILED' "./shot_results.txt" 2>/dev/null || echo 0)
-
-echo "=== Shot Generation Complete ==="
-echo "Total: $SHOT_COUNT"
-echo "Success: $SUCCESS_COUNT"
-echo "Failed: $FAILED_COUNT"
-
-if [ "$FAILED_COUNT" -gt 0 ]; then
-    echo "Warning: Some shots failed to generate"
-fi
+PYTHON_SCRIPT
 
 echo "Uploading generated shots..."
 aws s3 sync "./generated_shots" "s3://$R2_BUCKET_NAME/${TASK_ID}/generated_shots" \
