@@ -46,51 +46,58 @@ process_character() {
     local char_index="$1"
     local work_dir="$2"
     local ai_accounts="$3"
-    
+
     cd "$work_dir"
-    
+
     ROLE_ID=$(echo "$RESULT" | jq -r ".characters[$char_index].role_id")
     BEST_FRAME_KEY="${TASK_ID}/character_frames/${ROLE_ID}_best.jpg"
-    
+
+    if [ -f "./characters/${ROLE_ID}.png" ] && [ -s "./characters/${ROLE_ID}.png" ]; then
+        echo "Character $ROLE_ID already exists, skipping"
+        echo "${ROLE_ID}:SUCCESS" >> "./character_results.txt"
+        return 0
+    fi
+
     echo "Processing character $ROLE_ID..."
-    
+
     echo "Downloading reference image..."
     aws s3 cp "s3://$R2_BUCKET_NAME/$BEST_FRAME_KEY" "./reference_${char_index}.jpg" \
         --endpoint-url "$R2_ENDPOINT_URL"
-    
+
     INPUT_IMAGE_BASE64=$(base64 -w0 "./reference_${char_index}.jpg")
-    
+
     PROMPT="American animation style character design, white background, full body portrait, professional character sheet, clean line art, vibrant colors, high quality, anime style, based on the provided reference image"
-    
+
     local selected_key="$AI_API_KEY"
     local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/images/generations"
-    
+    local account_index=0
+
     if [ -n "$ai_accounts" ]; then
-        local account_index=$((char_index % $(echo "$ai_accounts" | jq -r '. | length')))
+        account_index=$((char_index % $(echo "$ai_accounts" | jq -r '. | length')))
         selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
         selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
         if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
             selected_url="https://apihub.agnes-ai.com/v1/images/generations"
         fi
     fi
-    
+
     local lock_file="./locks/account_${account_index}.lock"
-    
+
     exec 200>"$lock_file"
     flock -x 200
-    
+
     echo "Character $ROLE_ID: Using AI account index $account_index"
-    
+
     MAX_RETRIES=3
     RETRY_DELAY=5
     API_SUCCESS=0
     RESPONSE=""
-    
+
     for attempt in $(seq 1 $MAX_RETRIES); do
         echo "  Character $ROLE_ID: Attempt $attempt/$MAX_RETRIES..."
         echo "  Character $ROLE_ID: API URL: ${selected_url:0:50}..."
         echo "  Character $ROLE_ID: API Key: ${selected_key:0:10}..."
-        
+
         RESPONSE=$(curl -s -X POST \
             --connect-timeout 30 \
             --max-time 120 \
@@ -107,35 +114,35 @@ process_character() {
                 }
             }" \
             "$selected_url")
-        
+
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
         RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
-        
+
         echo "  Character $ROLE_ID: HTTP code: $HTTP_CODE"
         if [ ${#RESPONSE_BODY} -gt 0 ]; then
             echo "  Character $ROLE_ID: Response (first 500 chars): ${RESPONSE_BODY:0:500}"
         fi
-        
+
         if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
             API_SUCCESS=1
             RESPONSE="$RESPONSE_BODY"
             break
         fi
-        
+
         if [ $attempt -lt $MAX_RETRIES ]; then
             sleep $RETRY_DELAY
         fi
     done
-    
+
     flock -u 200
-    
+
     if [ $API_SUCCESS -ne 1 ]; then
         echo "Error: Failed to generate character $ROLE_ID"
         rm -f "./reference_${char_index}.jpg" "$lock_file"
         echo "${ROLE_ID}:FAILED" >> "./character_results.txt"
         return 1
     fi
-    
+
     RESULT_URL=$(echo "$RESPONSE" | jq -r '.data[0].url // ""')
     if [ -z "$RESULT_URL" ]; then
         echo "Error: No result URL for character $ROLE_ID"
@@ -143,21 +150,21 @@ process_character() {
         echo "${ROLE_ID}:FAILED" >> "./character_results.txt"
         return 1
     fi
-    
+
     echo "Downloading character image..."
     curl -s --connect-timeout 30 --max-time 60 -o "./characters/${ROLE_ID}.png" "$RESULT_URL"
-    
+
     if [ ! -f "./characters/${ROLE_ID}.png" ] || [ ! -s "./characters/${ROLE_ID}.png" ]; then
         echo "Error: Downloaded character image is empty"
         rm -f "./reference_${char_index}.jpg" "$lock_file"
         echo "${ROLE_ID}:FAILED" >> "./character_results.txt"
         return 1
     fi
-    
+
     rm -f "./reference_${char_index}.jpg" "$lock_file"
     echo "${ROLE_ID}:SUCCESS" >> "./character_results.txt"
     echo "Successfully generated character $ROLE_ID"
-    
+
     return 0
 }
 
@@ -169,26 +176,86 @@ export R2_ENDPOINT_URL
 export AI_API_KEY
 export AI_BASE_URL
 
-rm -f "./character_results.txt"
+MAX_ROUNDS=3
 
-echo "$RESULT" | jq -r '.characters | to_entries[] | .key' | \
-    xargs -P "$ACCOUNT_COUNT" -I {} bash -c 'process_character "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS" || true
+report_progress() {
+    local round=$1
+    local processed=$2
+    local total=$ROLE_COUNT
+    local failed=$3
+    local message="第${round}轮: 已完成 ${processed}/${total} 个角色"
+    if [ "$failed" -gt 0 ]; then
+        message="${message}, ${failed}个失败待重试"
+    fi
+    echo "Reporting progress: $message"
+    set +e
+    curl -s --connect-timeout 10 --max-time 30 -X POST "$CALLBACK_URL/progress" \
+        -H "Content-Type: application/json" \
+        -H "X-Callback-Signature: $CALLBACK_SECRET" \
+        -d "{\"task_id\":\"$TASK_ID\",\"phase\":\"GENERATE_CHARACTERS\",\"processed_count\":$processed,\"total_count\":$total,\"failed_count\":$failed,\"message\":\"$message\"}" > /dev/null 2>&1
+    set -e
+}
 
-SUCCESS_COUNT=$(grep -c ':SUCCESS' "./character_results.txt" 2>/dev/null || echo 0)
-FAILED_COUNT=$(grep -c ':FAILED' "./character_results.txt" 2>/dev/null || echo 0)
+get_missing_indices() {
+    local missing=""
+    for i in $(seq 0 $((ROLE_COUNT - 1))); do
+        local role_id=$(echo "$RESULT" | jq -r ".characters[$i].role_id")
+        if [ ! -f "./characters/${role_id}.png" ] || [ ! -s "./characters/${role_id}.png" ]; then
+            missing="${missing}${i},"
+        fi
+    done
+    echo "${missing%,}"
+}
 
-echo "=== Character Generation Complete ==="
-echo "Total: $ROLE_COUNT"
-echo "Success: $SUCCESS_COUNT"
-echo "Failed: $FAILED_COUNT"
+for round in $(seq 1 $MAX_ROUNDS); do
+    PENDING_INDICES=$(get_missing_indices)
 
-if [ $FAILED_COUNT -eq $ROLE_COUNT ]; then
-    echo "Error: All character generation failed"
+    if [ -z "$PENDING_INDICES" ]; then
+        echo "All characters completed at round $((round - 1))"
+        break
+    fi
+
+    echo "=== Round $round/$MAX_ROUNDS: Processing characters [$PENDING_INDICES] ==="
+
+    rm -f "./character_results.txt"
+
+    echo "$PENDING_INDICES" | tr ',' '\n' | \
+        xargs -P "$ACCOUNT_COUNT" -I {} bash -c 'process_character "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS" || true
+
+    echo "Uploading character images..."
+    aws s3 sync "./characters" "s3://$R2_BUCKET_NAME/${TASK_ID}/characters" \
+        --endpoint-url "$R2_ENDPOINT_URL"
+
+    SUCCESS_COUNT=$(grep -c ':SUCCESS' "./character_results.txt" 2>/dev/null || echo 0)
+    FAILED_COUNT=$(grep -c ':FAILED' "./character_results.txt" 2>/dev/null || echo 0)
+
+    TOTAL_SUCCESS=0
+    TOTAL_FAILED=0
+    for i in $(seq 0 $((ROLE_COUNT - 1))); do
+        local_role_id=$(echo "$RESULT" | jq -r ".characters[$i].role_id")
+        if [ -f "./characters/${local_role_id}.png" ] && [ -s "./characters/${local_role_id}.png" ]; then
+            TOTAL_SUCCESS=$((TOTAL_SUCCESS + 1))
+        else
+            TOTAL_FAILED=$((TOTAL_FAILED + 1))
+        fi
+    done
+
+    report_progress "$round" "$TOTAL_SUCCESS" "$TOTAL_FAILED"
+
+    if [ "$TOTAL_FAILED" -eq 0 ]; then
+        echo "=== All characters completed at round $round ==="
+        break
+    fi
+
+    echo "Round $round: $TOTAL_FAILED characters still missing, will retry..."
+
+done
+
+FINAL_MISSING=$(get_missing_indices)
+if [ -n "$FINAL_MISSING" ]; then
+    FINAL_FAILED_COUNT=$(echo "$FINAL_MISSING" | tr ',' '\n' | grep -c .)
+    echo "ERROR: $FINAL_FAILED_COUNT characters failed after $MAX_ROUNDS rounds: [$FINAL_MISSING]"
     exit 1
 fi
 
-echo "Uploading character images..."
-aws s3 sync "./characters" "s3://$R2_BUCKET_NAME/${TASK_ID}/characters" \
-    --endpoint-url "$R2_ENDPOINT_URL"
-
-echo "Character generation phase completed."
+echo "Character generation phase completed. All $ROLE_COUNT characters generated successfully."

@@ -458,23 +458,29 @@ export class TaskService {
   }
 
   async updateTaskProgress(body: any) {
-    const { task_id: taskId, phase, processed_count: processedCount, total_count: totalCount, failed_count: failedCount } = body;
-    
-    console.log('updateTaskProgress called:', { taskId, phase, processedCount, totalCount, failedCount });
-    
+    const { task_id: taskId, phase, processed_count: processedCount, total_count: totalCount, failed_count: failedCount, message } = body;
+
+    console.log('updateTaskProgress called:', { taskId, phase, processedCount, totalCount, failedCount, message });
+
     const progress = totalCount > 0 ? Math.round((processedCount / totalCount) * 100) : 0;
-    
+
     await this.env.DB.prepare(`
       UPDATE tasks SET progress = ?, processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ?
     `).bind(progress, processedCount, totalCount, taskId).run();
-    
+
     if (failedCount) {
       await this.env.DB.prepare(`
         UPDATE tasks SET failed_frames = ? WHERE id = ?
       `).bind(failedCount, taskId).run();
     }
-    
+
+    if (message) {
+      await this.env.DB.prepare(`
+        UPDATE tasks SET status_message = ? WHERE id = ?
+      `).bind(message, taskId).run();
+    }
+
     console.log('updateTaskProgress: Progress updated for task', taskId);
     return { success: true, taskId, progress };
   }

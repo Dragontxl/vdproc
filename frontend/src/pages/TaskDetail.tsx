@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider } from 'antd';
+import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider, Alert, Progress } from 'antd';
 import {
   PlayCircleOutlined,
   StopOutlined,
@@ -233,6 +233,17 @@ export default function TaskDetail() {
       </div>
 
       <Card title="基本信息" style={{ marginBottom: 24 }}>
+        {task.status_message && (
+          <Alert
+            message={task.status_message}
+            type={task.status === 'FAILED' ? 'error' : 'info'}
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+        )}
+        {task.progress > 0 && task.status !== 'COMPLETED' && task.status !== 'FAILED' && (
+          <Progress percent={task.progress} status="active" style={{ marginBottom: 16 }} />
+        )}
         <Descriptions bordered column={2}>
           <Descriptions.Item label="任务ID">{task.id}</Descriptions.Item>
           <Descriptions.Item label="标题">{task.title}</Descriptions.Item>

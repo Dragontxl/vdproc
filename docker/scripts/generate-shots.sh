@@ -42,7 +42,42 @@ fi
 echo "Available AI accounts: $ACCOUNT_COUNT"
 echo "Concurrency: $ACCOUNT_COUNT"
 
-python3 << PYTHON_SCRIPT
+MAX_ROUNDS=3
+PENDING_FILE="/tmp/pending_indices.txt"
+MISSING_FILE="/tmp/missing_indices.txt"
+
+seq -s, 0 $((SHOT_COUNT - 1)) > "$PENDING_FILE"
+
+report_progress() {
+    local round=$1
+    local processed=$2
+    local total=$SHOT_COUNT
+    local failed=$3
+    local message="第${round}轮: 已完成 ${processed}/${total} 个分镜"
+    if [ "$failed" -gt 0 ]; then
+        message="${message}, ${failed}个失败待重试"
+    fi
+    echo "Reporting progress: $message"
+    set +e
+    curl -s --connect-timeout 10 --max-time 30 -X POST "$CALLBACK_URL/progress" \
+        -H "Content-Type: application/json" \
+        -H "X-Callback-Signature: $CALLBACK_SECRET" \
+        -d "{\"task_id\":\"$TASK_ID\",\"phase\":\"GENERATE_SHOTS\",\"processed_count\":$processed,\"total_count\":$total,\"failed_count\":$failed,\"message\":\"$message\"}" > /dev/null 2>&1
+    set -e
+}
+
+for round in $(seq 1 $MAX_ROUNDS); do
+    PENDING_INDICES=$(cat "$PENDING_FILE")
+    if [ -z "$PENDING_INDICES" ]; then
+        echo "All shots completed at round $((round - 1))"
+        break
+    fi
+
+    echo "=== Round $round/$MAX_ROUNDS: Processing shots [$PENDING_INDICES] ==="
+
+    export PENDING_INDICES
+
+    python3 << PYTHON_SCRIPT
 import json
 import os
 import sys
@@ -55,14 +90,18 @@ ssl._create_default_https_context = ssl._create_unverified_context
 
 task_id = os.environ.get('TASK_ID')
 ai_accounts_json = os.environ.get('AI_ACCOUNTS', '[]')
-r2_bucket = os.environ.get('R2_BUCKET_NAME')
-r2_endpoint = os.environ.get('R2_ENDPOINT_URL')
+pending_indices_str = os.environ.get('PENDING_INDICES', '')
 
 with open('./analysis_result.json', 'r') as f:
     result = json.load(f)
 
 storyboards = result.get('storyboards', [])
 accounts = json.loads(ai_accounts_json)
+
+if pending_indices_str:
+    pending_indices = [int(x) for x in pending_indices_str.split(',') if x.strip()]
+else:
+    pending_indices = list(range(len(storyboards)))
 
 def parse_time(time_str):
     parts = time_str.split(':')
@@ -92,7 +131,6 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index):
         'seed': 42
     }
 
-    json_data = json.dumps(request_body).encode('utf-8')
     max_retries = 3
     retry_delay = 10
 
@@ -223,66 +261,105 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index):
     print(f"  Shot {shot_index}: All accounts exhausted")
     return None
 
-success_count = 0
-failed_count = 0
+round_success = 0
+round_failed = 0
 
-for shot_index, shot in enumerate(storyboards):
+for shot_index in pending_indices:
+    shot = storyboards[shot_index]
     start_time = shot.get('start_time', '00:00:00.000')
     end_time = shot.get('end_time', '00:00:00.000')
     start_sec = parse_time(start_time)
     end_sec = parse_time(end_time)
     duration = end_sec - start_sec
-    
+
     print(f"Processing shot {shot_index}: {start_time} - {end_time} (duration={duration:.3f}s)")
-    
+
     first_frame_url = f"https://aivideobucket.ldragon.xyz/{task_id}/ai_shot_frames/shot_{shot_index}_first.jpg"
     last_frame_url = f"https://aivideobucket.ldragon.xyz/{task_id}/ai_shot_frames/shot_{shot_index}_last.jpg"
-    
+
     print(f"First frame URL: {first_frame_url}")
     print(f"Last frame URL: {last_frame_url}")
-    
+
     characters = shot.get('characters_present', [])
     speaker = shot.get('speaker', '')
     dialogue = shot.get('subtitles', '')
     scene_desc = shot.get('scene_description', '')
     positive_prompt = shot.get('positive_prompt', '')
     negative_prompt = shot.get('negative_prompt', '')
-    
+
     main_prompt = f"{positive_prompt}, American animation style, anime style, high quality, {scene_desc}"
     if dialogue and dialogue != 'null':
         main_prompt += f", dialogue: {dialogue}"
-    
+
     account_index = shot_index % len(accounts) if accounts else 0
 
     print(f"Shot {shot_index}: Starting with AI account index {account_index}")
 
     video_url = generate_video(accounts if accounts else None, account_index, [first_frame_url, last_frame_url], main_prompt, shot_index)
-    
+
     if video_url:
         print(f"Downloading generated video for shot {shot_index}...")
         try:
             urllib.request.urlretrieve(video_url, f'./generated_shots/shot_{shot_index}.mp4')
             print(f"Successfully generated shot {shot_index}")
-            success_count += 1
+            round_success += 1
         except Exception as e:
             print(f"Error downloading video for shot {shot_index}: {str(e)}")
-            failed_count += 1
+            round_failed += 1
     else:
         print(f"Error: Failed to generate shot {shot_index}")
-        failed_count += 1
+        round_failed += 1
 
-print("=== Shot Generation Complete ===")
-print(f"Total: {len(storyboards)}")
-print(f"Success: {success_count}")
-print(f"Failed: {failed_count}")
+missing = []
+for i in range(len(storyboards)):
+    filepath = f'./generated_shots/shot_{i}.mp4'
+    if not (os.path.exists(filepath) and os.path.getsize(filepath) > 0):
+        missing.append(str(i))
 
-if failed_count > 0:
-    print("Warning: Some shots failed to generate")
+with open('/tmp/missing_indices.txt', 'w') as f:
+    f.write(','.join(missing))
+
+print(f"=== Round Complete ===")
+print(f"Round success: {round_success}")
+print(f"Round failed: {round_failed}")
+print(f"Still missing: {','.join(missing) if missing else 'none'}")
 
 PYTHON_SCRIPT
 
-echo "Uploading generated shots..."
-aws s3 sync "./generated_shots" "s3://$R2_BUCKET_NAME/${TASK_ID}/generated_shots" \
-    --endpoint-url "$R2_ENDPOINT_URL"
+    echo "Uploading generated shots..."
+    aws s3 sync "./generated_shots" "s3://$R2_BUCKET_NAME/${TASK_ID}/generated_shots" \
+        --endpoint-url "$R2_ENDPOINT_URL"
 
-echo "Shot generation phase completed."
+    MISSING_INDICES=$(cat "$MISSING_FILE")
+
+    COMPLETED=$((SHOT_COUNT - $(echo "$MISSING_INDICES" | tr -cd ',' | wc -c) - $([ -z "$MISSING_INDICES" ] && echo 0 || echo 1)))
+    if [ -z "$MISSING_INDICES" ]; then
+        COMPLETED=$SHOT_COUNT
+        FAILED_COUNT=0
+    else
+        MISSING_COUNT=$(echo "$MISSING_INDICES" | tr ',' '\n' | grep -c .)
+        COMPLETED=$((SHOT_COUNT - MISSING_COUNT))
+        FAILED_COUNT=$MISSING_COUNT
+    fi
+
+    report_progress "$round" "$COMPLETED" "$FAILED_COUNT"
+
+    if [ -z "$MISSING_INDICES" ]; then
+        echo "=== All shots completed at round $round ==="
+        break
+    fi
+
+    echo "Round $round: $FAILED_COUNT shots still missing, will retry..."
+    echo "$MISSING_INDICES" > "$PENDING_FILE"
+
+done
+
+FINAL_MISSING=$(cat "$MISSING_FILE" 2>/dev/null || echo "")
+if [ -n "$FINAL_MISSING" ]; then
+    MISSING_COUNT=$(echo "$FINAL_MISSING" | tr ',' '\n' | grep -c .)
+    echo "ERROR: $MISSING_COUNT shots failed after $MAX_ROUNDS rounds: [$FINAL_MISSING]"
+    echo "Shots that could not be generated: $FINAL_MISSING"
+    exit 1
+fi
+
+echo "Shot generation phase completed. All $SHOT_COUNT shots generated successfully."

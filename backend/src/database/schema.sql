@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     error_msg TEXT,
     error_stack TEXT,
     tags TEXT,
-    priority INTEGER DEFAULT 0
+    priority INTEGER DEFAULT 0,
+    status_message TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
