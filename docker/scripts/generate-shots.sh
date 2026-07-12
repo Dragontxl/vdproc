@@ -74,9 +74,9 @@ def parse_time(time_str):
     return h * 3600 + m * 60 + s + ms / 1000
 
 def generate_video(account, image_urls, prompt, shot_index):
-    api_key = account.get('api_key_encrypted', '')
-    base_url = account.get('base_url', 'https://apihub.agnes-ai.com/v1/videos')
-    model_name = account.get('model_name', 'agnes-video-v2.0')
+    api_key = account.get('api_key_encrypted', '').strip()
+    base_url = account.get('base_url', 'https://apihub.agnes-ai.com/v1/videos').strip()
+    model_name = account.get('model_name', 'agnes-video-v2.0').strip()
     
     if not base_url.startswith('http'):
         base_url = 'https://' + base_url
@@ -110,6 +110,7 @@ def generate_video(account, image_urls, prompt, shot_index):
     
     for attempt in range(max_retries):
         try:
+            print(f"  Shot {shot_index}: Attempt {attempt+1}/{max_retries} - URL: {base_url}")
             req = urllib.request.Request(base_url, data=json_data, headers=headers, method='POST')
             resp = urllib.request.urlopen(req, timeout=300)
             resp_body = resp.read().decode('utf-8')
@@ -156,7 +157,9 @@ def generate_video(account, image_urls, prompt, shot_index):
             print(f"  Shot {shot_index}: Poll {poll_attempt+1}/{max_polls} - Status: {status}, Progress: {progress}%")
             
             if status == 'completed':
-                url = resp_data.get('remixed_from_video_id') or resp_data.get('video_url') or resp_data.get('output_url') or resp_data.get('url') or (resp_data.get('data', {}).get('url') if isinstance(resp_data.get('data'), dict) else None)
+                url = resp_data.get('remixed_from_video_id') or resp_data.get('video_url') or resp_data.get('output_url') or resp_data.get('url')
+                if isinstance(resp_data.get('data'), dict):
+                    url = url or resp_data.get('data').get('url')
                 if url:
                     print(f"  Shot {shot_index}: Got video URL: {url}")
                     return url
@@ -203,9 +206,14 @@ for shot_index, shot in enumerate(storyboards):
         main_prompt += f", dialogue: {dialogue}"
     
     account_index = shot_index % len(accounts) if accounts else 0
-    account = accounts[account_index] if accounts else {'api_key_encrypted': os.environ.get('AI_API_KEY', ''), 'base_url': os.environ.get('AI_BASE_URL', 'https://apihub.agnes-ai.com/v1/videos'), 'model_name': 'agnes-video-v2.0'}
+    default_account = {
+        'api_key_encrypted': os.environ.get('AI_API_KEY', '').strip(),
+        'base_url': os.environ.get('AI_BASE_URL', 'https://apihub.agnes-ai.com/v1/videos').strip(),
+        'model_name': 'agnes-video-v2.0'
+    }
+    account = accounts[account_index] if accounts else default_account
     
-    print(f"Shot {shot_index}: Using model {account.get('model_name', 'agnes-video-v2.0')} at {account.get('base_url', '')}")
+    print(f"Shot {shot_index}: Using model {account.get('model_name', '').strip() or 'agnes-video-v2.0'} at {account.get('base_url', '').strip()}")
     print(f"Shot {shot_index}: Using AI account index {account_index}")
     
     video_url = generate_video(account, [first_frame_url, last_frame_url], main_prompt, shot_index)
