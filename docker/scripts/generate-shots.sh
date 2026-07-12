@@ -121,8 +121,10 @@ process_shot() {
     
     for attempt in $(seq 1 $MAX_RETRIES); do
         echo "  Shot $shot_index: Attempt $attempt/$MAX_RETRIES..."
+        echo "  Shot $shot_index: Request URL: $selected_url"
+        echo "  Shot $shot_index: API Key: ${selected_key:0:10}..."
         
-        RESPONSE=$(curl -s -X POST \
+        RESPONSE=$(curl -v -X POST \
             --connect-timeout 60 \
             --max-time 300 \
             -w "\n%{http_code}" \
@@ -141,7 +143,7 @@ process_shot() {
                 \"height\": 480,
                 \"seed\": 42
             }" \
-            "$selected_url")
+            "$selected_url/generations")
         
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
         RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
