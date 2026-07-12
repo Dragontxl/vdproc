@@ -85,7 +85,7 @@ taskRoutes.post('/:id/start-phase/:phase', async (c) => {
     }, 400);
   }
   
-  const result = await taskService.startPhase(id, phase as TaskPhase);
+  const result = await taskService.triggerPhase(id, phase as TaskPhase);
   
   return c.json({
     code: 200,

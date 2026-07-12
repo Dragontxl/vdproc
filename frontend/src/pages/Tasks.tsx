@@ -271,7 +271,7 @@ export default function Tasks() {
           <Form.Item name="videoPath" label="视频路径" rules={[{ required: true }]}>
             <Input placeholder="R2存储中的视频路径" />
           </Form.Item>
-          <Form.Item name="prompt" label="提示词">
+          <Form.Item name="prompt" label="提示词" initialValue="修改为美式动画风格">
             <Input.TextArea placeholder="AI生成提示词" rows={3} />
           </Form.Item>
           <Form.Item name="fps" label="抽帧帧率" initialValue={30}>
