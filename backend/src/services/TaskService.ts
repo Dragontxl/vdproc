@@ -340,7 +340,7 @@ export class TaskService {
       }
     }
 
-    const phasesNeedingAllAccounts: TaskPhase[] = ['GENERATE_CHARACTERS', 'CONVERT_FRAMES', 'GENERATE_SHOTS'];
+    const phasesNeedingAllAccounts: TaskPhase[] = ['GENERATE_CHARACTERS', 'CONVERT_FRAMES'];
     if (phasesNeedingAllAccounts.includes(phase)) {
       const aiAccountsResult = await this.env.DB.prepare(`
         SELECT id, api_key_encrypted, base_url, model_name FROM ai_accounts
@@ -350,6 +350,33 @@ export class TaskService {
       if (aiAccountsResult.results && aiAccountsResult.results.length > 0) {
         const decryptedAccounts = await Promise.all(
           (aiAccountsResult.results as any[]).map(async (acc) => {
+            let decryptedKey = '';
+            if (acc.api_key_encrypted) {
+              try {
+                decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
+              } catch {
+                decryptedKey = acc.api_key_encrypted;
+              }
+            }
+            return {
+              ...acc,
+              api_key_encrypted: decryptedKey
+            };
+          })
+        );
+        aiAccountsJson = JSON.stringify(decryptedAccounts);
+      }
+    }
+    
+    if (phase === 'GENERATE_SHOTS') {
+      const videoAccountsResult = await this.env.DB.prepare(`
+        SELECT id, api_key_encrypted, base_url, model_name FROM ai_accounts
+        WHERE is_active = TRUE AND api_type = 'video' AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      `).all();
+
+      if (videoAccountsResult.results && videoAccountsResult.results.length > 0) {
+        const decryptedAccounts = await Promise.all(
+          (videoAccountsResult.results as any[]).map(async (acc) => {
             let decryptedKey = '';
             if (acc.api_key_encrypted) {
               try {

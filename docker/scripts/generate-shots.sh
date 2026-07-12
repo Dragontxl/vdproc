@@ -49,7 +49,7 @@ parse_time() {
     local m=$(echo "$t" | cut -d: -f2)
     local s=$(echo "$t" | cut -d: -f3 | cut -d. -f1)
     local ms=$(echo "$t" | cut -d. -f2)
-    echo "scale=3; $h*3600 + $m*60 + $s + $ms/1000" | bc
+    awk "BEGIN {printf \"%.3f\", $h*3600 + $m*60 + $s + $ms/1000}"
 }
 
 process_shot() {
@@ -70,7 +70,7 @@ process_shot() {
     
     START_SEC=$(parse_time "$START_TIME")
     END_SEC=$(parse_time "$END_TIME")
-    DURATION=$(echo "scale=3; $END_SEC - $START_SEC" | bc)
+    DURATION=$(awk "BEGIN {printf \"%.3f\", $END_SEC - $START_SEC}")
     
     echo "Processing shot $shot_index: $START_TIME - $END_TIME (duration=$DURATIONs)"
     
