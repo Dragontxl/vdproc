@@ -28,7 +28,7 @@ aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/analysis_result.json" "./analysis_res
     --endpoint-url "$R2_ENDPOINT_URL"
 
 RESULT=$(cat ./analysis_result.json)
-SHOT_COUNT=$(echo "$RESULT" | jq -r '.shots | length')
+SHOT_COUNT=$(echo "$RESULT" | jq -r '.storyboards | length')
 
 echo "Found $SHOT_COUNT shots to generate"
 
@@ -43,6 +43,15 @@ fi
 echo "Available AI accounts: $ACCOUNT_COUNT"
 echo "Concurrency: $ACCOUNT_COUNT"
 
+parse_time() {
+    local t="$1"
+    local h=$(echo "$t" | cut -d: -f1)
+    local m=$(echo "$t" | cut -d: -f2)
+    local s=$(echo "$t" | cut -d: -f3 | cut -d. -f1)
+    local ms=$(echo "$t" | cut -d. -f2)
+    echo "scale=3; $h*3600 + $m*60 + $s + $ms/1000" | bc
+}
+
 process_shot() {
     local shot_index="$1"
     local work_dir="$2"
@@ -50,17 +59,20 @@ process_shot() {
     
     cd "$work_dir"
     
-    START_TIME=$(echo "$RESULT" | jq -r ".shots[$shot_index].start_time")
-    END_TIME=$(echo "$RESULT" | jq -r ".shots[$shot_index].end_time")
-    DURATION=$(echo "$RESULT" | jq -r ".shots[$shot_index].duration")
-    CHARACTERS=$(echo "$RESULT" | jq -r ".shots[$shot_index].characters")
-    SPEAKER=$(echo "$RESULT" | jq -r ".shots[$shot_index].speaker")
-    DIALOGUE=$(echo "$RESULT" | jq -r ".shots[$shot_index].dialogue")
-    SCENE_DESC=$(echo "$RESULT" | jq -r ".shots[$shot_index].scene_description")
-    POSITIVE_PROMPT=$(echo "$RESULT" | jq -r ".shots[$shot_index].positive_prompt")
-    NEGATIVE_PROMPT=$(echo "$RESULT" | jq -r ".shots[$shot_index].negative_prompt")
+    START_TIME=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].start_time")
+    END_TIME=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].end_time")
+    CHARACTERS=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].characters_present")
+    SPEAKER=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].speaker")
+    DIALOGUE=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].subtitles")
+    SCENE_DESC=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].scene_description")
+    POSITIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].positive_prompt")
+    NEGATIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].negative_prompt")
     
-    FRAME_COUNT=$(echo "$DURATION * $OUTPUT_FPS" | bc | awk '{print int($1+0.5)}')
+    START_SEC=$(parse_time "$START_TIME")
+    END_SEC=$(parse_time "$END_TIME")
+    DURATION=$(echo "scale=3; $END_SEC - $START_SEC" | bc)
+    
+    echo "Processing shot $shot_index: $START_TIME - $END_TIME (duration=$DURATIONs)"
     
     FIRST_FRAME_KEY="${TASK_ID}/ai_shot_frames/shot_${shot_index}_first.jpg"
     LAST_FRAME_KEY="${TASK_ID}/ai_shot_frames/shot_${shot_index}_last.jpg"
@@ -68,12 +80,11 @@ process_shot() {
     FIRST_FRAME_URL="https://aivideobucket.ldragon.xyz/${FIRST_FRAME_KEY}"
     LAST_FRAME_URL="https://aivideobucket.ldragon.xyz/${LAST_FRAME_KEY}"
     
-    echo "Processing shot $shot_index: duration=$DURATIONs, frames=$FRAME_COUNT"
     echo "First frame URL: $FIRST_FRAME_URL"
     echo "Last frame URL: $LAST_FRAME_URL"
     
     MAIN_PROMPT="$POSITIVE_PROMPT, American animation style, anime style, high quality, $SCENE_DESC"
-    if [ -n "$DIALOGUE" ]; then
+    if [ -n "$DIALOGUE" ] && [ "$DIALOGUE" != "null" ]; then
         MAIN_PROMPT="$MAIN_PROMPT, dialogue: $DIALOGUE"
     fi
     
@@ -181,6 +192,7 @@ process_shot() {
 }
 
 export -f process_shot
+export -f parse_time
 export RESULT
 export TASK_ID
 export OUTPUT_FPS
@@ -191,7 +203,7 @@ export AI_BASE_URL
 
 rm -f "./shot_results.txt"
 
-echo "$RESULT" | jq -r '.shots | to_entries[] | .key' | \
+echo "$RESULT" | jq -r '.storyboards | to_entries[] | .key' | \
     xargs -P "$ACCOUNT_COUNT" -I {} bash -c 'process_shot "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS"
 
 SUCCESS_COUNT=$(grep -c ':SUCCESS' "./shot_results.txt" 2>/dev/null || echo 0)
