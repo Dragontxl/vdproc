@@ -146,6 +146,9 @@ process_shot() {
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
         RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
         
+        echo "  Shot $shot_index: HTTP Code: $HTTP_CODE"
+        echo "  Shot $shot_index: Response Body: $RESPONSE_BODY"
+        
         if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
             API_SUCCESS=1
             RESPONSE="$RESPONSE_BODY"
@@ -166,9 +169,59 @@ process_shot() {
         return 1
     fi
     
-    RESULT_URL=$(echo "$RESPONSE" | jq -r '.data[0].url // ""')
-    if [ -z "$RESULT_URL" ]; then
-        echo "Error: No result URL for shot $shot_index"
+    TASK_ID=$(echo "$RESPONSE" | jq -r '.task_id // .id // .taskId // ""')
+    RESULT_URL=$(echo "$RESPONSE" | jq -r '.data[0].url // .url // ""')
+    
+    if [ -n "$RESULT_URL" ] && [ "$RESULT_URL" != "null" ]; then
+        echo "  Shot $shot_index: Got direct result URL"
+    elif [ -n "$TASK_ID" ] && [ "$TASK_ID" != "null" ]; then
+        echo "  Shot $shot_index: Got task ID: $TASK_ID, polling for result..."
+        POLL_INTERVAL=15
+        MAX_POLL_ATTEMPTS=60
+        
+        for poll_attempt in $(seq 1 $MAX_POLL_ATTEMPTS); do
+            sleep $POLL_INTERVAL
+            
+            POLL_RESPONSE=$(curl -s -X GET \
+                --connect-timeout 30 \
+                --max-time 60 \
+                -w "\n%{http_code}" \
+                -H "Authorization: Bearer $selected_key" \
+                "$selected_url/$TASK_ID")
+            
+            POLL_HTTP_CODE=$(echo "$POLL_RESPONSE" | tail -n1)
+            POLL_BODY=$(echo "$POLL_RESPONSE" | sed '$d')
+            
+            echo "  Shot $shot_index: Poll attempt $poll_attempt/$MAX_POLL_ATTEMPTS, HTTP: $POLL_HTTP_CODE"
+            
+            if [ "$POLL_HTTP_CODE" -ge 200 ] && [ "$POLL_HTTP_CODE" -lt 300 ]; then
+                STATUS=$(echo "$POLL_BODY" | jq -r '.status // ""')
+                RESULT_URL=$(echo "$POLL_BODY" | jq -r '.data[0].url // .url // ""')
+                
+                echo "  Shot $shot_index: Status: $STATUS, URL: $RESULT_URL"
+                
+                if [ "$STATUS" = "completed" ] && [ -n "$RESULT_URL" ] && [ "$RESULT_URL" != "null" ]; then
+                    RESPONSE="$POLL_BODY"
+                    break
+                fi
+                
+                if [ "$STATUS" = "failed" ] || [ "$STATUS" = "error" ]; then
+                    echo "  Shot $shot_index: Task failed"
+                    rm -f "$lock_file"
+                    echo "$shot_index:FAILED" >> "./shot_results.txt"
+                    return 1
+                fi
+            fi
+            
+            if [ $poll_attempt -eq $MAX_POLL_ATTEMPTS ]; then
+                echo "  Shot $shot_index: Polling timeout"
+                rm -f "$lock_file"
+                echo "$shot_index:FAILED" >> "./shot_results.txt"
+                return 1
+            fi
+        done
+    else
+        echo "Error: No task ID or result URL for shot $shot_index"
         rm -f "$lock_file"
         echo "$shot_index:FAILED" >> "./shot_results.txt"
         return 1
