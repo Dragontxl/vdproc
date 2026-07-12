@@ -128,7 +128,8 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index):
             'Authorization': 'Bearer ' + api_key
         }
 
-        print(f"  Shot {shot_index}: Using AI account index {cand_idx} (model={model_name}, URL={base_url})")
+        db_account_id = account.get('id') if accounts_list else 'default'
+        print(f"  Shot {shot_index}: Using AI account index {cand_idx} (db_id={db_account_id}, model={model_name}, URL={base_url})")
 
         task_id_result = None
         video_id_result = None
@@ -173,7 +174,7 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index):
                     time.sleep(retry_delay)
 
         if auth_failed:
-            print(f"  Shot {shot_index}: Account index {cand_idx} returned 401, marking as bad and trying next account")
+            print(f"  Shot {shot_index}: Account index {cand_idx} (db_id={db_account_id}) returned 401, marking as bad and trying next account")
             bad_accounts.add(cand_idx)
             continue
 
