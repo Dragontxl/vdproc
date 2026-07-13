@@ -85,6 +85,8 @@ import time
 import urllib.request
 import urllib.error
 import ssl
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
@@ -113,6 +115,12 @@ def parse_time(time_str):
     return h * 3600 + m * 60 + s + ms / 1000
 
 bad_accounts = set()
+bad_accounts_lock = threading.Lock()
+
+if accounts:
+    account_locks = [threading.Lock() for _ in range(len(accounts))]
+else:
+    account_locks = [threading.Lock()]
 
 def generate_video(accounts_list, start_index, image_urls, prompt, shot_index):
     full_prompt = "在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。" + prompt
@@ -138,133 +146,134 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index):
     if accounts_list:
         for offset in range(len(accounts_list)):
             idx = (start_index + offset) % len(accounts_list)
-            if idx not in bad_accounts:
-                candidates.append(idx)
+            with bad_accounts_lock:
+                if idx not in bad_accounts:
+                    candidates.append(idx)
     if not candidates:
         for offset in range(len(accounts_list) if accounts_list else 1):
             candidates.append(offset)
 
     for cand_idx in candidates:
-        if accounts_list:
-            account = accounts_list[cand_idx]
-            api_key = account.get('api_key_encrypted', '').strip()
-            base_url = account.get('base_url', 'https://apihub.agnes-ai.com/v1/videos').strip()
-            model_name = account.get('model_name', 'agnes-video-v2.0').strip()
-        else:
-            api_key = os.environ.get('AI_API_KEY', '').strip()
-            base_url = os.environ.get('AI_BASE_URL', 'https://apihub.agnes-ai.com/v1/videos').strip()
-            model_name = 'agnes-video-v2.0'
+        lock = account_locks[cand_idx] if cand_idx < len(account_locks) else account_locks[0]
+        with lock:
+            if accounts_list:
+                account = accounts_list[cand_idx]
+                api_key = account.get('api_key_encrypted', '').strip()
+                base_url = account.get('base_url', 'https://apihub.agnes-ai.com/v1/videos').strip()
+                model_name = account.get('model_name', 'agnes-video-v2.0').strip()
+            else:
+                api_key = os.environ.get('AI_API_KEY', '').strip()
+                base_url = os.environ.get('AI_BASE_URL', 'https://apihub.agnes-ai.com/v1/videos').strip()
+                model_name = 'agnes-video-v2.0'
 
-        if not base_url.startswith('http'):
-            base_url = 'https://' + base_url
+            if not base_url.startswith('http'):
+                base_url = 'https://' + base_url
 
-        request_body['model'] = model_name
-        json_data = json.dumps(request_body).encode('utf-8')
+            request_body['model'] = model_name
+            json_data = json.dumps(request_body).encode('utf-8')
 
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + api_key
-        }
+            headers = {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + api_key
+            }
 
-        db_account_id = account.get('id') if accounts_list else 'default'
-        print(f"  Shot {shot_index}: Using AI account index {cand_idx} (db_id={db_account_id}, model={model_name}, URL={base_url})")
+            db_account_id = account.get('id') if accounts_list else 'default'
+            print(f"  Shot {shot_index}: Using AI account index {cand_idx} (db_id={db_account_id}, model={model_name}, URL={base_url})")
 
-        task_id_result = None
-        video_id_result = None
-        auth_failed = False
+            task_id_result = None
+            video_id_result = None
+            auth_failed = False
 
-        for attempt in range(max_retries):
-            try:
-                print(f"  Shot {shot_index}: Attempt {attempt+1}/{max_retries} - URL: {base_url}")
-                req = urllib.request.Request(base_url, data=json_data, headers=headers, method='POST')
-                resp = urllib.request.urlopen(req, timeout=300)
-                resp_body = resp.read().decode('utf-8')
-                resp_data = json.loads(resp_body)
+            for attempt in range(max_retries):
+                try:
+                    print(f"  Shot {shot_index}: Attempt {attempt+1}/{max_retries} - URL: {base_url}")
+                    req = urllib.request.Request(base_url, data=json_data, headers=headers, method='POST')
+                    resp = urllib.request.urlopen(req, timeout=300)
+                    resp_body = resp.read().decode('utf-8')
+                    resp_data = json.loads(resp_body)
 
-                print(f"  Shot {shot_index}: Attempt {attempt+1}/{max_retries} - HTTP 200")
-                print(f"  Shot {shot_index}: Response: {resp_body[:500]}...")
+                    print(f"  Shot {shot_index}: Attempt {attempt+1}/{max_retries} - HTTP 200")
+                    print(f"  Shot {shot_index}: Response: {resp_body[:500]}...")
 
-                task_id_result = resp_data.get('task_id') or resp_data.get('id') or resp_data.get('taskId')
-                video_id_result = resp_data.get('video_id')
+                    task_id_result = resp_data.get('task_id') or resp_data.get('id') or resp_data.get('taskId')
+                    video_id_result = resp_data.get('video_id')
 
-                if task_id_result:
-                    print(f"  Shot {shot_index}: Got task ID: {task_id_result}")
-                    if video_id_result:
-                        print(f"  Shot {shot_index}: Got video ID: {video_id_result}")
-                    break
+                    if task_id_result:
+                        print(f"  Shot {shot_index}: Got task ID: {task_id_result}")
+                        if video_id_result:
+                            print(f"  Shot {shot_index}: Got video ID: {video_id_result}")
+                        break
 
-                url = resp_data.get('remixed_from_video_id') or resp_data.get('video_url') or resp_data.get('output_url') or resp_data.get('url')
-                if url:
-                    print(f"  Shot {shot_index}: Got direct URL: {url}")
-                    return url
-
-            except urllib.error.HTTPError as e:
-                err_msg = f"HTTP Error {e.code}: {e.reason}"
-                print(f"  Shot {shot_index}: Attempt {attempt+1}/{max_retries} failed: {err_msg}")
-                if e.code == 401:
-                    auth_failed = True
-                    break
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-            except Exception as e:
-                print(f"  Shot {shot_index}: Attempt {attempt+1}/{max_retries} failed: {str(e)}")
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-
-        if auth_failed:
-            print(f"  Shot {shot_index}: Account index {cand_idx} (db_id={db_account_id}) returned 401, marking as bad and trying next account")
-            bad_accounts.add(cand_idx)
-            continue
-
-        if not task_id_result:
-            print(f"  Shot {shot_index}: Failed to get task ID with account {cand_idx}, trying next account")
-            continue
-
-        print(f"  Shot {shot_index}: Polling for result...")
-        max_polls = 90
-        poll_interval = 10
-
-        query_id = video_id_result if video_id_result else task_id_result
-
-        for poll_attempt in range(max_polls):
-            time.sleep(poll_interval)
-            try:
-                poll_url = f"https://apihub.agnes-ai.com/agnesapi?video_id={query_id}"
-                req = urllib.request.Request(poll_url, headers={'Authorization': 'Bearer ' + api_key}, method='GET')
-                resp = urllib.request.urlopen(req, timeout=30)
-                resp_body = resp.read().decode('utf-8')
-                resp_data = json.loads(resp_body)
-
-                status = resp_data.get('status', '')
-                progress = resp_data.get('progress', 0)
-                print(f"  Shot {shot_index}: Poll {poll_attempt+1}/{max_polls} - Status: {status}, Progress: {progress}%")
-
-                if status == 'completed':
-                    print(f"  Shot {shot_index}: Completed response: {resp_body[:2000]}")
-                    url = resp_data.get('url')
+                    url = resp_data.get('remixed_from_video_id') or resp_data.get('video_url') or resp_data.get('output_url') or resp_data.get('url')
                     if url:
-                        print(f"  Shot {shot_index}: Got video URL: {url}")
+                        print(f"  Shot {shot_index}: Got direct URL: {url}")
                         return url
-                    print(f"  Shot {shot_index}: Task completed but no URL found")
-                    return None
-                elif status in ['failed', 'error']:
-                    error_msg = resp_data.get('error', 'Unknown error')
-                    print(f"  Shot {shot_index}: Task failed: {error_msg}")
-                    return None
 
-            except Exception as e:
-                print(f"  Shot {shot_index}: Poll {poll_attempt+1} failed: {str(e)}")
+                except urllib.error.HTTPError as e:
+                    err_msg = f"HTTP Error {e.code}: {e.reason}"
+                    print(f"  Shot {shot_index}: Attempt {attempt+1}/{max_retries} failed: {err_msg}")
+                    if e.code == 401:
+                        auth_failed = True
+                        break
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                except Exception as e:
+                    print(f"  Shot {shot_index}: Attempt {attempt+1}/{max_retries} failed: {str(e)}")
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
 
-        print(f"  Shot {shot_index}: Polling timeout")
-        return None
+            if auth_failed:
+                print(f"  Shot {shot_index}: Account index {cand_idx} (db_id={db_account_id}) returned 401, marking as bad and trying next account")
+                with bad_accounts_lock:
+                    bad_accounts.add(cand_idx)
+                continue
+
+            if not task_id_result:
+                print(f"  Shot {shot_index}: Failed to get task ID with account {cand_idx}, trying next account")
+                continue
+
+            print(f"  Shot {shot_index}: Polling for result...")
+            max_polls = 90
+            poll_interval = 10
+
+            query_id = video_id_result if video_id_result else task_id_result
+
+            for poll_attempt in range(max_polls):
+                time.sleep(poll_interval)
+                try:
+                    poll_url = f"https://apihub.agnes-ai.com/agnesapi?video_id={query_id}"
+                    req = urllib.request.Request(poll_url, headers={'Authorization': 'Bearer ' + api_key}, method='GET')
+                    resp = urllib.request.urlopen(req, timeout=30)
+                    resp_body = resp.read().decode('utf-8')
+                    resp_data = json.loads(resp_body)
+
+                    status = resp_data.get('status', '')
+                    progress = resp_data.get('progress', 0)
+                    print(f"  Shot {shot_index}: Poll {poll_attempt+1}/{max_polls} - Status: {status}, Progress: {progress}%")
+
+                    if status == 'completed':
+                        print(f"  Shot {shot_index}: Completed response: {resp_body[:2000]}")
+                        url = resp_data.get('url')
+                        if url:
+                            print(f"  Shot {shot_index}: Got video URL: {url}")
+                            return url
+                        print(f"  Shot {shot_index}: Task completed but no URL found")
+                        return None
+                    elif status in ['failed', 'error']:
+                        error_msg = resp_data.get('error', 'Unknown error')
+                        print(f"  Shot {shot_index}: Task failed: {error_msg}")
+                        return None
+
+                except Exception as e:
+                    print(f"  Shot {shot_index}: Poll {poll_attempt+1} failed: {str(e)}")
+
+            print(f"  Shot {shot_index}: Polling timeout")
+            return None
 
     print(f"  Shot {shot_index}: All accounts exhausted")
     return None
 
-round_success = 0
-round_failed = 0
-
-for shot_index in pending_indices:
+def process_shot(shot_index):
     shot = storyboards[shot_index]
     start_time = shot.get('start_time', '00:00:00.000')
     end_time = shot.get('end_time', '00:00:00.000')
@@ -302,13 +311,29 @@ for shot_index in pending_indices:
         try:
             urllib.request.urlretrieve(video_url, f'./generated_shots/shot_{shot_index}.mp4')
             print(f"Successfully generated shot {shot_index}")
-            round_success += 1
+            return (shot_index, True)
         except Exception as e:
             print(f"Error downloading video for shot {shot_index}: {str(e)}")
-            round_failed += 1
+            return (shot_index, False)
     else:
         print(f"Error: Failed to generate shot {shot_index}")
-        round_failed += 1
+        return (shot_index, False)
+
+max_workers = len(accounts) if accounts else 1
+print(f"Starting concurrent shot generation with {max_workers} workers...")
+
+round_success = 0
+round_failed = 0
+
+with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    futures = {executor.submit(process_shot, idx): idx for idx in pending_indices}
+    
+    for future in as_completed(futures):
+        shot_index, success = future.result()
+        if success:
+            round_success += 1
+        else:
+            round_failed += 1
 
 missing = []
 for i in range(len(storyboards)):
