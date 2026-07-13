@@ -130,9 +130,14 @@ else:
 def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, duration_seconds, output_fps):
     full_prompt = "在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。" + prompt
 
-    num_frames = int(duration_seconds * output_fps)
-    if num_frames % 8 != 1:
-        num_frames = ((num_frames // 8) + 1) * 8 + 1
+    target_frames = int(duration_seconds * output_fps)
+    if target_frames < 9:
+        num_frames = 9
+    else:
+        n = (target_frames - 1) // 8
+        num_frames = n * 8 + 1
+        if num_frames < 9:
+            num_frames = 9
 
     request_body = {
         'model': 'agnes-video-v2.0',
@@ -147,6 +152,9 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
         'height': 480,
         'seed': 42
     }
+
+    print(f"  Shot {shot_index}: Duration: {duration_seconds:.3f}s, FPS: {output_fps}, Target frames: {num_frames}")
+    print(f"  Shot {shot_index}: Request body num_frames: {num_frames}, frame_rate: {output_fps}, expected duration: {num_frames/output_fps:.2f}s")
 
     max_retries = 3
     retry_delay = 10
