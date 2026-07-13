@@ -74,7 +74,7 @@ for attempt in $(seq 1 $MAX_RETRIES); do
     RESP=$(curl -s -w "\n%{http_code}" -X POST "$CALLBACK_URL/complete" \
         -H "Content-Type: application/json" \
         -H "X-Callback-Signature: $CALLBACK_SECRET" \
-        -d "{\"task_id\":\"$TASK_ID\",\"final_video_url\":\"$FINAL_URL\",\"total_frames\":$SHOT_COUNT}")
+        -d "{\"task_id\":\"$TASK_ID\",\"phase\":\"COMPOSE\",\"data\":{\"final_video_url\":\"$FINAL_URL\",\"total_frames\":$SHOT_COUNT}}")
     
     HTTP_CODE=$(echo "$RESP" | tail -n1)
     
