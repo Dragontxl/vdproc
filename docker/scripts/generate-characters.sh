@@ -72,77 +72,93 @@ process_character() {
 
     PROMPT="American animation style character design, white background, full body portrait, professional character sheet, clean line art, vibrant colors, high quality, anime style, based on the provided reference image"
 
-    local selected_key="$AI_API_KEY"
-    local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/images/generations"
-    local account_index=0
+    local ACCOUNT_COUNT=$(echo "$ai_accounts" | jq -r '. | length')
+    local START_ACCOUNT_INDEX=$((char_index % ACCOUNT_COUNT))
 
-    if [ -n "$ai_accounts" ]; then
-        account_index=$((char_index % $(echo "$ai_accounts" | jq -r '. | length')))
-        selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
-        selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
-        if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
-            selected_url="https://apihub.agnes-ai.com/v1/images/generations"
-        fi
-    fi
-
-    local lock_file="./locks/account_${account_index}.lock"
-
-    exec 200>"$lock_file"
-    flock -x 200
-
-    echo "Character $ROLE_ID: Using AI account index $account_index"
-
-    MAX_RETRIES=3
+    MAX_RETRIES_PER_ACCOUNT=3
     RETRY_DELAY=5
     API_SUCCESS=0
     RESPONSE=""
 
-    for attempt in $(seq 1 $MAX_RETRIES); do
-        echo "  Character $ROLE_ID: Attempt $attempt/$MAX_RETRIES..."
-        echo "  Character $ROLE_ID: API URL: ${selected_url:0:50}..."
-        echo "  Character $ROLE_ID: API Key: ${selected_key:0:10}..."
+    for account_offset in $(seq 0 $((ACCOUNT_COUNT - 1))); do
+        local account_index=$(((START_ACCOUNT_INDEX + account_offset) % ACCOUNT_COUNT))
 
-        RESPONSE=$(curl -s -X POST \
-            --connect-timeout 30 \
-            --max-time 120 \
-            -w "\n%{http_code}" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $selected_key" \
-            -d "{
-                \"model\": \"agnes-image-2.1-flash\",
-                \"prompt\": \"$PROMPT\",
-                \"size\": \"1024x1024\",
-                \"extra_body\": {
-                    \"image\": [\"data:image/jpeg;base64,$INPUT_IMAGE_BASE64\"],
-                    \"response_format\": \"url\"
-                }
-            }" \
-            "$selected_url")
-
-        HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-        RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
-
-        echo "  Character $ROLE_ID: HTTP code: $HTTP_CODE"
-        if [ ${#RESPONSE_BODY} -gt 0 ]; then
-            echo "  Character $ROLE_ID: Response (first 500 chars): ${RESPONSE_BODY:0:500}"
+        if grep -q "^$account_index$" "./bad_accounts.txt" 2>/dev/null; then
+            echo "  Character $ROLE_ID: Skipping bad account index $account_index"
+            continue
         fi
 
-        if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-            API_SUCCESS=1
-            RESPONSE="$RESPONSE_BODY"
+        local selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
+        local selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
+        if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
+            selected_url="https://apihub.agnes-ai.com/v1/images/generations"
+        fi
+
+        local lock_file="./locks/account_${account_index}.lock"
+
+        exec 200>"$lock_file"
+        flock -x 200
+
+        echo "Character $ROLE_ID: Using AI account index $account_index"
+
+        for attempt in $(seq 1 $MAX_RETRIES_PER_ACCOUNT); do
+            echo "  Character $ROLE_ID: Attempt $attempt/$MAX_RETRIES_PER_ACCOUNT..."
+            echo "  Character $ROLE_ID: API URL: ${selected_url:0:50}..."
+            echo "  Character $ROLE_ID: API Key: ${selected_key:0:10}..."
+
+            RESPONSE=$(curl -s -X POST \
+                --connect-timeout 30 \
+                --max-time 120 \
+                -w "\n%{http_code}" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $selected_key" \
+                -d "{
+                    \"model\": \"agnes-image-2.1-flash\",
+                    \"prompt\": \"$PROMPT\",
+                    \"size\": \"1024x1024\",
+                    \"extra_body\": {
+                        \"image\": [\"data:image/jpeg;base64,$INPUT_IMAGE_BASE64\"],
+                        \"response_format\": \"url\"
+                    }
+                }" \
+                "$selected_url")
+
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
+
+            echo "  Character $ROLE_ID: HTTP code: $HTTP_CODE"
+            if [ ${#RESPONSE_BODY} -gt 0 ]; then
+                echo "  Character $ROLE_ID: Response (first 500 chars): ${RESPONSE_BODY:0:500}"
+            fi
+
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+                API_SUCCESS=1
+                RESPONSE="$RESPONSE_BODY"
+                break 2
+            fi
+
+            if [ "$HTTP_CODE" -eq 401 ]; then
+                echo "  Character $ROLE_ID: Account $account_index returned 401, marking as bad"
+                echo "$account_index" >> "./bad_accounts.txt"
+                flock -u 200
+                break
+            fi
+
+            if [ $attempt -lt $MAX_RETRIES_PER_ACCOUNT ]; then
+                sleep $RETRY_DELAY
+            fi
+        done
+
+        flock -u 200
+
+        if [ $API_SUCCESS -eq 1 ]; then
             break
-        fi
-
-        if [ $attempt -lt $MAX_RETRIES ]; then
-            sleep $RETRY_DELAY
         fi
     done
 
-    flock -u 200
-
     if [ $API_SUCCESS -ne 1 ]; then
-        echo "Error: Failed to generate character $ROLE_ID"
-        rm -f "./reference_${char_index}.jpg" "$lock_file"
+        echo "Error: Failed to generate character $ROLE_ID after trying all available accounts"
+        rm -f "./reference_${char_index}.jpg"
         echo "${ROLE_ID}:FAILED" >> "./character_results.txt"
         return 1
     fi
@@ -150,7 +166,7 @@ process_character() {
     RESULT_URL=$(echo "$RESPONSE" | jq -r '.data[0].url // ""')
     if [ -z "$RESULT_URL" ]; then
         echo "Error: No result URL for character $ROLE_ID"
-        rm -f "./reference_${char_index}.jpg" "$lock_file"
+        rm -f "./reference_${char_index}.jpg"
         echo "${ROLE_ID}:FAILED" >> "./character_results.txt"
         return 1
     fi
@@ -160,12 +176,12 @@ process_character() {
 
     if [ ! -f "./characters/${ROLE_ID}.png" ] || [ ! -s "./characters/${ROLE_ID}.png" ]; then
         echo "Error: Downloaded character image is empty"
-        rm -f "./reference_${char_index}.jpg" "$lock_file"
+        rm -f "./reference_${char_index}.jpg"
         echo "${ROLE_ID}:FAILED" >> "./character_results.txt"
         return 1
     fi
 
-    rm -f "./reference_${char_index}.jpg" "$lock_file"
+    rm -f "./reference_${char_index}.jpg"
     echo "${ROLE_ID}:SUCCESS" >> "./character_results.txt"
     echo "Successfully generated character $ROLE_ID"
 
