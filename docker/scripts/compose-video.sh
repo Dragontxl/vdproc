@@ -22,7 +22,7 @@ aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/analysis_result.json" "./analysis_res
     --endpoint-url "$R2_ENDPOINT_URL"
 
 RESULT=$(cat ./analysis_result.json)
-SHOT_COUNT=$(echo "$RESULT" | jq -r '.shots | length')
+SHOT_COUNT=$(echo "$RESULT" | jq -r '.storyboards | length')
 
 echo "Found $SHOT_COUNT shots to compose"
 
