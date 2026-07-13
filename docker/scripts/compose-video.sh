@@ -40,7 +40,7 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
 done
 
 echo "Creating concat list..."
-ls -1 ./downloaded_shots/*.mp4 | sort -V > ./file_list.txt
+ls -1 ./downloaded_shots/*.mp4 | sort -V | sed 's/^/file '\''/' | sed 's/$/'\''/' > ./file_list.txt
 
 if [ ! -s ./file_list.txt ]; then
     echo "Error: No valid shot videos found"
