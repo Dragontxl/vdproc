@@ -76,24 +76,18 @@ process_frame() {
 
     echo "Processing shot $shot_index, ${frame_type} frame..."
 
-    if ! aws s3 cp "s3://$R2_BUCKET_NAME/$FRAME_KEY" "./input_${shot_index}_${frame_type}.jpg" --endpoint-url "$R2_ENDPOINT_URL"; then
-        echo "Warning: Frame $FRAME_KEY not found, skipping..."
-        echo "${shot_index}_${frame_type}:SKIPPED" >> "./frame_results.txt"
-        return 0
-    fi
+    R2_PUBLIC_URL="https://aivideobucket.ldragon.xyz"
+    INPUT_IMAGE_URL="${R2_PUBLIC_URL}/${FRAME_KEY}"
 
-    INPUT_IMAGE_BASE64=$(base64 -w0 "./input_${shot_index}_${frame_type}.jpg")
+    echo "  Input image URL: $INPUT_IMAGE_URL"
 
-    CHARACTER_IMAGE_BASE64=""
+    CHARACTER_IMAGE_URL=""
     if [ -n "$CHARACTERS" ] && [ "$CHARACTERS" != "null" ] && [ "$CHARACTERS" != "[]" ]; then
         FIRST_CHARACTER=$(echo "$CHARACTERS" | jq -r '.[0] // ""')
         if [ -n "$FIRST_CHARACTER" ]; then
             CHAR_FRAME_KEY="${TASK_ID}/character_frames/${FIRST_CHARACTER}_best.jpg"
-            echo "Downloading character reference: $CHAR_FRAME_KEY"
-            if aws s3 cp "s3://$R2_BUCKET_NAME/$CHAR_FRAME_KEY" "./char_ref_${shot_index}.jpg" --endpoint-url "$R2_ENDPOINT_URL"; then
-                CHARACTER_IMAGE_BASE64=$(base64 -w0 "./char_ref_${shot_index}.jpg")
-                echo "Character reference loaded for shot $shot_index"
-            fi
+            CHARACTER_IMAGE_URL="${R2_PUBLIC_URL}/${CHAR_FRAME_KEY}"
+            echo "  Character reference URL: $CHARACTER_IMAGE_URL"
         fi
     fi
 
@@ -125,9 +119,9 @@ process_frame() {
     for attempt in $(seq 1 $MAX_RETRIES); do
         echo "  Shot $shot_index ${frame_type}: Attempt $attempt/$MAX_RETRIES..."
 
-        IMAGE_ARRAY="[\"data:image/jpeg;base64,$INPUT_IMAGE_BASE64\"]"
-        if [ -n "$CHARACTER_IMAGE_BASE64" ]; then
-            IMAGE_ARRAY="[\"data:image/jpeg;base64,$INPUT_IMAGE_BASE64\", \"data:image/jpeg;base64,$CHARACTER_IMAGE_BASE64\"]"
+        IMAGE_ARRAY="[\"$INPUT_IMAGE_URL\"]"
+        if [ -n "$CHARACTER_IMAGE_URL" ]; then
+            IMAGE_ARRAY="[\"$INPUT_IMAGE_URL\", \"$CHARACTER_IMAGE_URL\"]"
             echo "  Shot $shot_index ${frame_type}: Using character reference image"
         else
             echo "  Shot $shot_index ${frame_type}: No character reference available"
