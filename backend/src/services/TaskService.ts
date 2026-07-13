@@ -340,16 +340,52 @@ export class TaskService {
       }
     }
 
+    const activeGhAccountsResult = await this.env.DB.prepare(`
+      SELECT COUNT(*) as count FROM github_accounts 
+      WHERE is_active = TRUE AND (is_limited IS NULL OR is_limited = FALSE)
+    `).first();
+    const activeGhAccountCount = activeGhAccountsResult ? parseInt((activeGhAccountsResult as { count: string }).count) : 0;
+    const maxConcurrent = activeGhAccountCount * 2;
+
+    const lockAIAccounts = async (apiType?: string, limit?: number) => {
+      const accountsToLock = limit || maxConcurrent;
+      const typeCondition = apiType ? ' AND api_type = ?' : '';
+      const params: (string | number)[] = apiType ? [apiType] : [];
+      
+      const lockTime = new Date(Date.now() + 3600 * 1000);
+      
+      const lockQuery = `
+        UPDATE ai_accounts
+        SET cooldown_until = ?
+        WHERE is_active = TRUE 
+          AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+          ${typeCondition}
+        ORDER BY priority_weight DESC, total_usage ASC
+        LIMIT ?
+      `;
+      params.push(lockTime.toISOString(), accountsToLock);
+      
+      await this.env.DB.prepare(lockQuery).bind(...params).run();
+      
+      const selectQuery = `
+        SELECT id, api_key_encrypted, base_url, model_name FROM ai_accounts
+        WHERE is_active = TRUE 
+          AND cooldown_until = ?
+          ${typeCondition}
+      `;
+      const selectParams = [lockTime.toISOString(), ...(apiType ? [apiType] : [])];
+      
+      const result = await this.env.DB.prepare(selectQuery).bind(...selectParams).all();
+      return result.results || [];
+    };
+
     const phasesNeedingAllAccounts: TaskPhase[] = ['GENERATE_CHARACTERS', 'CONVERT_FRAMES'];
     if (phasesNeedingAllAccounts.includes(phase)) {
-      const aiAccountsResult = await this.env.DB.prepare(`
-        SELECT id, api_key_encrypted, base_url, model_name FROM ai_accounts
-        WHERE is_active = TRUE AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-      `).all();
+      const lockedAccounts = await lockAIAccounts(undefined, maxConcurrent);
 
-      if (aiAccountsResult.results && aiAccountsResult.results.length > 0) {
+      if (lockedAccounts.length > 0) {
         const decryptedAccounts = await Promise.all(
-          (aiAccountsResult.results as any[]).map(async (acc) => {
+          (lockedAccounts as any[]).map(async (acc) => {
             let decryptedKey = '';
             if (acc.api_key_encrypted) {
               try {
@@ -371,14 +407,11 @@ export class TaskService {
     }
     
     if (phase === 'GENERATE_SHOTS') {
-      const videoAccountsResult = await this.env.DB.prepare(`
-        SELECT id, api_key_encrypted, base_url, model_name FROM ai_accounts
-        WHERE is_active = TRUE AND api_type = 'video' AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-      `).all();
+      const lockedAccounts = await lockAIAccounts('video', maxConcurrent);
 
-      if (videoAccountsResult.results && videoAccountsResult.results.length > 0) {
+      if (lockedAccounts.length > 0) {
         const decryptedAccounts = await Promise.all(
-          (videoAccountsResult.results as any[]).map(async (acc) => {
+          (lockedAccounts as any[]).map(async (acc) => {
             let decryptedKey = '';
             if (acc.api_key_encrypted) {
               try {
@@ -398,13 +431,6 @@ export class TaskService {
         aiAccountsJson = JSON.stringify(decryptedAccounts);
       }
     }
-
-    const activeGhAccountsResult = await this.env.DB.prepare(`
-      SELECT COUNT(*) as count FROM github_accounts 
-      WHERE is_active = TRUE AND (is_limited IS NULL OR is_limited = FALSE)
-    `).first();
-    const activeGhAccountCount = activeGhAccountsResult ? parseInt((activeGhAccountsResult as { count: string }).count) : 0;
-    const maxConcurrent = activeGhAccountCount * 2;
 
     const eventType = phase.toLowerCase().replace(/_/g, '-');
     const payload = {
@@ -503,6 +529,12 @@ export class TaskService {
       WHERE id = ?
     `).bind('COMPLETED', taskId).run();
     
+    await this.env.DB.prepare(`
+      UPDATE ai_accounts SET cooldown_until = NULL 
+      WHERE cooldown_until IS NOT NULL
+    `).run();
+    console.log('handleTaskComplete: Released all locked AI accounts');
+    
     await this.logTask(taskId, phase, 'INFO', `Task completed: ${JSON.stringify(data)}`);
     console.log('handleTaskComplete: Task marked as completed:', taskId);
     return { success: true, taskId };
@@ -517,6 +549,12 @@ export class TaskService {
       UPDATE tasks SET status = ?, failed_frames = failed_frames + 1, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ?
     `).bind('FAILED', taskId).run();
+    
+    await this.env.DB.prepare(`
+      UPDATE ai_accounts SET cooldown_until = NULL 
+      WHERE cooldown_until IS NOT NULL
+    `).run();
+    console.log('handleTaskError: Released all locked AI accounts');
     
     await this.logTask(taskId, phase, 'ERROR', `Task error: ${error}`);
     console.log('handleTaskError: Task marked as failed:', taskId);
