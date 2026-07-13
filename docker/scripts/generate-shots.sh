@@ -127,8 +127,12 @@ if accounts:
 else:
     account_locks = [threading.Lock()]
 
-def generate_video(accounts_list, start_index, image_urls, prompt, shot_index):
+def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, duration_seconds, output_fps):
     full_prompt = "在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。" + prompt
+
+    num_frames = int(duration_seconds * output_fps)
+    if num_frames % 8 != 1:
+        num_frames = ((num_frames // 8) + 1) * 8 + 1
 
     request_body = {
         'model': 'agnes-video-v2.0',
@@ -137,8 +141,8 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index):
             'image': image_urls,
             'mode': 'keyframes'
         },
-        'num_frames': 361,
-        'frame_rate': 24,
+        'num_frames': num_frames,
+        'frame_rate': output_fps,
         'width': 854,
         'height': 480,
         'seed': 42
@@ -307,10 +311,12 @@ def process_shot(shot_index):
         main_prompt += f", dialogue: {dialogue}"
 
     account_index = shot_index % len(accounts) if accounts else 0
+    output_fps = int(os.environ.get('OUTPUT_FPS', 24))
 
     print(f"Shot {shot_index}: Starting with AI account index {account_index}")
+    print(f"Shot {shot_index}: Duration: {duration:.3f}s, Target frames: {int(duration * output_fps)}")
 
-    video_url = generate_video(accounts if accounts else None, account_index, [first_frame_url, last_frame_url], main_prompt, shot_index)
+    video_url = generate_video(accounts if accounts else None, account_index, [first_frame_url, last_frame_url], main_prompt, shot_index, duration, output_fps)
 
     if video_url:
         print(f"Downloading generated video for shot {shot_index}...")
