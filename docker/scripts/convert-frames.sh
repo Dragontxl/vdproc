@@ -68,19 +68,9 @@ process_frame() {
     fi
 
     CHARACTERS=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].characters_present")
-    POSITIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].positive_prompt")
-    NEGATIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].negative_prompt")
 
-    MAIN_PROMPT="style transfer, preserve original composition and content, faithful to reference image, high quality"
-    if [ -n "$PROMPT" ]; then
-        MAIN_PROMPT="$MAIN_PROMPT, $PROMPT"
-    fi
-    if [ -n "$POSITIVE_PROMPT" ]; then
-        MAIN_PROMPT="$MAIN_PROMPT, $POSITIVE_PROMPT"
-    fi
-    if [ -n "$NEGATIVE_PROMPT" ]; then
-        MAIN_PROMPT="$MAIN_PROMPT, negative prompt: $NEGATIVE_PROMPT"
-    fi
+    DEFAULT_PROMPT="修改为美式动画风格，保留原始图片的元素和内容, 只改变风格。"
+    MAIN_PROMPT="${PROMPT:-$DEFAULT_PROMPT}"
 
     FRAME_KEY="${TASK_ID}/shot_frames/shot_${shot_index}_${frame_type}.jpg"
 
