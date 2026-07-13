@@ -39,8 +39,12 @@ if [ -n "$AI_ACCOUNTS" ]; then
     ACCOUNT_COUNT=$(echo "$AI_ACCOUNTS" | jq -r '. | length')
 fi
 
+MAX_CONCURRENT=${MAX_CONCURRENT:-2}
+EFFECTIVE_CONCURRENCY=$(( ACCOUNT_COUNT < MAX_CONCURRENT ? ACCOUNT_COUNT : MAX_CONCURRENT ))
+
 echo "Available AI accounts: $ACCOUNT_COUNT"
-echo "Concurrency: $ACCOUNT_COUNT"
+echo "Max concurrent (from GitHub accounts): $MAX_CONCURRENT"
+echo "Effective concurrency: $EFFECTIVE_CONCURRENCY"
 
 MAX_ROUNDS=3
 PENDING_FILE="/tmp/pending_indices.txt"
@@ -76,6 +80,7 @@ for round in $(seq 1 $MAX_ROUNDS); do
     echo "=== Round $round/$MAX_ROUNDS: Processing shots [$PENDING_INDICES] ==="
 
     export PENDING_INDICES
+    export EFFECTIVE_CONCURRENCY
 
     python3 << PYTHON_SCRIPT
 import json
@@ -319,8 +324,9 @@ def process_shot(shot_index):
         print(f"Error: Failed to generate shot {shot_index}")
         return (shot_index, False)
 
-max_workers = len(accounts) if accounts else 1
-print(f"Starting concurrent shot generation with {max_workers} workers...")
+effective_concurrency = int(os.environ.get('EFFECTIVE_CONCURRENCY', '2'))
+max_workers = min(len(accounts) if accounts else 1, effective_concurrency)
+print(f"Starting concurrent shot generation with {max_workers} workers (effective concurrency: {effective_concurrency}, AI accounts: {len(accounts) if accounts else 1})...")
 
 round_success = 0
 round_failed = 0

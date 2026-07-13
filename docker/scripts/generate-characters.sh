@@ -39,8 +39,12 @@ if [ -n "$AI_ACCOUNTS" ]; then
     ACCOUNT_COUNT=$(echo "$AI_ACCOUNTS" | jq -r '. | length')
 fi
 
+MAX_CONCURRENT=${MAX_CONCURRENT:-2}
+EFFECTIVE_CONCURRENCY=$(( ACCOUNT_COUNT < MAX_CONCURRENT ? ACCOUNT_COUNT : MAX_CONCURRENT ))
+
 echo "Available AI accounts: $ACCOUNT_COUNT"
-echo "Concurrency: $ACCOUNT_COUNT"
+echo "Max concurrent (from GitHub accounts): $MAX_CONCURRENT"
+echo "Effective concurrency: $EFFECTIVE_CONCURRENCY"
 
 process_character() {
     local char_index="$1"
@@ -220,7 +224,7 @@ for round in $(seq 1 $MAX_ROUNDS); do
     rm -f "./character_results.txt"
 
     echo "$PENDING_INDICES" | tr ',' '\n' | \
-        xargs -P "$ACCOUNT_COUNT" -I {} bash -c 'process_character "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS" || true
+        xargs -P "$EFFECTIVE_CONCURRENCY" -I {} bash -c 'process_character "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS" || true
 
     echo "Uploading character images..."
     aws s3 sync "./characters" "s3://$R2_BUCKET_NAME/${TASK_ID}/characters" \

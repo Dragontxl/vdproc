@@ -46,8 +46,12 @@ if [ -n "$AI_ACCOUNTS" ]; then
     ACCOUNT_COUNT=$(echo "$AI_ACCOUNTS" | jq -r '. | length')
 fi
 
+MAX_CONCURRENT=${MAX_CONCURRENT:-2}
+EFFECTIVE_CONCURRENCY=$(( ACCOUNT_COUNT < MAX_CONCURRENT ? ACCOUNT_COUNT : MAX_CONCURRENT ))
+
 echo "Available AI accounts: $ACCOUNT_COUNT"
-echo "Concurrency: $ACCOUNT_COUNT"
+echo "Max concurrent (from GitHub accounts): $MAX_CONCURRENT"
+echo "Effective concurrency: $EFFECTIVE_CONCURRENCY"
 
 process_frame() {
     local shot_index="$1"
@@ -229,7 +233,7 @@ for round in $(seq 1 $MAX_ROUNDS); do
 
     rm -f "./frame_results.txt"
 
-    echo -e "$PENDING_FRAMES" | xargs -P "$ACCOUNT_COUNT" -n 2 bash -c 'process_frame "$@"' _ || true
+    echo -e "$PENDING_FRAMES" | xargs -P "$EFFECTIVE_CONCURRENCY" -n 2 bash -c 'process_frame "$@"' _ || true
 
     echo "Uploading converted frames..."
     aws s3 sync "./ai_shot_frames" "s3://$R2_BUCKET_NAME/${TASK_ID}/ai_shot_frames" \

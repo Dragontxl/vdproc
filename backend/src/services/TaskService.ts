@@ -399,6 +399,13 @@ export class TaskService {
       }
     }
 
+    const activeGhAccountsResult = await this.env.DB.prepare(`
+      SELECT COUNT(*) as count FROM github_accounts 
+      WHERE is_active = TRUE AND (is_limited IS NULL OR is_limited = FALSE)
+    `).first();
+    const activeGhAccountCount = activeGhAccountsResult ? parseInt((activeGhAccountsResult as { count: string }).count) : 0;
+    const maxConcurrent = activeGhAccountCount * 2;
+
     const eventType = phase.toLowerCase().replace(/_/g, '-');
     const payload = {
       event_type: `video-processing-${eventType}`,
@@ -413,6 +420,7 @@ export class TaskService {
         fps: task.fps,
         prompt: task.prompt,
         output_fps: task.output_fps,
+        max_concurrent: maxConcurrent,
       },
     };
 
