@@ -71,7 +71,10 @@ process_frame() {
     POSITIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].positive_prompt")
     NEGATIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].negative_prompt")
 
-    MAIN_PROMPT="$POSITIVE_PROMPT, American animation style, anime style, high quality"
+    MAIN_PROMPT="style transfer, American animation style, cel shading, anime style, preserve original composition and content, faithful to reference image, high quality"
+    if [ -n "$POSITIVE_PROMPT" ]; then
+        MAIN_PROMPT="$MAIN_PROMPT, $POSITIVE_PROMPT"
+    fi
     if [ -n "$NEGATIVE_PROMPT" ]; then
         MAIN_PROMPT="$MAIN_PROMPT, negative prompt: $NEGATIVE_PROMPT"
     fi
@@ -87,6 +90,19 @@ process_frame() {
     fi
 
     INPUT_IMAGE_BASE64=$(base64 -w0 "./input_${shot_index}_${frame_type}.jpg")
+
+    CHARACTER_IMAGE_BASE64=""
+    if [ -n "$CHARACTERS" ] && [ "$CHARACTERS" != "null" ] && [ "$CHARACTERS" != "[]" ]; then
+        FIRST_CHARACTER=$(echo "$CHARACTERS" | jq -r '.[0] // ""')
+        if [ -n "$FIRST_CHARACTER" ]; then
+            CHAR_FRAME_KEY="${TASK_ID}/character_frames/${FIRST_CHARACTER}_best.jpg"
+            echo "Downloading character reference: $CHAR_FRAME_KEY"
+            if aws s3 cp "s3://$R2_BUCKET_NAME/$CHAR_FRAME_KEY" "./char_ref_${shot_index}.jpg" --endpoint-url "$R2_ENDPOINT_URL"; then
+                CHARACTER_IMAGE_BASE64=$(base64 -w0 "./char_ref_${shot_index}.jpg")
+                echo "Character reference loaded for shot $shot_index"
+            fi
+        fi
+    fi
 
     local selected_key="$AI_API_KEY"
     local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/images/generations"
@@ -116,6 +132,14 @@ process_frame() {
     for attempt in $(seq 1 $MAX_RETRIES); do
         echo "  Shot $shot_index ${frame_type}: Attempt $attempt/$MAX_RETRIES..."
 
+        IMAGE_ARRAY="[\"data:image/jpeg;base64,$INPUT_IMAGE_BASE64\"]"
+        if [ -n "$CHARACTER_IMAGE_BASE64" ]; then
+            IMAGE_ARRAY="[\"data:image/jpeg;base64,$INPUT_IMAGE_BASE64\", \"data:image/jpeg;base64,$CHARACTER_IMAGE_BASE64\"]"
+            echo "  Shot $shot_index ${frame_type}: Using character reference image"
+        else
+            echo "  Shot $shot_index ${frame_type}: No character reference available"
+        fi
+
         RESPONSE=$(curl -s -X POST \
             --connect-timeout 30 \
             --max-time 120 \
@@ -127,7 +151,7 @@ process_frame() {
                 \"prompt\": \"$MAIN_PROMPT\",
                 \"size\": \"1024x768\",
                 \"extra_body\": {
-                    \"image\": [\"data:image/jpeg;base64,$INPUT_IMAGE_BASE64\"],
+                    \"image\": $IMAGE_ARRAY,
                     \"response_format\": \"url\"
                 }
             }" \
