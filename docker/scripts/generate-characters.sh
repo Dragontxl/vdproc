@@ -138,7 +138,8 @@ process_character() {
             fi
 
             if [ "$HTTP_CODE" -eq 401 ]; then
-                echo "  Character $ROLE_ID: Account $account_index returned 401, marking as bad"
+                local ACCOUNT_ALIAS=$(echo "$ai_accounts" | jq -r ".[$account_index].account_alias // \"Unknown\"")
+                echo "  Character $ROLE_ID: Account [$ACCOUNT_ALIAS] (index $account_index) returned 401, marking as bad - please check this account"
                 echo "$account_index" >> "./bad_accounts.txt"
                 flock -u 200
                 break

@@ -228,7 +228,8 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index):
                         time.sleep(retry_delay)
 
             if auth_failed:
-                print(f"  Shot {shot_index}: Account index {cand_idx} (db_id={db_account_id}) returned 401, marking as bad and trying next account")
+                account_alias = accounts[cand_idx].get('account_alias', 'Unknown')
+                print(f"  Shot {shot_index}: Account [{account_alias}] (index {cand_idx}, db_id={db_account_id}) returned 401, marking as bad - please check this account")
                 with bad_accounts_lock:
                     bad_accounts.add(cand_idx)
                 continue

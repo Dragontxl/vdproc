@@ -368,7 +368,7 @@ export class TaskService {
       await this.env.DB.prepare(lockQuery).bind(...params).run();
       
       const selectQuery = `
-        SELECT id, api_key_encrypted, base_url, model_name FROM ai_accounts
+        SELECT id, api_key_encrypted, base_url, model_name, account_alias FROM ai_accounts
         WHERE is_active = TRUE 
           AND cooldown_until = ?
           ${typeCondition}
