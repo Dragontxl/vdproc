@@ -256,25 +256,11 @@ def main():
                 
                 char_faces = [all_faces[i] for i in range(len(all_faces)) if labels[i] == label]
                 
-                char_faces.sort(key=lambda f: f['confidence'] * (1 - abs(f['angle'])/90) * (min(f['blur_score'], 2000)/2000), reverse=True)
-                
-                top_n = min(3, len(char_faces))
-                top_frames = []
-                for i in range(top_n):
-                    f = char_faces[i]
-                    top_frames.append({
-                        'path': f['path'],
-                        'confidence': f['confidence'],
-                        'angle': f['angle'],
-                        'blur_score': f['blur_score'],
-                        'scene_index': f['scene_index'],
-                        'timestamp': f['timestamp']
-                    })
+                best_face = max(char_faces, key=lambda f: f['confidence'] * (1 - abs(f['angle'])/90) * (min(f['blur_score'], 2000)/2000))
                 
                 character = {
                     'role_id': f'R{len(characters)+1}',
-                    'best_frame_path': top_frames[0]['path'],
-                    'top_frames': top_frames,
+                    'best_frame_path': best_face['path'],
                     'face_count': len(char_faces),
                     'avg_confidence': float(sum(f['confidence'] for f in char_faces) / len(char_faces))
                 }
@@ -300,11 +286,6 @@ def main():
             role_id = char['role_id']
             if os.path.exists(best_frame):
                 upload_to_r2(best_frame, f"{TASK_ID}/character_frames/{role_id}_best.jpg", "image/jpeg")
-            
-            for i, frame_info in enumerate(char.get('top_frames', [])):
-                frame_path = frame_info['path']
-                if os.path.exists(frame_path):
-                    upload_to_r2(frame_path, f"{TASK_ID}/character_frames/{role_id}_top{i}.jpg", "image/jpeg")
         
         for sf in saved_scene_frames:
             if os.path.exists(sf['local_path']):
