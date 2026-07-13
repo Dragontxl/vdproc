@@ -11,42 +11,59 @@ echo "Task ID: $TASK_ID"
 echo "VIDEO_PATH: $VIDEO_PATH"
 echo "R2_BUCKET_NAME: $R2_BUCKET_NAME"
 echo "R2_ENDPOINT_URL: $R2_ENDPOINT_URL"
-echo "R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:0:10}..."
 
 WORK_DIR="/tmp/$TASK_ID"
-echo "WORK_DIR: $WORK_DIR"
 mkdir -p "$WORK_DIR"
 cd "$WORK_DIR"
-echo "Current directory after cd: $(pwd)"
 
 LOG_FILE="/tmp/select-faces.log"
 exec 1> >(tee -a "$LOG_FILE")
 exec 2>&1
 
-echo "Downloading video from R2..."
-echo "Command: aws s3 cp s3://$R2_BUCKET_NAME/$VIDEO_PATH ./input_video.mp4 --endpoint-url $R2_ENDPOINT_URL"
-aws s3 cp "s3://$R2_BUCKET_NAME/$VIDEO_PATH" "./input_video.mp4" \
-    --endpoint-url "$R2_ENDPOINT_URL"
-echo "Video download completed, checking file..."
-ls -la ./input_video.mp4
+report_progress() {
+    local processed=$1
+    local total=$2
+    local message=$3
+    echo "Reporting progress: $message"
+    set +e
+    curl -s --connect-timeout 10 --max-time 30 -X POST "$CALLBACK_URL/progress" \
+        -H "Content-Type: application/json" \
+        -H "X-Callback-Signature: $CALLBACK_SECRET" \
+        -d "{\"task_id\":\"$TASK_ID\",\"phase\":\"SELECT_FACES\",\"processed_count\":$processed,\"total_count\":$total,\"message\":\"$message\"}" > /dev/null 2>&1
+    set -e
+}
 
-echo "Downloading scene detection results..."
-if aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/analysis_result.json" "./analysis_result.json" --endpoint-url "$R2_ENDPOINT_URL"; then
-    echo "Using AI-analyzed storyboards from analysis_result.json"
-elif aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/scenes/scenes.json" "./scenes.json" --endpoint-url "$R2_ENDPOINT_URL"; then
-    echo "Using scenes.json from DETECT phase"
-else
-    echo "Error: Neither analysis_result.json nor scenes.json found"
-    exit 1
-fi
+MAX_ROUNDS=3
 
-echo "Running face selection Python script..."
+for round in $(seq 1 $MAX_ROUNDS); do
+    echo "=== Round $round/$MAX_ROUNDS ==="
+    
+    echo "Downloading video from R2..."
+    aws s3 cp "s3://$R2_BUCKET_NAME/$VIDEO_PATH" "./input_video.mp4" \
+        --endpoint-url "$R2_ENDPOINT_URL"
 
-cat > /tmp/face_selection.py << 'PYEOF'
+    echo "Downloading scene detection results..."
+    if aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/analysis_result.json" "./analysis_result.json" --endpoint-url "$R2_ENDPOINT_URL"; then
+        echo "Using AI-analyzed storyboards from analysis_result.json"
+    elif aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/scenes/scenes.json" "./scenes.json" --endpoint-url "$R2_ENDPOINT_URL"; then
+        echo "Using scenes.json from DETECT phase"
+    else
+        echo "Error: Neither analysis_result.json nor scenes.json found"
+        if [ "$round" -lt "$MAX_ROUNDS" ]; then
+            echo "Round $round failed, retrying..."
+            sleep 5
+            continue
+        else
+            exit 1
+        fi
+    fi
+
+    echo "Running face selection Python script..."
+
+    cat > /tmp/face_selection.py << 'PYEOF'
 import cv2
 import json
 import os
-import csv
 import sys
 import subprocess
 import traceback
@@ -94,7 +111,8 @@ def main():
         log(f"TASK_ID: {TASK_ID}")
         log(f"WORK_DIR: {WORK_DIR}")
         
-        log(f"List files in work dir: {os.listdir(WORK_DIR)}")
+        os.makedirs(os.path.join(WORK_DIR, 'face_frames'), exist_ok=True)
+        os.makedirs(os.path.join(WORK_DIR, 'scene_frames'), exist_ok=True)
         
         app = FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider'])
         app.prepare(ctx_id=0, det_size=(640, 640))
@@ -128,18 +146,17 @@ def main():
             log(f"Loaded {len(scenes)} scenes from scenes.json")
         else:
             log(f"Error: Neither analysis_result.json nor scenes.json found")
-            log(f"Files in work dir: {os.listdir(WORK_DIR)}")
             raise FileNotFoundError("Neither analysis_result.json nor scenes.json found")
 
         video_path = os.path.join(WORK_DIR, 'input_video.mp4')
         log(f"Video path: {video_path}")
-        log(f"Video exists: {os.path.exists(video_path)}")
         
         cap = cv2.VideoCapture(video_path)
         fps = cap.get(cv2.CAP_PROP_FPS)
         log(f"Video FPS: {fps}")
         
         all_faces = []
+        saved_scene_frames = []
         
         for scene in scenes:
             duration = scene['end'] - scene['start']
@@ -157,6 +174,15 @@ def main():
                     log(f"Failed to read frame at {timestamp:.3f}s")
                     continue
                 
+                scene_frame_path = os.path.join(WORK_DIR, 'scene_frames', f"scene_{scene['index']}_{int(pos*100)}.jpg")
+                cv2.imwrite(scene_frame_path, frame)
+                saved_scene_frames.append({
+                    'local_path': scene_frame_path,
+                    'scene_index': scene['index'],
+                    'position': pos,
+                    'timestamp': timestamp
+                })
+                
                 faces = app.get(frame)
                 log(f"Found {len(faces)} faces at {timestamp:.3f}s")
                 
@@ -170,10 +196,9 @@ def main():
                     landmarks = face.kps
                     left_eye = landmarks[0]
                     right_eye = landmarks[1]
-                    eye_center = (left_eye + right_eye) / 2
                     angle = np.degrees(np.arctan2(right_eye[1]-left_eye[1], right_eye[0]-left_eye[0]))
                     
-                    if abs(angle) > 30:
+                    if abs(angle) > 45:
                         continue
                     
                     crop_size = max(bbox[2]-bbox[0], bbox[3]-bbox[1]) * 1.5
@@ -195,21 +220,33 @@ def main():
                         'path': frame_path,
                         'scene_index': scene['index'],
                         'position': pos,
+                        'timestamp': timestamp,
                         'embedding': face.normed_embedding.tolist(),
                         'confidence': confidence,
                         'angle': angle,
                         'blur_score': blur_score
                     })
-        
+    
         cap.release()
         log(f"Total faces detected: {len(all_faces)}")
         
         if len(all_faces) == 0:
             log("No faces detected")
-            result = {'characters': [], 'faces': [], 'total_faces': 0, 'character_count': 0}
+            result = {'characters': [], 'faces': [], 'total_faces': 0, 'character_count': 0, 'scene_frames': []}
         else:
             embeddings = np.array([f['embedding'] for f in all_faces])
-            dbscan = DBSCAN(eps=0.6, min_samples=2, metric='cosine')
+            
+            n_faces = len(all_faces)
+            if n_faces < 10:
+                eps = 0.45
+            elif n_faces < 30:
+                eps = 0.5
+            else:
+                eps = 0.55
+            log(f"Using DBSCAN eps={eps} based on {n_faces} faces")
+            
+            min_samples = max(2, int(n_faces * 0.05))
+            dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='cosine')
             labels = dbscan.fit_predict(embeddings)
             
             characters = []
@@ -219,11 +256,25 @@ def main():
                 
                 char_faces = [all_faces[i] for i in range(len(all_faces)) if labels[i] == label]
                 
-                best_face = max(char_faces, key=lambda f: f['confidence'] * (1 - abs(f['angle'])/90) * (f['blur_score']/1000))
+                char_faces.sort(key=lambda f: f['confidence'] * (1 - abs(f['angle'])/90) * (min(f['blur_score'], 2000)/2000), reverse=True)
+                
+                top_n = min(3, len(char_faces))
+                top_frames = []
+                for i in range(top_n):
+                    f = char_faces[i]
+                    top_frames.append({
+                        'path': f['path'],
+                        'confidence': f['confidence'],
+                        'angle': f['angle'],
+                        'blur_score': f['blur_score'],
+                        'scene_index': f['scene_index'],
+                        'timestamp': f['timestamp']
+                    })
                 
                 character = {
                     'role_id': f'R{len(characters)+1}',
-                    'best_frame_path': best_face['path'],
+                    'best_frame_path': top_frames[0]['path'],
+                    'top_frames': top_frames,
                     'face_count': len(char_faces),
                     'avg_confidence': float(sum(f['confidence'] for f in char_faces) / len(char_faces))
                 }
@@ -232,9 +283,10 @@ def main():
             result = {
                 'characters': characters,
                 'total_faces': len(all_faces),
-                'character_count': len(characters)
+                'character_count': len(characters),
+                'scene_frame_count': len(saved_scene_frames)
             }
-            log(f"Found {len(characters)} characters from {len(all_faces)} faces")
+            log(f"Found {len(characters)} characters from {len(all_faces)} faces, saved {len(saved_scene_frames)} scene frames")
         
         output_path = os.path.join(WORK_DIR, 'face_selection_result.json')
         with open(output_path, 'w') as f:
@@ -248,6 +300,16 @@ def main():
             role_id = char['role_id']
             if os.path.exists(best_frame):
                 upload_to_r2(best_frame, f"{TASK_ID}/character_frames/{role_id}_best.jpg", "image/jpeg")
+            
+            for i, frame_info in enumerate(char.get('top_frames', [])):
+                frame_path = frame_info['path']
+                if os.path.exists(frame_path):
+                    upload_to_r2(frame_path, f"{TASK_ID}/character_frames/{role_id}_top{i}.jpg", "image/jpeg")
+        
+        for sf in saved_scene_frames:
+            if os.path.exists(sf['local_path']):
+                r2_path = f"{TASK_ID}/scene_frames/scene_{sf['scene_index']}_{int(sf['position']*100)}.jpg"
+                upload_to_r2(sf['local_path'], r2_path, "image/jpeg")
         
         log("Face selection completed successfully")
         
@@ -267,21 +329,32 @@ if __name__ == "__main__":
     main()
 PYEOF
 
-mkdir -p ./face_frames
-echo "Current directory: $(pwd)"
-echo "List files before script: $(ls -la)"
-echo "Running Python script..."
-python3 /tmp/face_selection.py 2>&1 || { echo "Python script failed with exit code $?"; exit 1; }
-echo "Python script completed"
-echo "List files after script: $(ls -la)"
+    python3 /tmp/face_selection.py 2>&1
+    if [ $? -eq 0 ]; then
+        echo "Face selection succeeded at round $round"
+        break
+    else
+        echo "Face selection failed at round $round"
+        if [ "$round" -lt "$MAX_ROUNDS" ]; then
+            echo "Retrying in 10 seconds..."
+            sleep 10
+        else
+            echo "Failed after $MAX_ROUNDS rounds"
+            exit 1
+        fi
+    fi
+done
 
 echo "Phase 3 completed"
 
 RESULT=$(cat ./face_selection_result.json)
+CHARACTER_COUNT=$(echo "$RESULT" | jq -r '.character_count')
+report_progress "$CHARACTER_COUNT" "$CHARACTER_COUNT" "最优帧选择完成，识别到 $CHARACTER_COUNT 个角色"
+
 cat > /tmp/result.json <<EOF
 {
     "taskId": "$TASK_ID",
-    "characterCount": $(echo "$RESULT" | jq -r '.character_count'),
+    "characterCount": $CHARACTER_COUNT,
     "resultPath": "${TASK_ID}/face_selection_result.json"
 }
 EOF
