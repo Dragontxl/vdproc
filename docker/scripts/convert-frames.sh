@@ -71,7 +71,10 @@ process_frame() {
     POSITIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].positive_prompt")
     NEGATIVE_PROMPT=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].negative_prompt")
 
-    MAIN_PROMPT="style transfer, American animation style, cel shading, anime style, preserve original composition and content, faithful to reference image, high quality"
+    MAIN_PROMPT="style transfer, preserve original composition and content, faithful to reference image, high quality"
+    if [ -n "$PROMPT" ]; then
+        MAIN_PROMPT="$MAIN_PROMPT, $PROMPT"
+    fi
     if [ -n "$POSITIVE_PROMPT" ]; then
         MAIN_PROMPT="$MAIN_PROMPT, $POSITIVE_PROMPT"
     fi

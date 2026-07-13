@@ -221,6 +221,7 @@ jobs:
           AI_ACCOUNTS: ${{ inputs.ai_accounts || github.event.client_payload.ai_accounts }}
           COOLDOWN_SECONDS: ${{ inputs.cooldown_seconds || github.event.client_payload.cooldown_seconds || 1 }}
           MAX_CONCURRENT: ${{ inputs.max_concurrent || github.event.client_payload.max_concurrent || 2 }}
+          PROMPT: ${{ inputs.prompt || github.event.client_payload.prompt || '' }}
         run: |
           docker run --rm \
             -e TASK_ID="$TASK_ID" \
@@ -238,6 +239,7 @@ jobs:
             -e AI_ACCOUNTS="$AI_ACCOUNTS" \
             -e COOLDOWN_SECONDS="$COOLDOWN_SECONDS" \
             -e MAX_CONCURRENT="$MAX_CONCURRENT" \
+            -e PROMPT="$PROMPT" \
             ai-video-processor \
             bash /scripts/convert-frames.sh
 
