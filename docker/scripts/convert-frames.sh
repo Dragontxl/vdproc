@@ -53,6 +53,59 @@ echo "Available AI accounts: $ACCOUNT_COUNT"
 echo "Max concurrent (from GitHub accounts): $MAX_CONCURRENT"
 echo "Effective concurrency: $EFFECTIVE_CONCURRENCY"
 
+ACQUIRE_ACCOUNT_TIMEOUT=300
+ACQUIRE_ACCOUNT_INTERVAL=5
+
+acquire_ai_account() {
+    local ai_accounts="$1"
+    local work_dir="$2"
+    local shot_index="$3"
+    local frame_type="$4"
+    
+    cd "$work_dir"
+    
+    local max_attempts=$((ACQUIRE_ACCOUNT_TIMEOUT / ACQUIRE_ACCOUNT_INTERVAL))
+    local attempts=0
+    
+    while [ $attempts -lt $max_attempts ]; do
+        for account_index in $(seq 0 $((ACCOUNT_COUNT - 1))); do
+            local lock_file="./locks/account_${account_index}.lock"
+            if (set -o noclobber; echo "$$" > "$lock_file") 2>/dev/null; then
+                trap "rm -f '$lock_file'" EXIT
+                
+                if [ -n "$ai_accounts" ]; then
+                    local is_bad=$(grep -c "^${account_index}$" "./bad_accounts.txt" 2>/dev/null || echo 0)
+                    if [ "$is_bad" -gt 0 ]; then
+                        rm -f "$lock_file"
+                        continue
+                    fi
+                fi
+                
+                echo "Shot $shot_index ${frame_type}: Acquired AI account index $account_index"
+                echo "$account_index"
+                return 0
+            fi
+        done
+        
+        attempts=$((attempts + 1))
+        sleep $ACQUIRE_ACCOUNT_INTERVAL
+    done
+    
+    echo "Shot $shot_index ${frame_type}: Failed to acquire AI account after $ACQUIRE_ACCOUNT_TIMEOUT seconds"
+    echo "-1"
+    return 1
+}
+
+release_ai_account() {
+    local work_dir="$1"
+    local account_index="$2"
+    
+    cd "$work_dir"
+    local lock_file="./locks/account_${account_index}.lock"
+    rm -f "$lock_file"
+    echo "Released AI account index $account_index"
+}
+
 process_frame() {
     local shot_index="$1"
     local frame_type="$2"
@@ -91,12 +144,18 @@ process_frame() {
         fi
     fi
 
+    local account_index=$(acquire_ai_account "$ai_accounts" "$work_dir" "$shot_index" "$frame_type")
+    
+    if [ "$account_index" = "-1" ]; then
+        echo "Error: Failed to acquire AI account for shot $shot_index, ${frame_type} frame"
+        echo "${shot_index}_${frame_type}:FAILED" >> "./frame_results.txt"
+        return 1
+    fi
+
     local selected_key="$AI_API_KEY"
     local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/images/generations"
-    local account_index=0
 
     if [ -n "$ai_accounts" ]; then
-        account_index=$(( (shot_index * 2 + (frame_type == "first" ? 0 : 1)) % $(echo "$ai_accounts" | jq -r '. | length') ))
         selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
         selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
         if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
@@ -104,15 +163,10 @@ process_frame() {
         fi
     fi
 
-    local lock_file="./locks/account_${account_index}.lock"
-
-    exec 200>"$lock_file"
-    flock -x 200
-
     echo "Shot $shot_index ${frame_type}: Using AI account index $account_index"
 
-    MAX_RETRIES=5
-    RETRY_DELAY=10
+    MAX_RETRIES=3
+    RETRY_DELAY=15
     API_SUCCESS=0
     RESPONSE=""
 
@@ -173,11 +227,13 @@ process_frame() {
                 -d "{\"task_id\":\"$TASK_ID\",\"account_id\":${ACCOUNT_ID:-null},\"error_type\":\"invalid_credentials\",\"message\":\"Account returned $HTTP_CODE\"}" > /dev/null 2>&1
             set -e
             
-            break
+            release_ai_account "$work_dir" "$account_index"
+            echo "${shot_index}_${frame_type}:FAILED" >> "./frame_results.txt"
+            return 1
         fi
 
-        if [ "$HTTP_CODE" -eq 429 ]; then
-            echo "  Shot $shot_index ${frame_type}: Rate limited (429), increasing delay"
+        if [ "$HTTP_CODE" -eq 429 ] || [ "$HTTP_CODE" -eq 503 ]; then
+            echo "  Shot $shot_index ${frame_type}: Rate limited ($HTTP_CODE), increasing delay"
             RETRY_DELAY=$((RETRY_DELAY * 2))
         fi
 
@@ -191,11 +247,11 @@ process_frame() {
         fi
     done
 
-    flock -u 200
+    release_ai_account "$work_dir" "$account_index"
 
     if [ $API_SUCCESS -ne 1 ]; then
         echo "Error: Failed to convert shot $shot_index, ${frame_type} frame"
-        rm -f "./input_${shot_index}_${frame_type}.jpg" "$lock_file"
+        rm -f "./input_${shot_index}_${frame_type}.jpg"
         echo "${shot_index}_${frame_type}:FAILED" >> "./frame_results.txt"
         return 1
     fi
@@ -203,7 +259,7 @@ process_frame() {
     RESULT_URL=$(echo "$RESPONSE" | jq -r '.data[0].url // ""')
     if [ -z "$RESULT_URL" ]; then
         echo "Error: No result URL for shot $shot_index, ${frame_type} frame"
-        rm -f "./input_${shot_index}_${frame_type}.jpg" "$lock_file"
+        rm -f "./input_${shot_index}_${frame_type}.jpg"
         echo "${shot_index}_${frame_type}:FAILED" >> "./frame_results.txt"
         return 1
     fi
@@ -213,12 +269,12 @@ process_frame() {
 
     if [ ! -f "./ai_shot_frames/shot_${shot_index}_${frame_type}.jpg" ] || [ ! -s "./ai_shot_frames/shot_${shot_index}_${frame_type}.jpg" ]; then
         echo "Error: Downloaded frame is empty"
-        rm -f "./input_${shot_index}_${frame_type}.jpg" "$lock_file"
+        rm -f "./input_${shot_index}_${frame_type}.jpg"
         echo "${shot_index}_${frame_type}:FAILED" >> "./frame_results.txt"
         return 1
     fi
 
-    rm -f "./input_${shot_index}_${frame_type}.jpg" "$lock_file"
+    rm -f "./input_${shot_index}_${frame_type}.jpg"
     echo "${shot_index}_${frame_type}:SUCCESS" >> "./frame_results.txt"
     echo "Successfully converted shot $shot_index, ${frame_type} frame"
 
@@ -226,14 +282,19 @@ process_frame() {
 }
 
 export -f process_frame
+export -f acquire_ai_account
+export -f release_ai_account
 export RESULT
 export TASK_ID
 export R2_BUCKET_NAME
 export R2_ENDPOINT_URL
 export AI_API_KEY
 export AI_BASE_URL
+export ACCOUNT_COUNT
+export ACQUIRE_ACCOUNT_TIMEOUT
+export ACQUIRE_ACCOUNT_INTERVAL
 
-MAX_ROUNDS=10
+MAX_ROUNDS=5
 
 report_progress() {
     local round=$1
@@ -276,6 +337,7 @@ for round in $(seq 1 $MAX_ROUNDS); do
     echo "=== Round $round/$MAX_ROUNDS: Processing remaining frames ==="
 
     rm -f "./frame_results.txt"
+    rm -f "./bad_accounts.txt"
 
     echo -e "$PENDING_FRAMES" | xargs -P "$EFFECTIVE_CONCURRENCY" -n 2 bash -c 'process_frame "$@"' _ || true
 
@@ -305,7 +367,7 @@ for round in $(seq 1 $MAX_ROUNDS); do
     echo "Round $round: $TOTAL_FAILED frames still missing, will retry..."
 
     if [ "$round" -lt "$MAX_ROUNDS" ]; then
-        local WAIT_TIME=$((round * 15))
+        local WAIT_TIME=$((round * 30))
         echo "Waiting $WAIT_TIME seconds before next round..."
         sleep $WAIT_TIME
     fi
