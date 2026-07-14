@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, Table, Tag, Button, Modal, Form, Input, InputNumber, Switch, Space, message, Tabs, Select, Popconfirm } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined, HeartOutlined, LinkOutlined, SwapOutlined, UnlinkOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, EditOutlined, HeartOutlined, LinkOutlined, SwapOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { accountApi } from '../api';
 import dayjs from 'dayjs';
 
@@ -360,7 +360,7 @@ export default function Accounts() {
             okText="确定"
             cancelText="取消"
           >
-            <Button size="small" danger icon={<UnlinkOutlined />}>解绑</Button>
+            <Button size="small" danger icon={<CloseCircleOutlined />}>解绑</Button>
           </Popconfirm>
         </Space>
       ),

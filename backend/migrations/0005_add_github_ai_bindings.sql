@@ -13,5 +13,3 @@ CREATE TABLE IF NOT EXISTS github_ai_bindings (
 
 CREATE INDEX IF NOT EXISTS idx_bindings_github ON github_ai_bindings(github_account_id);
 CREATE INDEX IF NOT EXISTS idx_bindings_ai ON github_ai_bindings(ai_account_id);
-
-ALTER TABLE ai_accounts ADD COLUMN api_type TEXT DEFAULT 'image';

@@ -35,6 +35,9 @@ yarn-error.log*
 .wrangler/
 .dev.vars
 
+# Secrets configuration
+scripts/secrets-config.json
+
 # Temporary files
 tmp/
 temp/
