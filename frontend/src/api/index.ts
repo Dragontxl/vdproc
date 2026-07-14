@@ -56,6 +56,11 @@ export const accountApi = {
   updateAI: (id: number, data: any) => api.put(`/admin/accounts/ai/${id}`, data),
   deleteAI: (id: number) => api.delete(`/admin/accounts/ai/${id}`),
   checkAIHealth: (id: number) => api.post(`/admin/accounts/ai/${id}/health`),
+  getBindings: (githubId: number) => api.get(`/admin/accounts/github/${githubId}/bindings`),
+  createBinding: (githubId: number, data: any) => api.post(`/admin/accounts/github/${githubId}/bindings`, data),
+  replaceBinding: (bindingId: number, data: any) => api.put(`/admin/accounts/bindings/${bindingId}/replace`, data),
+  deleteBinding: (bindingId: number) => api.delete(`/admin/accounts/bindings/${bindingId}`),
+  getUnboundAI: () => api.get('/admin/accounts/ai/unbound'),
 };
 
 export const configApi = {

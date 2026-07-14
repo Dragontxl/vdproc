@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Card, Table, Tag, Button, Modal, Form, Input, InputNumber, Switch, Space, message, Tabs, Select } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined, HeartOutlined } from '@ant-design/icons';
+import { Card, Table, Tag, Button, Modal, Form, Input, InputNumber, Switch, Space, message, Tabs, Select, Popconfirm } from 'antd';
+import { PlusOutlined, DeleteOutlined, EditOutlined, HeartOutlined, LinkOutlined, SwapOutlined, UnlinkOutlined } from '@ant-design/icons';
 import { accountApi } from '../api';
 import dayjs from 'dayjs';
 
@@ -15,6 +15,11 @@ export default function Accounts() {
   const [currentAccount, setCurrentAccount] = useState<any>(null);
   const [accountType, setAccountType] = useState<'github' | 'ai'>('github');
   const [form] = Form.useForm();
+  
+  const [bindingModalOpen, setBindingModalOpen] = useState(false);
+  const [currentGithubId, setCurrentGithubId] = useState<number | null>(null);
+  const [bindings, setBindings] = useState([]);
+  const [unboundAIAccounts, setUnboundAIAccounts] = useState([]);
 
   const loadAccounts = async () => {
     setLoading(true);
@@ -105,6 +110,87 @@ export default function Accounts() {
     }
   };
 
+  const openBindingModal = async (githubId: number) => {
+    setCurrentGithubId(githubId);
+    setLoading(true);
+    try {
+      const [bindingResult, unboundResult] = await Promise.all([
+        accountApi.getBindings(githubId),
+        accountApi.getUnboundAI(),
+      ]);
+      setBindings(bindingResult.data || []);
+      setUnboundAIAccounts(unboundResult.data || []);
+    } catch (error) {
+      message.error('加载绑定信息失败');
+    } finally {
+      setLoading(false);
+      setBindingModalOpen(true);
+    }
+  };
+
+  const handleAddBinding = async () => {
+    if (!currentGithubId) return;
+    setLoading(true);
+    try {
+      const [unboundResult] = await Promise.all([
+        accountApi.getUnboundAI(),
+      ]);
+      const unbound = unboundResult.data || [];
+      if (unbound.length === 0) {
+        message.warning('没有未绑定的AI账户可用');
+        return;
+      }
+      const firstUnbound = unbound[0];
+      await accountApi.createBinding(currentGithubId, {
+        ai_account_id: firstUnbound.id,
+        priority: bindings.length,
+      });
+      message.success('绑定成功');
+      await openBindingModal(currentGithubId);
+    } catch (error: any) {
+      message.error(error?.response?.data?.msg || '绑定失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReplaceBinding = async (bindingId: number) => {
+    if (!currentGithubId) return;
+    setLoading(true);
+    try {
+      const unboundResult = await accountApi.getUnboundAI();
+      const unbound = unboundResult.data || [];
+      if (unbound.length === 0) {
+        message.warning('没有未绑定的AI账户可用');
+        return;
+      }
+      const firstUnbound = unbound[0];
+      await accountApi.replaceBinding(bindingId, {
+        new_ai_account_id: firstUnbound.id,
+      });
+      message.success('更换成功');
+      await openBindingModal(currentGithubId);
+    } catch (error: any) {
+      message.error(error?.response?.data?.msg || '更换失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteBinding = async (bindingId: number) => {
+    if (!currentGithubId) return;
+    setLoading(true);
+    try {
+      await accountApi.deleteBinding(bindingId);
+      message.success('解绑成功');
+      await openBindingModal(currentGithubId);
+    } catch (error) {
+      message.error('解绑失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const githubColumns = [
     {
       title: '名称',
@@ -150,6 +236,7 @@ export default function Accounts() {
       key: 'action',
       render: (_: any, record: any) => (
         <Space>
+          <Button size="small" icon={<LinkOutlined />} onClick={() => openBindingModal(record.id)}>绑定</Button>
           <Button size="small" icon={<EditOutlined />} onClick={() => handleEdit(record, 'github')} />
           <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id, 'github')} />
         </Space>
@@ -218,6 +305,63 @@ export default function Accounts() {
           <Button size="small" icon={<HeartOutlined />} onClick={() => handleHealthCheck(record.id)} />
           <Button size="small" icon={<EditOutlined />} onClick={() => handleEdit(record, 'ai')} />
           <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id, 'ai')} />
+        </Space>
+      ),
+    },
+  ];
+
+  const bindingColumns = [
+    {
+      title: 'AI账户别名',
+      dataIndex: 'account_alias',
+      key: 'account_alias',
+    },
+    {
+      title: '类型',
+      dataIndex: 'api_type',
+      key: 'api_type',
+      render: (type: string) => <Tag color={type === 'text' ? 'blue' : type === 'image' ? 'green' : 'purple'}>
+        {type === 'text' ? '文本' : type === 'image' ? '图像' : '视频'}
+      </Tag>,
+    },
+    {
+      title: '健康状态',
+      dataIndex: 'is_healthy',
+      key: 'is_healthy',
+      render: (healthy: boolean) => <Tag color={healthy ? 'success' : 'error'}>{healthy ? '健康' : '异常'}</Tag>,
+    },
+    {
+      title: '日使用/限制',
+      key: 'usage',
+      render: (_: any, record: any) => `${record.daily_usage || 0}/${record.daily_limit || 0} 次`,
+    },
+    {
+      title: '优先级',
+      dataIndex: 'priority',
+      key: 'priority',
+    },
+    {
+      title: '操作',
+      key: 'action',
+      render: (_: any, record: any) => (
+        <Space>
+          <Button 
+            size="small" 
+            icon={<SwapOutlined />} 
+            onClick={() => handleReplaceBinding(record.id)} 
+            disabled={record.is_healthy}
+            title={record.is_healthy ? '健康账户无需更换' : '更换为新账户'}
+          >
+            {record.is_healthy ? '正常' : '更换'}
+          </Button>
+          <Popconfirm
+            title="确定要解绑此账户吗？"
+            onConfirm={() => handleDeleteBinding(record.id)}
+            okText="确定"
+            cancelText="取消"
+          >
+            <Button size="small" danger icon={<UnlinkOutlined />}>解绑</Button>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -321,6 +465,31 @@ export default function Accounts() {
             </>
           )}
         </Form>
+      </Modal>
+
+      <Modal
+        title="绑定管理"
+        open={bindingModalOpen}
+        onCancel={() => setBindingModalOpen(false)}
+        footer={null}
+        width={800}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleAddBinding} disabled={unboundAIAccounts.length === 0}>
+            添加绑定
+          </Button>
+          {unboundAIAccounts.length === 0 && (
+            <span style={{ marginLeft: 12, color: '#999' }}>没有可用的未绑定AI账户</span>
+          )}
+        </div>
+        <Table
+          dataSource={bindings}
+          columns={bindingColumns}
+          loading={loading}
+          rowKey="id"
+          pagination={false}
+          locale={{ emptyText: '暂无绑定关系' }}
+        />
       </Modal>
     </div>
   );
