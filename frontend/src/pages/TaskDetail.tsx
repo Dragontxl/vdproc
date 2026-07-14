@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider, Alert, Progress } from 'antd';
+import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider, Alert, Progress, Select } from 'antd';
 import {
   PlayCircleOutlined,
   StopOutlined,
@@ -13,6 +13,8 @@ import {
 } from '@ant-design/icons';
 import { taskApi } from '../api';
 import dayjs from 'dayjs';
+
+const { Option } = Select;
 
 type TaskPhase = 'DETECT' | 'ANALYZE' | 'SELECT_FACES' | 'GENERATE_CHARACTERS' | 'CROP_SHOTS' | 'CONVERT_FRAMES' | 'GENERATE_SHOTS' | 'COMPOSE';
 
@@ -55,6 +57,10 @@ export default function TaskDetail() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [phaseStatus, setPhaseStatus] = useState<Record<string, { ready: boolean; missing: string[]; available: string[] }>>({});
+  const [startPhaseValue, setStartPhaseValue] = useState<TaskPhase>('DETECT');
+  const [endPhaseValue, setEndPhaseValue] = useState<TaskPhase>('COMPOSE');
+  
+  const phases: TaskPhase[] = ['DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
 
   useEffect(() => {
     if (id) {
@@ -153,10 +159,14 @@ export default function TaskDetail() {
     }
   };
 
-  const startPhase = async (phase: TaskPhase) => {
+  const startPhase = async (phase: TaskPhase, useRange: boolean = false) => {
     try {
-      await taskApi.startPhase(id!, phase);
-      message.success(`${phaseConfig[phase].label}启动成功`);
+      const options = useRange ? { start_phase: startPhaseValue, end_phase: endPhaseValue } : undefined;
+      await taskApi.startPhase(id!, phase, options);
+      const msg = useRange 
+        ? `${phaseConfig[startPhaseValue].label}到${phaseConfig[endPhaseValue].label}启动成功`
+        : `${phaseConfig[phase].label}启动成功`;
+      message.success(msg);
       loadTask();
     } catch (error: any) {
       const msg = error.response?.data?.msg || '启动阶段失败';
@@ -278,6 +288,44 @@ export default function TaskDetail() {
       </Card>
 
       <Card title="阶段控制" style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 16, padding: '12px', background: '#f5f5f5', borderRadius: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <span style={{ fontWeight: 'bold' }}>阶段范围执行：</span>
+            <Select
+              value={startPhaseValue}
+              onChange={(value) => setStartPhaseValue(value as TaskPhase)}
+              style={{ width: 160 }}
+              disabled={isPhaseRunning()}
+            >
+              {phases.map((p) => (
+                <Option key={p} value={p}>{phaseConfig[p].label}</Option>
+              ))}
+            </Select>
+            <span>→</span>
+            <Select
+              value={endPhaseValue}
+              onChange={(value) => setEndPhaseValue(value as TaskPhase)}
+              style={{ width: 160 }}
+              disabled={isPhaseRunning()}
+            >
+              {phases.map((p) => (
+                <Option key={p} value={p}>{phaseConfig[p].label}</Option>
+              ))}
+            </Select>
+            <Button
+              type="primary"
+              icon={<PlayCircleOutlined />}
+              onClick={() => startPhase(startPhaseValue, true)}
+              disabled={isPhaseRunning() || phases.indexOf(startPhaseValue) > phases.indexOf(endPhaseValue)}
+            >
+              执行范围
+            </Button>
+            {phases.indexOf(startPhaseValue) > phases.indexOf(endPhaseValue) && (
+              <span style={{ color: '#ff4d4f', fontSize: '12px' }}>起始阶段不能晚于结束阶段</span>
+            )}
+          </div>
+        </div>
+        
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           {(['DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'] as TaskPhase[]).map((phase) => {
             const config = phaseConfig[phase];
@@ -321,7 +369,7 @@ export default function TaskDetail() {
                     onClick={() => startPhase(phase)}
                     disabled={isPhaseRunning()}
                   >
-                    启动
+                    单独启动
                   </Button>
                 </div>
               </div>

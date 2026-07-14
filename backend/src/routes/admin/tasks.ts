@@ -64,6 +64,9 @@ taskRoutes.get('/:id/check-phase/:phase', async (c) => {
 
 taskRoutes.post('/:id/start-phase/:phase', async (c) => {
   const { id, phase } = c.req.param();
+  const body = await c.req.json().catch(() => ({}));
+  const { start_phase, end_phase } = body;
+  
   const taskService = new TaskService(c.env as Bindings);
   const materialService = new MaterialCheckService(c.env as Bindings);
   
@@ -85,11 +88,15 @@ taskRoutes.post('/:id/start-phase/:phase', async (c) => {
     }, 400);
   }
   
-  const result = await taskService.triggerPhase(id, phase as TaskPhase);
+  const result = await taskService.triggerPhase(id, phase as TaskPhase, undefined, undefined, start_phase as TaskPhase, end_phase as TaskPhase);
+  
+  const msg = start_phase && end_phase 
+    ? `${start_phase}到${end_phase}阶段启动成功` 
+    : `${phase}阶段启动成功`;
   
   return c.json({
     code: 200,
-    msg: `${phase}阶段启动成功`,
+    msg,
     data: result,
   });
 });
