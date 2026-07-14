@@ -149,6 +149,11 @@ process_frame() {
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
         RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
 
+        echo "  Shot $shot_index ${frame_type}: HTTP_CODE=$HTTP_CODE"
+        if [ -n "$RESPONSE_BODY" ] && [ "$RESPONSE_BODY" != "null" ]; then
+            echo "  Shot $shot_index ${frame_type}: Response (first 200 chars): ${RESPONSE_BODY:0:200}"
+        fi
+
         if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
             API_SUCCESS=1
             RESPONSE="$RESPONSE_BODY"
@@ -171,7 +176,17 @@ process_frame() {
             break
         fi
 
+        if [ "$HTTP_CODE" -eq 429 ]; then
+            echo "  Shot $shot_index ${frame_type}: Rate limited (429), increasing delay"
+            RETRY_DELAY=$((RETRY_DELAY * 2))
+        fi
+
+        if [ "$HTTP_CODE" -ge 500 ]; then
+            echo "  Shot $shot_index ${frame_type}: Server error ($HTTP_CODE)"
+        fi
+
         if [ $attempt -lt $MAX_RETRIES ]; then
+            echo "  Shot $shot_index ${frame_type}: Sleeping $RETRY_DELAY seconds before retry..."
             sleep $RETRY_DELAY
         fi
     done
