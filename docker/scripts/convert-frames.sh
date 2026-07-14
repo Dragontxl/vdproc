@@ -111,8 +111,8 @@ process_frame() {
 
     echo "Shot $shot_index ${frame_type}: Using AI account index $account_index"
 
-    MAX_RETRIES=3
-    RETRY_DELAY=5
+    MAX_RETRIES=5
+    RETRY_DELAY=10
     API_SUCCESS=0
     RESPONSE=""
 
@@ -233,7 +233,7 @@ export R2_ENDPOINT_URL
 export AI_API_KEY
 export AI_BASE_URL
 
-MAX_ROUNDS=3
+MAX_ROUNDS=10
 
 report_progress() {
     local round=$1
@@ -303,6 +303,12 @@ for round in $(seq 1 $MAX_ROUNDS); do
     fi
 
     echo "Round $round: $TOTAL_FAILED frames still missing, will retry..."
+
+    if [ "$round" -lt "$MAX_ROUNDS" ]; then
+        local WAIT_TIME=$((round * 15))
+        echo "Waiting $WAIT_TIME seconds before next round..."
+        sleep $WAIT_TIME
+    fi
 
 done
 
