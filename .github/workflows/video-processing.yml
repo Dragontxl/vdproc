@@ -91,11 +91,57 @@ jobs:
         id: parse_config
         run: |
           CONFIG_JSON=${{ inputs.config || github.event.client_payload.config || '{}' }}
-          echo "VIDEO_PATH=$(echo "$CONFIG_JSON" | jq -r '.video_path // ""')" >> $GITHUB_OUTPUT
-          echo "FPS=$(echo "$CONFIG_JSON" | jq -r '.fps // 30')" >> $GITHUB_OUTPUT
-          echo "PROMPT=$(echo "$CONFIG_JSON" | jq -r '.prompt // ""')" >> $GITHUB_OUTPUT
-          echo "OUTPUT_FPS=$(echo "$CONFIG_JSON" | jq -r '.output_fps // 24')" >> $GITHUB_OUTPUT
-          echo "MAX_CONCURRENT=$(echo "$CONFIG_JSON" | jq -r '.max_concurrent // 2')" >> $GITHUB_OUTPUT
+          echo "DEBUG_CONFIG_JSON=$CONFIG_JSON" >> $GITHUB_OUTPUT
+          
+          VIDEO_PATH=""
+          FPS="30"
+          PROMPT=""
+          OUTPUT_FPS="24"
+          MAX_CONCURRENT="2"
+          
+          if [ -n "$CONFIG_JSON" ] && [ "$CONFIG_JSON" != "{}" ]; then
+            if command -v jq &> /dev/null; then
+              VIDEO_PATH=$(echo "$CONFIG_JSON" | jq -r '.video_path // ""')
+              FPS=$(echo "$CONFIG_JSON" | jq -r '.fps // 30')
+              PROMPT=$(echo "$CONFIG_JSON" | jq -r '.prompt // ""')
+              OUTPUT_FPS=$(echo "$CONFIG_JSON" | jq -r '.output_fps // 24')
+              MAX_CONCURRENT=$(echo "$CONFIG_JSON" | jq -r '.max_concurrent // 2')
+            else
+              VIDEO_PATH=$(echo "$CONFIG_JSON" | sed 's/.*"video_path":"\([^"]*\)".*/\1/')
+              FPS=$(echo "$CONFIG_JSON" | sed 's/.*"fps":\([0-9]*\).*/\1/')
+              PROMPT=$(echo "$CONFIG_JSON" | sed 's/.*"prompt":"\([^"]*\)".*/\1/')
+              OUTPUT_FPS=$(echo "$CONFIG_JSON" | sed 's/.*"output_fps":\([0-9]*\).*/\1/')
+              MAX_CONCURRENT=$(echo "$CONFIG_JSON" | sed 's/.*"max_concurrent":\([0-9]*\).*/\1/')
+            fi
+          fi
+          
+          if [ -z "$VIDEO_PATH" ] || [ "$VIDEO_PATH" = "null" ]; then
+            VIDEO_PATH="${{ inputs.video_path || github.event.client_payload.video_path || '' }}"
+          fi
+          if [ -z "$FPS" ] || [ "$FPS" = "null" ]; then
+            FPS="${{ inputs.fps || github.event.client_payload.fps || 30 }}"
+          fi
+          if [ -z "$PROMPT" ] || [ "$PROMPT" = "null" ]; then
+            PROMPT="${{ inputs.prompt || github.event.client_payload.prompt || '' }}"
+          fi
+          if [ -z "$OUTPUT_FPS" ] || [ "$OUTPUT_FPS" = "null" ]; then
+            OUTPUT_FPS="${{ inputs.output_fps || github.event.client_payload.output_fps || 24 }}"
+          fi
+          if [ -z "$MAX_CONCURRENT" ] || [ "$MAX_CONCURRENT" = "null" ]; then
+            MAX_CONCURRENT="${{ inputs.max_concurrent || github.event.client_payload.max_concurrent || 2 }}"
+          fi
+          
+          echo "VIDEO_PATH=$VIDEO_PATH" >> $GITHUB_OUTPUT
+          echo "FPS=$FPS" >> $GITHUB_OUTPUT
+          echo "PROMPT=$PROMPT" >> $GITHUB_OUTPUT
+          echo "OUTPUT_FPS=$OUTPUT_FPS" >> $GITHUB_OUTPUT
+          echo "MAX_CONCURRENT=$MAX_CONCURRENT" >> $GITHUB_OUTPUT
+          
+          echo "Parsed VIDEO_PATH: '$VIDEO_PATH'"
+          echo "Parsed FPS: '$FPS'"
+          echo "Parsed PROMPT: '$PROMPT'"
+          echo "Parsed OUTPUT_FPS: '$OUTPUT_FPS'"
+          echo "Parsed MAX_CONCURRENT: '$MAX_CONCURRENT'"
 
       - name: Run shot detection phase
         if: ${{ steps.get_phase_order.outputs.detect >= steps.get_phase_order.outputs.start && steps.get_phase_order.outputs.detect <= steps.get_phase_order.outputs.end }}
