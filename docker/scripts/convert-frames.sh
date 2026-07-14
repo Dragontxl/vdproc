@@ -64,28 +64,30 @@ acquire_ai_account() {
     
     cd "$work_dir"
     
+    local target_index=$(( (shot_index * 2 + (frame_type == "first" ? 0 : 1)) % ACCOUNT_COUNT ))
     local max_attempts=$((ACQUIRE_ACCOUNT_TIMEOUT / ACQUIRE_ACCOUNT_INTERVAL))
     local attempts=0
     
     while [ $attempts -lt $max_attempts ]; do
-        for account_index in $(seq 0 $((ACCOUNT_COUNT - 1))); do
-            local lock_file="./locks/account_${account_index}.lock"
-            if (set -o noclobber; echo "$$" > "$lock_file") 2>/dev/null; then
-                trap "rm -f '$lock_file'" EXIT
-                
-                if [ -n "$ai_accounts" ]; then
-                    local is_bad=$(grep -c "^${account_index}$" "./bad_accounts.txt" 2>/dev/null || echo 0)
-                    if [ "$is_bad" -gt 0 ]; then
-                        rm -f "$lock_file"
-                        continue
-                    fi
+        local lock_file="./locks/account_${target_index}.lock"
+        
+        if (set -o noclobber; echo "$$" > "$lock_file") 2>/dev/null; then
+            trap "rm -f '$lock_file'" EXIT
+            
+            if [ -n "$ai_accounts" ]; then
+                local is_bad=$(grep -c "^${target_index}$" "./bad_accounts.txt" 2>/dev/null || echo 0)
+                if [ "$is_bad" -gt 0 ]; then
+                    rm -f "$lock_file"
+                    attempts=$((attempts + 1))
+                    sleep $ACQUIRE_ACCOUNT_INTERVAL
+                    continue
                 fi
-                
-                echo "Shot $shot_index ${frame_type}: Acquired AI account index $account_index"
-                echo "$account_index"
-                return 0
             fi
-        done
+            
+            echo "Shot $shot_index ${frame_type}: Acquired AI account index $target_index"
+            echo "$target_index"
+            return 0
+        fi
         
         attempts=$((attempts + 1))
         sleep $ACQUIRE_ACCOUNT_INTERVAL
@@ -367,7 +369,7 @@ for round in $(seq 1 $MAX_ROUNDS); do
     echo "Round $round: $TOTAL_FAILED frames still missing, will retry..."
 
     if [ "$round" -lt "$MAX_ROUNDS" ]; then
-        local WAIT_TIME=$((round * 30))
+        WAIT_TIME=$((round * 30))
         echo "Waiting $WAIT_TIME seconds before next round..."
         sleep $WAIT_TIME
     fi
