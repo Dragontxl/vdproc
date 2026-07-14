@@ -244,6 +244,24 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
                 print(f"  Shot {shot_index}: Account [{account_alias}] (index {cand_idx}, db_id={db_account_id}) returned 401, marking as bad - please check this account")
                 with bad_accounts_lock:
                     bad_accounts.add(cand_idx)
+                
+                import subprocess
+                import os
+                callback_url = os.environ.get('CALLBACK_URL', '')
+                callback_secret = os.environ.get('CALLBACK_SECRET', '')
+                task_id_env = os.environ.get('TASK_ID', '')
+                if callback_url and task_id_env:
+                    try:
+                        subprocess.run([
+                            'curl', '-s', '--connect-timeout', '10', '--max-time', '30',
+                            '-X', 'POST', f"{callback_url}/account-error",
+                            '-H', 'Content-Type: application/json',
+                            '-H', f"X-Callback-Signature: {callback_secret}",
+                            '-d', f'{{"task_id":"{task_id_env}","account_id":{db_account_id},"error_type":"invalid_credentials","message":"Account returned 401"}}'
+                        ], check=False, capture_output=True)
+                    except Exception as e:
+                        print(f"  Shot {shot_index}: Failed to send account error callback: {str(e)}")
+                
                 continue
 
             if not task_id_result:

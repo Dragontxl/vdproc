@@ -40,4 +40,13 @@ callbackRoutes.post('/error', async (c) => {
   return c.json({ code: 200, data: result, msg: 'Error handled' });
 });
 
+callbackRoutes.post('/account-error', async (c) => {
+  const service = new TaskService(c.env as Bindings);
+  const body = await c.req.json();
+  
+  const result = await service.handleAccountError(body);
+  
+  return c.json({ code: 200, data: result, msg: 'Account error handled' });
+});
+
 export { callbackRoutes };

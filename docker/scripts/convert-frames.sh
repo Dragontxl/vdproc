@@ -116,6 +116,8 @@ process_frame() {
     API_SUCCESS=0
     RESPONSE=""
 
+    BAD_ACCOUNTS_FILE="./bad_accounts.txt"
+
     for attempt in $(seq 1 $MAX_RETRIES); do
         echo "  Shot $shot_index ${frame_type}: Attempt $attempt/$MAX_RETRIES..."
 
@@ -150,6 +152,22 @@ process_frame() {
         if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
             API_SUCCESS=1
             RESPONSE="$RESPONSE_BODY"
+            break
+        fi
+
+        if [ "$HTTP_CODE" -eq 401 ] || [ "$HTTP_CODE" -eq 403 ]; then
+            local ACCOUNT_ALIAS=$(echo "$ai_accounts" | jq -r ".[$account_index].account_alias // \"Unknown\"")
+            local ACCOUNT_ID=$(echo "$ai_accounts" | jq -r ".[$account_index].id // \"\"")
+            echo "  Shot $shot_index ${frame_type}: Account [$ACCOUNT_ALIAS] (index $account_index) returned $HTTP_CODE, marking as bad"
+            echo "$account_index" >> "$BAD_ACCOUNTS_FILE"
+            
+            set +e
+            curl -s --connect-timeout 10 --max-time 30 -X POST "$CALLBACK_URL/account-error" \
+                -H "Content-Type: application/json" \
+                -H "X-Callback-Signature: $CALLBACK_SECRET" \
+                -d "{\"task_id\":\"$TASK_ID\",\"account_id\":${ACCOUNT_ID:-null},\"error_type\":\"invalid_credentials\",\"message\":\"Account returned $HTTP_CODE\"}" > /dev/null 2>&1
+            set -e
+            
             break
         fi
 

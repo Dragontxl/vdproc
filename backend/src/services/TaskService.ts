@@ -211,7 +211,7 @@ export class TaskService {
 
       const requiredApiType = phasesRequiringAI[phase];
       if (requiredApiType) {
-        aiAccount = await new accountService.AccountService(this.env).selectAIAccount(requiredApiType);
+        aiAccount = await new accountService.AccountService(this.env).selectAIAccountForGitHub(ghAccount.id, requiredApiType);
         if (!aiAccount) {
           console.error('triggerPhase: No available AI account for phase:', phase);
           throw new Error('No available AI account');
@@ -255,8 +255,8 @@ export class TaskService {
     }
   }
 
-  async dispatchGitHubWorkflow(taskId: string, phase: TaskPhase, ghAccountId?: number, aiAccountId?: number) {
-    console.log('dispatchGitHubWorkflow called:', { taskId, phase, ghAccountId, aiAccountId });
+  async dispatchGitHubWorkflow(taskId: string, phase: TaskPhase, ghAccountId?: number, aiAccountId?: number, startPhase?: TaskPhase, endPhase?: TaskPhase) {
+    console.log('dispatchGitHubWorkflow called:', { taskId, phase, ghAccountId, aiAccountId, startPhase, endPhase });
     
     const owner = this.env.GITHUB_REPO_OWNER;
     const repo = this.env.GITHUB_REPO_NAME;
@@ -438,6 +438,8 @@ export class TaskService {
       client_payload: {
         task_id: taskId,
         phase: phase,
+        start_phase: startPhase || phase,
+        end_phase: endPhase || phase,
         gh_account_id: ghAccountId,
         ai_api_key: aiApiKey,
         ai_base_url: aiBaseUrl,
@@ -559,6 +561,44 @@ export class TaskService {
     await this.logTask(taskId, phase, 'ERROR', `Task error: ${error}`);
     console.log('handleTaskError: Task marked as failed:', taskId);
     return { success: true, taskId };
+  }
+
+  async handleAccountError(body: any) {
+    const { task_id: taskId, account_id: accountId, error_type: errorType, message: errorMsg } = body;
+    
+    console.log('handleAccountError called:', { taskId, accountId, errorType, errorMsg });
+    
+    const accountService = new (await import('./AccountService')).AccountService(this.env);
+    
+    await accountService.markAccountUnhealthy(accountId, errorMsg || errorType);
+    await accountService.releaseAIAccount(accountId);
+    
+    await this.logTask(taskId, 'ACCOUNT', 'WARNING', `AI账户 ${accountId} 标记为不健康: ${errorType} - ${errorMsg}`);
+    
+    const task = await this.getTask(taskId);
+    if (task && task.github_account_id) {
+      const requiredApiType = phasesRequiringAI[task.current_phase as TaskPhase];
+      const newAccount = await accountService.selectAIAccountForGitHub(task.github_account_id, requiredApiType);
+      
+      if (newAccount) {
+        await this.env.DB.prepare(`
+          UPDATE tasks SET ai_account_id = ? WHERE id = ?
+        `).bind(newAccount.id, taskId).run();
+        
+        console.log('handleAccountError: Replaced AI account', accountId, 'with', newAccount.id);
+        await this.logTask(taskId, 'ACCOUNT', 'INFO', `AI账户已更换: ${accountId} → ${newAccount.id}`);
+        
+        return { success: true, new_account: newAccount };
+      }
+    }
+    
+    await this.env.DB.prepare(`
+      UPDATE tasks SET status = ?, error_msg = ? WHERE id = ?
+    `).bind('FAILED', `AI账户失效且无可用备用账户: ${errorType}`, taskId).run();
+    
+    await this.logTask(taskId, 'ACCOUNT', 'ERROR', `AI账户失效且无可用备用账户: ${errorType}`);
+    
+    return { success: false, message: 'No available AI accounts' };
   }
 
   async handleGitHubCallback(body: any) {

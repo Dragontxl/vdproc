@@ -137,10 +137,19 @@ process_character() {
                 break 2
             fi
 
-            if [ "$HTTP_CODE" -eq 401 ]; then
+            if [ "$HTTP_CODE" -eq 401 ] || [ "$HTTP_CODE" -eq 403 ]; then
                 local ACCOUNT_ALIAS=$(echo "$ai_accounts" | jq -r ".[$account_index].account_alias // \"Unknown\"")
-                echo "  Character $ROLE_ID: Account [$ACCOUNT_ALIAS] (index $account_index) returned 401, marking as bad - please check this account"
+                local ACCOUNT_ID=$(echo "$ai_accounts" | jq -r ".[$account_index].id // \"\"")
+                echo "  Character $ROLE_ID: Account [$ACCOUNT_ALIAS] (index $account_index) returned $HTTP_CODE, marking as bad - please check this account"
                 echo "$account_index" >> "./bad_accounts.txt"
+                
+                set +e
+                curl -s --connect-timeout 10 --max-time 30 -X POST "$CALLBACK_URL/account-error" \
+                    -H "Content-Type: application/json" \
+                    -H "X-Callback-Signature: $CALLBACK_SECRET" \
+                    -d "{\"task_id\":\"$TASK_ID\",\"account_id\":${ACCOUNT_ID:-null},\"error_type\":\"invalid_credentials\",\"message\":\"Account returned $HTTP_CODE\"}" > /dev/null 2>&1
+                set -e
+                
                 flock -u 200
                 break
             fi

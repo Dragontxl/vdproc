@@ -337,4 +337,154 @@ export class AccountService {
       WHERE id = ?
     `).bind(accountId).run();
   }
+
+  async bindAIAccount(githubAccountId: number, aiAccountId: number, priority: number = 0): Promise<void> {
+    const existingBinding = await this.env.DB.prepare(`
+      SELECT * FROM github_ai_bindings 
+      WHERE ai_account_id = ? AND is_active = TRUE
+    `).bind(aiAccountId).first();
+
+    if (existingBinding) {
+      throw new Error('AI账户已绑定到其他GitHub账户');
+    }
+
+    await this.env.DB.prepare(`
+      INSERT INTO github_ai_bindings (github_account_id, ai_account_id, priority)
+      VALUES (?, ?, ?)
+    `).bind(githubAccountId, aiAccountId, priority).run();
+  }
+
+  async unbindAIAccount(bindingId: number): Promise<void> {
+    await this.env.DB.prepare(`
+      UPDATE github_ai_bindings SET is_active = FALSE, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?
+    `).bind(bindingId).run();
+  }
+
+  async replaceBoundAIAccount(bindingId: number, newAiAccountId: number): Promise<void> {
+    const existingBinding = await this.env.DB.prepare(`
+      SELECT * FROM github_ai_bindings 
+      WHERE ai_account_id = ? AND is_active = TRUE AND id != ?
+    `).bind(newAiAccountId, bindingId).first();
+
+    if (existingBinding) {
+      throw new Error('AI账户已绑定到其他GitHub账户');
+    }
+
+    await this.env.DB.prepare(`
+      UPDATE github_ai_bindings 
+      SET ai_account_id = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE id = ?
+    `).bind(newAiAccountId, bindingId).run();
+  }
+
+  async getBoundAIAccounts(githubAccountId: number): Promise<any[]> {
+    const result = await this.env.DB.prepare(`
+      SELECT gab.*, aa.account_alias, aa.api_type, aa.is_healthy, aa.health_check_msg, aa.daily_usage, aa.daily_limit
+      FROM github_ai_bindings gab
+      JOIN ai_accounts aa ON gab.ai_account_id = aa.id
+      WHERE gab.github_account_id = ? AND gab.is_active = TRUE
+      ORDER BY gab.priority ASC
+    `).bind(githubAccountId).all();
+
+    return result.results || [];
+  }
+
+  async getUnboundAIAccounts(): Promise<any[]> {
+    const result = await this.env.DB.prepare(`
+      SELECT aa.*
+      FROM ai_accounts aa
+      LEFT JOIN github_ai_bindings gab ON aa.id = gab.ai_account_id AND gab.is_active = TRUE
+      WHERE gab.id IS NULL AND aa.is_active = TRUE
+      ORDER BY aa.account_alias
+    `).all();
+
+    return result.results || [];
+  }
+
+  async selectAIAccountForGitHub(githubAccountId: number, apiType?: string): Promise<AIAccount | null> {
+    let typeCondition = '';
+    let params: (string | number)[] = [githubAccountId];
+
+    if (apiType) {
+      typeCondition = ' AND aa.api_type = ?';
+      params.push(apiType);
+    }
+
+    const boundAccounts = await this.env.DB.prepare(`
+      SELECT aa.*
+      FROM ai_accounts aa
+      JOIN github_ai_bindings gab ON aa.id = gab.ai_account_id
+      WHERE gab.github_account_id = ?
+        AND gab.is_active = TRUE
+        AND aa.is_active = TRUE
+        AND aa.is_healthy = TRUE
+        AND aa.daily_usage < aa.daily_limit
+        AND (aa.cooldown_until IS NULL OR aa.cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        ${typeCondition}
+      ORDER BY aa.last_used_at ASC NULLS FIRST, aa.total_usage ASC, gab.priority ASC
+      LIMIT 1
+    `).bind(...params).first();
+
+    if (boundAccounts) {
+      const reservationExpiry = new Date(Date.now() + 60 * 1000);
+
+      const result = await this.env.DB.prepare(`
+        UPDATE ai_accounts
+        SET cooldown_until = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id = ? AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      `).bind(reservationExpiry.toISOString(), (boundAccounts as any).id).run() as D1ResultType;
+
+      if (result.success && (result.meta?.changes ?? 0) > 0) {
+        return boundAccounts as unknown as AIAccount;
+      }
+
+      return await this.selectAIAccountForGitHub(githubAccountId, apiType);
+    }
+
+    const otherParams: (string | number)[] = [githubAccountId];
+    if (apiType) {
+      otherParams.push(apiType);
+    }
+
+    const otherAccounts = await this.env.DB.prepare(`
+      SELECT aa.*
+      FROM ai_accounts aa
+      JOIN github_ai_bindings gab ON aa.id = gab.ai_account_id
+      WHERE gab.github_account_id != ?
+        AND gab.is_active = TRUE
+        AND aa.is_active = TRUE
+        AND aa.is_healthy = TRUE
+        AND aa.daily_usage < aa.daily_limit
+        AND (aa.cooldown_until IS NULL OR aa.cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        ${typeCondition}
+      ORDER BY aa.last_used_at ASC NULLS FIRST, aa.total_usage ASC
+      LIMIT 1
+    `).bind(...otherParams).first();
+
+    if (otherAccounts) {
+      const reservationExpiry = new Date(Date.now() + 60 * 1000);
+
+      const result = await this.env.DB.prepare(`
+        UPDATE ai_accounts
+        SET cooldown_until = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id = ? AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      `).bind(reservationExpiry.toISOString(), (otherAccounts as any).id).run() as D1ResultType;
+
+      if (result.success && (result.meta?.changes ?? 0) > 0) {
+        return otherAccounts as unknown as AIAccount;
+      }
+
+      return await this.selectAIAccountForGitHub(githubAccountId, apiType);
+    }
+
+    return null;
+  }
+
+  async markAccountUnhealthy(accountId: number, reason: string): Promise<void> {
+    await this.env.DB.prepare(`
+      UPDATE ai_accounts 
+      SET is_healthy = FALSE, health_check_msg = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE id = ?
+    `).bind(reason, accountId).run();
+  }
 }

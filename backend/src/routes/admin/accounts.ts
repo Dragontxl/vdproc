@@ -142,4 +142,46 @@ accountRoutes.get('/ai/:id/debug', async (c) => {
   });
 });
 
+accountRoutes.get('/github/:githubId/bindings', async (c) => {
+  const service = new AccountService(c.env as Bindings);
+  const bindings = await service.getBoundAIAccounts(parseInt(c.req.param('githubId')));
+  return c.json({ code: 200, data: bindings, msg: 'success' });
+});
+
+accountRoutes.post('/github/:githubId/bindings', async (c) => {
+  const service = new AccountService(c.env as Bindings);
+  const body = await c.req.json();
+  
+  try {
+    await service.bindAIAccount(parseInt(c.req.param('githubId')), body.ai_account_id, body.priority || 0);
+    return c.json({ code: 200, data: null, msg: '绑定成功' });
+  } catch (error) {
+    return c.json({ code: 400, data: null, msg: (error as Error).message }, 400);
+  }
+});
+
+accountRoutes.put('/bindings/:bindingId/replace', async (c) => {
+  const service = new AccountService(c.env as Bindings);
+  const body = await c.req.json();
+  
+  try {
+    await service.replaceBoundAIAccount(parseInt(c.req.param('bindingId')), body.new_ai_account_id);
+    return c.json({ code: 200, data: null, msg: '更换成功' });
+  } catch (error) {
+    return c.json({ code: 400, data: null, msg: (error as Error).message }, 400);
+  }
+});
+
+accountRoutes.delete('/bindings/:bindingId', async (c) => {
+  const service = new AccountService(c.env as Bindings);
+  await service.unbindAIAccount(parseInt(c.req.param('bindingId')));
+  return c.json({ code: 200, data: null, msg: '解绑成功' });
+});
+
+accountRoutes.get('/ai/unbound', async (c) => {
+  const service = new AccountService(c.env as Bindings);
+  const accounts = await service.getUnboundAIAccounts();
+  return c.json({ code: 200, data: accounts, msg: 'success' });
+});
+
 export { accountRoutes };

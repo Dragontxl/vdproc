@@ -8,8 +8,21 @@ on:
       task_id:
         description: 'Task ID'
         required: true
-      phase:
-        description: 'Processing phase'
+      start_phase:
+        description: 'Starting phase'
+        required: true
+        type: choice
+        options:
+          - DETECT
+          - ANALYZE
+          - SELECT_FACES
+          - GENERATE_CHARACTERS
+          - CROP_SHOTS
+          - CONVERT_FRAMES
+          - GENERATE_SHOTS
+          - COMPOSE
+      end_phase:
+        description: 'Ending phase'
         required: true
         type: choice
         options:
@@ -33,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     concurrency:
-      group: ${{ inputs.task_id || github.event.client_payload.task_id }}-${{ inputs.phase || github.event.client_payload.phase }}
+      group: ${{ inputs.task_id || github.event.client_payload.task_id }}-${{ inputs.start_phase || github.event.client_payload.start_phase || inputs.phase || github.event.client_payload.phase }}
       cancel-in-progress: false
 
     steps:
@@ -47,8 +60,35 @@ jobs:
         run: |
           docker build -t ai-video-processor ./docker
 
+      - name: Set phase order variables
+        id: get_phase_order
+        run: |
+          declare -A phase_map=(
+            ["DETECT"]=0
+            ["ANALYZE"]=1
+            ["SELECT_FACES"]=2
+            ["GENERATE_CHARACTERS"]=3
+            ["CROP_SHOTS"]=4
+            ["CONVERT_FRAMES"]=5
+            ["GENERATE_SHOTS"]=6
+            ["COMPOSE"]=7
+          )
+          
+          start_phase=${{ inputs.start_phase || github.event.client_payload.start_phase || inputs.phase || github.event.client_payload.phase }}
+          end_phase=${{ inputs.end_phase || github.event.client_payload.end_phase || inputs.phase || github.event.client_payload.phase }}
+          
+          start=${phase_map[$start_phase]}
+          end=${phase_map[$end_phase]}
+          
+          echo "start=$start" >> $GITHUB_OUTPUT
+          echo "end=$end" >> $GITHUB_OUTPUT
+          
+          for phase in "${!phase_map[@]}"; do
+            echo "${phase,,}=$((phase_map[$phase]))" >> $GITHUB_OUTPUT
+          done
+
       - name: Run shot detection phase
-        if: ${{ inputs.phase == 'DETECT' || github.event.client_payload.phase == 'DETECT' }}
+        if: ${{ steps.get_phase_order.outputs.detect >= steps.get_phase_order.outputs.start && steps.get_phase_order.outputs.detect <= steps.get_phase_order.outputs.end }}
         env:
           TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
@@ -76,7 +116,7 @@ jobs:
             bash /scripts/detect-shots.sh
 
       - name: Run scene analysis phase
-        if: ${{ inputs.phase == 'ANALYZE' || github.event.client_payload.phase == 'ANALYZE' }}
+        if: ${{ steps.get_phase_order.outputs.analyze >= steps.get_phase_order.outputs.start && steps.get_phase_order.outputs.analyze <= steps.get_phase_order.outputs.end }}
         env:
           TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
@@ -110,7 +150,7 @@ jobs:
             bash /scripts/analyze-scene.sh
 
       - name: Run face selection phase
-        if: ${{ inputs.phase == 'SELECT_FACES' || github.event.client_payload.phase == 'SELECT_FACES' }}
+        if: ${{ steps.get_phase_order.outputs.select_faces >= steps.get_phase_order.outputs.start && steps.get_phase_order.outputs.select_faces <= steps.get_phase_order.outputs.end }}
         env:
           TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
@@ -138,7 +178,7 @@ jobs:
             bash /scripts/select-faces.sh
 
       - name: Run character generation phase
-        if: ${{ inputs.phase == 'GENERATE_CHARACTERS' || github.event.client_payload.phase == 'GENERATE_CHARACTERS' }}
+        if: ${{ steps.get_phase_order.outputs.generate_characters >= steps.get_phase_order.outputs.start && steps.get_phase_order.outputs.generate_characters <= steps.get_phase_order.outputs.end }}
         env:
           TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
@@ -176,7 +216,7 @@ jobs:
             bash /scripts/generate-characters.sh
 
       - name: Run shot cropping phase
-        if: ${{ inputs.phase == 'CROP_SHOTS' || github.event.client_payload.phase == 'CROP_SHOTS' }}
+        if: ${{ steps.get_phase_order.outputs.crop_shots >= steps.get_phase_order.outputs.start && steps.get_phase_order.outputs.crop_shots <= steps.get_phase_order.outputs.end }}
         env:
           TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
@@ -204,7 +244,7 @@ jobs:
             bash /scripts/crop-shots.sh
 
       - name: Run frame conversion phase
-        if: ${{ inputs.phase == 'CONVERT_FRAMES' || github.event.client_payload.phase == 'CONVERT_FRAMES' }}
+        if: ${{ steps.get_phase_order.outputs.convert_frames >= steps.get_phase_order.outputs.start && steps.get_phase_order.outputs.convert_frames <= steps.get_phase_order.outputs.end }}
         env:
           TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
@@ -244,7 +284,7 @@ jobs:
             bash /scripts/convert-frames.sh
 
       - name: Run shot generation phase
-        if: ${{ inputs.phase == 'GENERATE_SHOTS' || github.event.client_payload.phase == 'GENERATE_SHOTS' }}
+        if: ${{ steps.get_phase_order.outputs.generate_shots >= steps.get_phase_order.outputs.start && steps.get_phase_order.outputs.generate_shots <= steps.get_phase_order.outputs.end }}
         env:
           TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
@@ -284,7 +324,7 @@ jobs:
             bash /scripts/generate-shots.sh
 
       - name: Run composition phase
-        if: ${{ inputs.phase == 'COMPOSE' || github.event.client_payload.phase == 'COMPOSE' }}
+        if: ${{ steps.get_phase_order.outputs.compose >= steps.get_phase_order.outputs.start && steps.get_phase_order.outputs.compose <= steps.get_phase_order.outputs.end }}
         env:
           TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
@@ -320,7 +360,7 @@ jobs:
           RUN_NUMBER: ${{ github.run_number }}
           CALLBACK_URL: ${{ secrets.CALLBACK_URL }}
           CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
-          PHASE: ${{ inputs.phase || github.event.client_payload.phase }}
+          PHASE: ${{ inputs.start_phase || github.event.client_payload.start_phase || inputs.phase || github.event.client_payload.phase }}
         run: |
           MAX_RETRIES=3
           RETRY_DELAY=5
