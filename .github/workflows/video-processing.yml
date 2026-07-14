@@ -87,12 +87,22 @@ jobs:
             echo "${phase,,}=$((phase_map[$phase]))" >> $GITHUB_OUTPUT
           done
 
+      - name: Parse config JSON
+        id: parse_config
+        run: |
+          CONFIG_JSON=${{ inputs.config || github.event.client_payload.config || '{}' }}
+          echo "VIDEO_PATH=$(echo "$CONFIG_JSON" | jq -r '.video_path // ""')" >> $GITHUB_OUTPUT
+          echo "FPS=$(echo "$CONFIG_JSON" | jq -r '.fps // 30')" >> $GITHUB_OUTPUT
+          echo "PROMPT=$(echo "$CONFIG_JSON" | jq -r '.prompt // ""')" >> $GITHUB_OUTPUT
+          echo "OUTPUT_FPS=$(echo "$CONFIG_JSON" | jq -r '.output_fps // 24')" >> $GITHUB_OUTPUT
+          echo "MAX_CONCURRENT=$(echo "$CONFIG_JSON" | jq -r '.max_concurrent // 2')" >> $GITHUB_OUTPUT
+
       - name: Run shot detection phase
         if: ${{ steps.get_phase_order.outputs.detect >= steps.get_phase_order.outputs.start && steps.get_phase_order.outputs.detect <= steps.get_phase_order.outputs.end }}
         env:
           TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
-          VIDEO_PATH: ${{ inputs.video_path || github.event.client_payload.video_path }}
+          VIDEO_PATH: ${{ steps.parse_config.outputs.VIDEO_PATH }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
@@ -121,7 +131,7 @@ jobs:
           TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
           AI_ACCOUNT_ID: ${{ inputs.ai_account_id || github.event.client_payload.ai_account_id }}
-          VIDEO_PATH: ${{ inputs.video_path || github.event.client_payload.video_path }}
+          VIDEO_PATH: ${{ steps.parse_config.outputs.VIDEO_PATH }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
@@ -154,7 +164,7 @@ jobs:
         env:
           TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
-          VIDEO_PATH: ${{ inputs.video_path || github.event.client_payload.video_path }}
+          VIDEO_PATH: ${{ steps.parse_config.outputs.VIDEO_PATH }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
@@ -194,7 +204,7 @@ jobs:
           AI_BASE_URL: ${{ inputs.ai_base_url || github.event.client_payload.ai_base_url || secrets.AI_BASE_URL }}
           AI_ACCOUNTS: ${{ inputs.ai_accounts || github.event.client_payload.ai_accounts }}
           COOLDOWN_SECONDS: ${{ inputs.cooldown_seconds || github.event.client_payload.cooldown_seconds || 1 }}
-          MAX_CONCURRENT: ${{ inputs.max_concurrent || github.event.client_payload.max_concurrent || 2 }}
+          MAX_CONCURRENT: ${{ steps.parse_config.outputs.MAX_CONCURRENT }}
         run: |
           docker run --rm \
             -e TASK_ID="$TASK_ID" \
@@ -220,7 +230,7 @@ jobs:
         env:
           TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
-          VIDEO_PATH: ${{ inputs.video_path || github.event.client_payload.video_path }}
+          VIDEO_PATH: ${{ steps.parse_config.outputs.VIDEO_PATH }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
@@ -260,8 +270,8 @@ jobs:
           AI_BASE_URL: ${{ inputs.ai_base_url || github.event.client_payload.ai_base_url || secrets.AI_BASE_URL }}
           AI_ACCOUNTS: ${{ inputs.ai_accounts || github.event.client_payload.ai_accounts }}
           COOLDOWN_SECONDS: ${{ inputs.cooldown_seconds || github.event.client_payload.cooldown_seconds || 1 }}
-          MAX_CONCURRENT: ${{ inputs.max_concurrent || github.event.client_payload.max_concurrent || 2 }}
-          PROMPT: ${{ inputs.prompt || github.event.client_payload.prompt || '' }}
+          MAX_CONCURRENT: ${{ steps.parse_config.outputs.MAX_CONCURRENT }}
+          PROMPT: ${{ steps.parse_config.outputs.PROMPT }}
         run: |
           docker run --rm \
             -e TASK_ID="$TASK_ID" \
@@ -289,7 +299,7 @@ jobs:
           TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
           AI_ACCOUNT_ID: ${{ inputs.ai_account_id || github.event.client_payload.ai_account_id }}
-          OUTPUT_FPS: ${{ inputs.output_fps || github.event.client_payload.output_fps || 24 }}
+          OUTPUT_FPS: ${{ steps.parse_config.outputs.OUTPUT_FPS }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
@@ -301,7 +311,7 @@ jobs:
           AI_BASE_URL: ${{ inputs.ai_base_url || github.event.client_payload.ai_base_url || secrets.AI_BASE_URL }}
           AI_ACCOUNTS: ${{ inputs.ai_accounts || github.event.client_payload.ai_accounts }}
           COOLDOWN_SECONDS: ${{ inputs.cooldown_seconds || github.event.client_payload.cooldown_seconds || 2 }}
-          MAX_CONCURRENT: ${{ inputs.max_concurrent || github.event.client_payload.max_concurrent || 2 }}
+          MAX_CONCURRENT: ${{ steps.parse_config.outputs.MAX_CONCURRENT }}
         run: |
           docker run --rm \
             -e TASK_ID="$TASK_ID" \
@@ -328,7 +338,7 @@ jobs:
         env:
           TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
-          OUTPUT_FPS: ${{ inputs.output_fps || github.event.client_payload.output_fps || 24 }}
+          OUTPUT_FPS: ${{ steps.parse_config.outputs.OUTPUT_FPS }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}

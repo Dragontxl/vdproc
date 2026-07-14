@@ -444,11 +444,13 @@ export class TaskService {
         ai_api_key: aiApiKey,
         ai_base_url: aiBaseUrl,
         ai_accounts: aiAccountsJson,
-        video_path: task.video_path,
-        fps: task.fps,
-        prompt: task.prompt,
-        output_fps: task.output_fps,
-        max_concurrent: maxConcurrent,
+        config: JSON.stringify({
+          video_path: task.video_path,
+          fps: task.fps,
+          prompt: task.prompt,
+          output_fps: task.output_fps,
+          max_concurrent: maxConcurrent,
+        }),
       },
     };
 
