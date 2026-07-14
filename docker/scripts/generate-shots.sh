@@ -96,7 +96,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 ssl._create_default_https_context = ssl._create_unverified_context
 
 task_id = os.environ.get('TASK_ID')
-ai_accounts_json = os.environ.get('AI_ACCOUNTS', '[]')
+ai_accounts_json = os.environ.get('AI_ACCOUNTS', '').strip() or '[]'
 pending_indices_str = os.environ.get('PENDING_INDICES', '')
 
 with open('./analysis_result.json', 'r') as f:
