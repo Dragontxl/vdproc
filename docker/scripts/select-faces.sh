@@ -315,6 +315,20 @@ def main():
                     chars_in_scene = set(sb.get('characters_present', []))
                     sb_chars[sb_idx] = chars_in_scene
                 
+                char_anchor_embeddings = {}
+                for role_id in analysis_char_list:
+                    anchor_faces = []
+                    target_scenes = char_to_scenes.get(role_id, set())
+                    for sb_idx, sb in enumerate(analysis_data.get('storyboards', [])):
+                        chars_in_scene = set(sb.get('characters_present', []))
+                        if len(chars_in_scene) == 1 and role_id in chars_in_scene:
+                            for i, face in enumerate(all_faces):
+                                if face['scene_index'] == sb_idx:
+                                    anchor_faces.append(embeddings[i])
+                    if anchor_faces:
+                        char_anchor_embeddings[role_id] = np.array(anchor_faces)
+                        log(f"  Character {role_id} has {len(anchor_faces)} anchor faces")
+                
                 for role_id in analysis_char_list:
                     target_scenes = char_to_scenes.get(role_id, set())
                     if not target_scenes:
@@ -339,14 +353,19 @@ def main():
                                 elif role_id in chars_in_scene:
                                     score += cluster_scene_dist[label][scene_idx] * 20
                         
-                        avg_confidence = np.mean([float(f['confidence']) for f in faces])
-                        avg_angle = np.mean([abs(float(f['angle'])) for f in faces])
-                        avg_blur = np.mean([float(f['blur_score']) for f in faces])
-                        
-                        quality_score = (avg_confidence * 100) - (avg_angle * 0.5) + (min(avg_blur, 2000) * 0.02)
-                        score += quality_score
-                        
-                        log(f"    Cluster {label}: scene_score={score - quality_score:.1f}, quality_score={quality_score:.1f}, total={score:.1f}")
+                        if role_id in char_anchor_embeddings:
+                            cluster_embeddings = np.array([f['embedding'] for f in faces])
+                            anchor_sim = np.mean(np.dot(cluster_embeddings, char_anchor_embeddings[role_id].T))
+                            score += anchor_sim * 100
+                            log(f"    Cluster {label}: scene_score={score - anchor_sim*100:.1f}, anchor_sim={anchor_sim:.3f}, total={score:.1f}")
+                        else:
+                            for other_role, other_anchors in char_anchor_embeddings.items():
+                                if other_role != role_id and other_role in char_faces and len(char_faces[other_role]) > 0:
+                                    cluster_embeddings = np.array([f['embedding'] for f in faces])
+                                    other_sim = np.mean(np.dot(cluster_embeddings, other_anchors.T))
+                                    dissimilarity_score = (1 - other_sim) * 100
+                                    score += dissimilarity_score
+                                    log(f"    Cluster {label}: scene_score={score - dissimilarity_score:.1f}, dissimilarity_to_{other_role}={dissimilarity_score:.1f}, total={score:.1f}")
                         
                         if score > best_score:
                             best_score = score
