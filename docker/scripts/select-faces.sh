@@ -258,81 +258,71 @@ def main():
             log(f"Character to scenes mapping: {char_to_scenes}")
             
             if analysis_char_list:
-                n_chars = len(analysis_char_list)
-                eps = 0.45 if n_chars == 2 else 0.5
-                min_samples = max(2, int(len(all_faces) * 0.05))
-                log(f"Using DBSCAN eps={eps}, min_samples={min_samples} for {n_chars} characters")
-                
                 embeddings = np.array([f['embedding'] for f in all_faces])
-                dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='cosine')
-                labels = dbscan.fit_predict(embeddings)
                 
-                valid_clusters = []
-                for label in np.unique(labels):
-                    if label == -1:
-                        continue
-                    cluster_faces = [all_faces[i] for i in range(len(all_faces)) if labels[i] == label]
-                    if len(cluster_faces) >= min_samples:
-                        valid_clusters.append((label, cluster_faces))
+                char_faces = {}
+                for role_id in analysis_char_list:
+                    char_faces[role_id] = []
                 
-                valid_clusters.sort(key=lambda x: len(x[1]), reverse=True)
-                log(f"Found {len(valid_clusters)} valid clusters")
-                
-                assigned_clusters = set()
-                characters = []
+                assigned_face_indices = set()
                 
                 for role_id in analysis_char_list:
                     target_scenes = char_to_scenes.get(role_id, set())
-                    log(f"Finding best cluster for {role_id} in scenes {target_scenes}")
+                    log(f"Assigning faces for {role_id} (scenes: {target_scenes})")
                     
-                    best_cluster = None
-                    best_score = 0
-                    best_unique_score = 0
+                    anchor_faces = []
+                    for scene_idx in target_scenes:
+                        chars_in_scene = []
+                        for sb_idx, sb in enumerate(analysis_data.get('storyboards', [])):
+                            if sb_idx == scene_idx:
+                                chars_in_scene = sb.get('characters_present', [])
+                                break
+                        if len(chars_in_scene) == 1:
+                            for i, face in enumerate(all_faces):
+                                if i not in assigned_face_indices and face['scene_index'] == scene_idx:
+                                    anchor_faces.append((i, face))
                     
-                    for label, cluster_faces in valid_clusters:
-                        if label in assigned_clusters:
-                            continue
-                        cluster_scenes = set(f['scene_index'] for f in cluster_faces)
+                    if anchor_faces:
+                        log(f"  Found {len(anchor_faces)} anchor faces from unique scenes")
+                        anchor_embeddings = np.array([f[1]['embedding'] for f in anchor_faces])
                         
-                        scene_overlap = len(cluster_scenes & target_scenes)
-                        scene_score = scene_overlap / max(len(cluster_scenes), len(target_scenes))
-                        
-                        unique_scene_score = 0
-                        for scene_idx in target_scenes:
-                            chars_in_scene = []
-                            for sb_idx, sb in enumerate(analysis_data.get('storyboards', [])):
-                                if sb_idx == scene_idx:
-                                    chars_in_scene = sb.get('characters_present', [])
-                                    break
-                            if len(chars_in_scene) == 1:
-                                if scene_idx in cluster_scenes:
-                                    unique_scene_score += 1.0
-                        
-                        if target_scenes:
-                            unique_scene_score /= len(target_scenes)
-                        
-                        combined_score = 0.7 * scene_score + 0.3 * unique_scene_score
-                        
-                        log(f"  Cluster {label}: {len(cluster_faces)} faces, scenes={cluster_scenes}, scene_score={scene_score:.2f}, unique_score={unique_scene_score:.2f}, combined={combined_score:.2f}")
-                        
-                        if combined_score > best_score:
-                            best_score = combined_score
-                            best_cluster = (label, cluster_faces)
-                    
-                    if best_cluster:
-                        label, cluster_faces = best_cluster
-                        assigned_clusters.add(label)
-                        best_face = max(cluster_faces, key=lambda f: float(f['confidence']) * (1 - abs(float(f['angle']))/90) * (min(float(f['blur_score']), 2000)/2000))
-                        log(f"  Assigned cluster {label} to {role_id}, score={best_score:.2f}, face_count={len(cluster_faces)}")
-                        
+                        for i, face in enumerate(all_faces):
+                            if i in assigned_face_indices:
+                                continue
+                            
+                            if face['scene_index'] in target_scenes:
+                                face_embedding = np.array(face['embedding'])
+                                similarities = np.dot(anchor_embeddings, face_embedding)
+                                max_sim = np.max(similarities)
+                                
+                                if max_sim > 0.5:
+                                    char_faces[role_id].append(face)
+                                    assigned_face_indices.add(i)
+                                    log(f"    Face at scene {face['scene_index']}, time {face['timestamp']:.3f}s assigned to {role_id} (similarity: {max_sim:.2f})")
+                    else:
+                        log(f"  No anchor faces found, assigning faces from target scenes")
+                        for i, face in enumerate(all_faces):
+                            if i in assigned_face_indices:
+                                continue
+                            if face['scene_index'] in target_scenes:
+                                char_faces[role_id].append(face)
+                                assigned_face_indices.add(i)
+                                log(f"    Face at scene {face['scene_index']}, time {face['timestamp']:.3f}s assigned to {role_id}")
+                
+                characters = []
+                for role_id in analysis_char_list:
+                    faces = char_faces.get(role_id, [])
+                    if faces:
+                        best_face = max(faces, key=lambda f: float(f['confidence']) * (1 - abs(float(f['angle']))/90) * (min(float(f['blur_score']), 2000)/2000))
+                        log(f"Character {role_id}: {len(faces)} faces, best at scene {best_face['scene_index']}, time {best_face['timestamp']:.3f}s")
                         characters.append({
                             'role_id': role_id,
                             'best_frame_path': best_face['path'],
-                            'face_count': len(cluster_faces),
-                            'avg_confidence': float(sum(float(f['confidence']) for f in cluster_faces) / len(cluster_faces))
+                            'face_count': len(faces),
+                            'avg_confidence': float(sum(float(f['confidence']) for f in faces) / len(faces))
                         })
                     else:
-                        log(f"  No cluster found for {role_id}, using fallback")
+                        log(f"Character {role_id}: no faces found, using fallback")
                         fallback_face = max(all_faces, key=lambda f: float(f['confidence']) * (1 - abs(float(f['angle']))/90) * (min(float(f['blur_score']), 2000)/2000))
                         characters.append({
                             'role_id': role_id,
