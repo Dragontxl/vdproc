@@ -319,10 +319,21 @@ def main():
                         max_sim = similarities[max_sim_idx]
                         best_role = anchor_char_ids[max_sim_idx]
                         
-                        if max_sim > 0.5:
+                        face_scene = all_faces[i]['scene_index']
+                        scene_chars = set()
+                        if face_scene < len(analysis_data.get('storyboards', [])):
+                            scene_chars = set(analysis_data['storyboards'][face_scene].get('characters_present', []))
+                        
+                        if max_sim > 0.7:
                             char_faces[best_role].append(all_faces[i])
                             unassigned_indices.discard(i)
-                            log(f"  Face {i} (scene {all_faces[i]['scene_index']}, time {all_faces[i]['timestamp']:.3f}s) assigned to {best_role} (similarity: {max_sim:.2f})")
+                            log(f"  Face {i} (scene {face_scene}, time {all_faces[i]['timestamp']:.3f}s) assigned to {best_role} (similarity: {max_sim:.2f})")
+                        elif max_sim > 0.5 and len(scene_chars) == 1:
+                            for char_id in scene_chars:
+                                char_faces[char_id].append(all_faces[i])
+                                unassigned_indices.discard(i)
+                                log(f"  Face {i} (scene {face_scene}, time {all_faces[i]['timestamp']:.3f}s) assigned to {char_id} (scene-only)")
+                                break
                     
                     for role_id, indices in char_anchors.items():
                         for idx in indices:
@@ -360,8 +371,13 @@ def main():
                         for role_id in analysis_char_list:
                             target_scenes = char_to_scenes.get(role_id, set())
                             if face['scene_index'] in target_scenes:
-                                best_role = role_id
-                                break
+                                score = 0
+                                if len(char_faces[role_id]) == 0:
+                                    score += 10
+                                score += len(target_scenes)
+                                if score > best_score:
+                                    best_score = score
+                                    best_role = role_id
                         if best_role:
                             char_faces[best_role].append(face)
                             log(f"  Unassigned face {i} assigned to {best_role}")
@@ -380,7 +396,12 @@ def main():
                         })
                     else:
                         log(f"Character {role_id}: no faces found, using fallback")
-                        fallback_face = max(all_faces, key=lambda f: float(f['confidence']) * (1 - abs(float(f['angle']))/90) * (min(float(f['blur_score']), 2000)/2000))
+                        target_scenes = char_to_scenes.get(role_id, set())
+                        candidate_faces = [f for f in all_faces if f['scene_index'] in target_scenes]
+                        if candidate_faces:
+                            fallback_face = max(candidate_faces, key=lambda f: float(f['confidence']) * (1 - abs(float(f['angle']))/90) * (min(float(f['blur_score']), 2000)/2000))
+                        else:
+                            fallback_face = max(all_faces, key=lambda f: float(f['confidence']) * (1 - abs(float(f['angle']))/90) * (min(float(f['blur_score']), 2000)/2000))
                         characters.append({
                             'role_id': role_id,
                             'best_frame_path': fallback_face['path'],
