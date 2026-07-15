@@ -169,7 +169,7 @@ def main():
         for scene in scenes:
             duration = scene['end'] - scene['start']
             log(f"Processing scene {scene['index']}: {scene['start']:.3f}s - {scene['end']:.3f}s (duration: {duration:.3f}s)")
-            positions = [0.1, 0.5, 0.9]
+            positions = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
             
             for pos in positions:
                 timestamp = scene['start'] + duration * pos
