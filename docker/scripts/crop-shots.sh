@@ -48,8 +48,10 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
     END_SECONDS=$(echo "$END_TIME" | awk -F: '{print ($1 * 3600) + ($2 * 60) + $3}')
     echo "End time in seconds: $END_SECONDS"
     
-    echo "Extracting first frame..."
-    ffmpeg -ss "$START_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_first.jpg"
+    if [ "$i" -eq 0 ]; then
+        echo "Extracting first frame (shot_0 only)..."
+        ffmpeg -ss "$START_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_first.jpg"
+    fi
     
     echo "Extracting last frame..."
     ffmpeg -ss "$END_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_last.jpg" 2>&1 || true
@@ -60,9 +62,16 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
     fi
     
     if [ ! -f "./shot_frames/shot_${i}_last.jpg" ]; then
-        echo "Failed to extract last frame, trying fallback to first frame of shot..."
-        cp "./shot_frames/shot_${i}_first.jpg" "./shot_frames/shot_${i}_last.jpg"
-        echo "Using first frame as fallback for last frame"
+        echo "Failed to extract last frame, trying fallback..."
+        if [ "$i" -eq 0 ] && [ -f "./shot_frames/shot_${i}_first.jpg" ]; then
+            cp "./shot_frames/shot_${i}_first.jpg" "./shot_frames/shot_${i}_last.jpg"
+        else
+            PREV_LAST="./shot_frames/shot_$((i-1))_last.jpg"
+            if [ -f "$PREV_LAST" ]; then
+                cp "$PREV_LAST" "./shot_frames/shot_${i}_last.jpg"
+            fi
+        fi
+        echo "Using fallback for last frame"
     fi
     
     echo "Cropping shot video..."

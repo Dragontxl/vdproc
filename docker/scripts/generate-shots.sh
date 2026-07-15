@@ -334,7 +334,10 @@ def process_shot(shot_index):
 
     print(f"Processing shot {shot_index}: {start_time} - {end_time} (duration={duration:.3f}s)")
 
-    first_frame_url = f"https://aivideobucket.ldragon.xyz/{task_id}/ai_shot_frames/shot_{shot_index}_first.jpg"
+    if shot_index == 0:
+        first_frame_url = f"https://aivideobucket.ldragon.xyz/{task_id}/ai_shot_frames/shot_0_first.jpg"
+    else:
+        first_frame_url = f"https://aivideobucket.ldragon.xyz/{task_id}/ai_shot_frames/shot_{shot_index - 1}_last.jpg"
     last_frame_url = f"https://aivideobucket.ldragon.xyz/{task_id}/ai_shot_frames/shot_{shot_index}_last.jpg"
 
     print(f"First frame URL: {first_frame_url}")

@@ -36,7 +36,7 @@ if [ "$SHOT_COUNT" -eq 0 ]; then
     exit 1
 fi
 
-TOTAL_FRAMES=$((SHOT_COUNT * 2))
+TOTAL_FRAMES=$((SHOT_COUNT + 1))
 
 mkdir -p ./ai_shot_frames
 mkdir -p ./locks
@@ -319,11 +319,14 @@ report_progress() {
 get_missing_frames() {
     local missing=""
     for i in $(seq 0 $((SHOT_COUNT - 1))); do
-        for frame_type in first last; do
-            if [ ! -f "./ai_shot_frames/shot_${i}_${frame_type}.jpg" ] || [ ! -s "./ai_shot_frames/shot_${i}_${frame_type}.jpg" ]; then
-                missing="${missing}${i} ${frame_type}\n"
+        if [ "$i" -eq 0 ]; then
+            if [ ! -f "./ai_shot_frames/shot_${i}_first.jpg" ] || [ ! -s "./ai_shot_frames/shot_${i}_first.jpg" ]; then
+                missing="${missing}${i} first\n"
             fi
-        done
+        fi
+        if [ ! -f "./ai_shot_frames/shot_${i}_last.jpg" ] || [ ! -s "./ai_shot_frames/shot_${i}_last.jpg" ]; then
+            missing="${missing}${i} last\n"
+        fi
     done
     echo -e "$missing"
 }
