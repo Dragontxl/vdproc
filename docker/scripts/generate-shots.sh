@@ -129,7 +129,7 @@ else:
     account_locks = [threading.Lock()]
 
 def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, duration_seconds, output_fps):
-    full_prompt = "在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。不要在画面中生成任何对话字幕或文字内容，画面中不要出现人物说话的嘴部动作暗示对话。" + prompt
+    full_prompt = "在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。严格按照提供的提示词生成画面，不要在画面中生成任何文字内容、对话字幕或口型动作，不要自行添加任何对话情节。" + prompt
 
     target_frames = int(duration_seconds * output_fps)
     if target_frames < 9:
