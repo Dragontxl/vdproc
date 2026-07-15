@@ -215,16 +215,23 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
                     task_id_result = resp_data.get('task_id') or resp_data.get('id') or resp_data.get('taskId')
                     video_id_result = resp_data.get('video_id')
 
+                    url = None
+                    data_list = resp_data.get('data', [])
+                    if data_list and isinstance(data_list, list) and len(data_list) > 0:
+                        url = data_list[0].get('url')
+                    
+                    if not url:
+                        url = resp_data.get('remixed_from_video_id') or resp_data.get('video_url') or resp_data.get('output_url') or resp_data.get('url')
+                    
+                    if url:
+                        print(f"  Shot {shot_index}: Got direct URL: {url}")
+                        return url
+
                     if task_id_result:
                         print(f"  Shot {shot_index}: Got task ID: {task_id_result}")
                         if video_id_result:
                             print(f"  Shot {shot_index}: Got video ID: {video_id_result}")
                         break
-
-                    url = resp_data.get('remixed_from_video_id') or resp_data.get('video_url') or resp_data.get('output_url') or resp_data.get('url')
-                    if url:
-                        print(f"  Shot {shot_index}: Got direct URL: {url}")
-                        return url
 
                 except urllib.error.HTTPError as e:
                     err_msg = f"HTTP Error {e.code}: {e.reason}"
@@ -276,7 +283,7 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
             for poll_attempt in range(max_polls):
                 time.sleep(poll_interval)
                 try:
-                    poll_url = f"https://apihub.agnes-ai.com/agnesapi?video_id={query_id}"
+                    poll_url = f"{base_url}/{query_id}"
                     req = urllib.request.Request(poll_url, headers={'Authorization': 'Bearer ' + api_key}, method='GET')
                     resp = urllib.request.urlopen(req, timeout=30)
                     resp_body = resp.read().decode('utf-8')
