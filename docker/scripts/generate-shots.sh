@@ -232,9 +232,13 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
                         auth_failed = True
                         break
                     if e.code == 503:
-                        # 队列满，使用更长的指数退避
                         backoff = retry_delay * (attempt + 2)
                         print(f"  Shot {shot_index}: 503 queue full, waiting {backoff}s before retry...")
+                        time.sleep(backoff)
+                    elif e.code == 429:
+                        # 限流，使用指数退避（Agnes限制2请求/分钟）
+                        backoff = 30 * (attempt + 1)
+                        print(f"  Shot {shot_index}: 429 rate limited, waiting {backoff}s before retry...")
                         time.sleep(backoff)
                     elif attempt < max_retries - 1:
                         time.sleep(retry_delay)
