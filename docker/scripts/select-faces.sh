@@ -230,9 +230,9 @@ def main():
                         'position': pos,
                         'timestamp': timestamp,
                         'embedding': face.normed_embedding.tolist(),
-                        'confidence': confidence,
-                        'angle': angle,
-                        'blur_score': blur_score
+                        'confidence': float(confidence),
+                        'angle': float(angle),
+                        'blur_score': float(blur_score)
                     })
     
         cap.release()
@@ -249,11 +249,11 @@ def main():
                     analysis_data = json.load(f)
                 for char in analysis_data.get('characters', []):
                     analysis_char_list.append(char.get('role_id', ''))
-                for sb in analysis_data.get('storyboards', []):
+                for scene_idx, sb in enumerate(analysis_data.get('storyboards', [])):
                     for char_id in sb.get('characters_present', []):
                         if char_id not in char_to_scenes:
                             char_to_scenes[char_id] = set()
-                        char_to_scenes[char_id].add(sb.get('scene_index', sb.get('index', 0)))
+                        char_to_scenes[char_id].add(scene_idx)
             log(f"Analysis characters: {analysis_char_list}")
             log(f"Character to scenes mapping: {char_to_scenes}")
             
@@ -307,23 +307,23 @@ def main():
                     if best_cluster:
                         label, cluster_faces = best_cluster
                         assigned_clusters.add(label)
-                        best_face = max(cluster_faces, key=lambda f: f['confidence'] * (1 - abs(f['angle'])/90) * (min(f['blur_score'], 2000)/2000))
+                        best_face = max(cluster_faces, key=lambda f: float(f['confidence']) * (1 - abs(float(f['angle']))/90) * (min(float(f['blur_score']), 2000)/2000))
                         log(f"  Assigned cluster {label} to {role_id}, score={best_score:.2f}, face_count={len(cluster_faces)}")
                         
                         characters.append({
                             'role_id': role_id,
                             'best_frame_path': best_face['path'],
                             'face_count': len(cluster_faces),
-                            'avg_confidence': float(sum(f['confidence'] for f in cluster_faces) / len(cluster_faces))
+                            'avg_confidence': float(sum(float(f['confidence']) for f in cluster_faces) / len(cluster_faces))
                         })
                     else:
                         log(f"  No cluster found for {role_id}, using fallback")
-                        fallback_face = max(all_faces, key=lambda f: f['confidence'] * (1 - abs(f['angle'])/90) * (min(f['blur_score'], 2000)/2000))
+                        fallback_face = max(all_faces, key=lambda f: float(f['confidence']) * (1 - abs(float(f['angle']))/90) * (min(float(f['blur_score']), 2000)/2000))
                         characters.append({
                             'role_id': role_id,
                             'best_frame_path': fallback_face['path'],
                             'face_count': 1,
-                            'avg_confidence': fallback_face['confidence']
+                            'avg_confidence': float(fallback_face['confidence'])
                         })
             else:
                 n_faces = len(all_faces)
@@ -344,12 +344,12 @@ def main():
                     if label == -1:
                         continue
                     char_faces = [all_faces[i] for i in range(len(all_faces)) if labels[i] == label]
-                    best_face = max(char_faces, key=lambda f: f['confidence'] * (1 - abs(f['angle'])/90) * (min(f['blur_score'], 2000)/2000))
+                    best_face = max(char_faces, key=lambda f: float(f['confidence']) * (1 - abs(float(f['angle']))/90) * (min(float(f['blur_score']), 2000)/2000))
                     characters.append({
                         'role_id': f'R{len(characters)+1}',
                         'best_frame_path': best_face['path'],
                         'face_count': len(char_faces),
-                        'avg_confidence': float(sum(f['confidence'] for f in char_faces) / len(char_faces))
+                        'avg_confidence': float(sum(float(f['confidence']) for f in char_faces) / len(char_faces))
                     })
             
             result = {
