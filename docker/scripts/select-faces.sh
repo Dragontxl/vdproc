@@ -287,21 +287,36 @@ def main():
                     
                     best_cluster = None
                     best_score = 0
+                    best_unique_score = 0
                     
                     for label, cluster_faces in valid_clusters:
                         if label in assigned_clusters:
                             continue
                         cluster_scenes = set(f['scene_index'] for f in cluster_faces)
+                        
+                        scene_overlap = len(cluster_scenes & target_scenes)
+                        scene_score = scene_overlap / max(len(cluster_scenes), len(target_scenes))
+                        
+                        unique_scene_score = 0
+                        for scene_idx in target_scenes:
+                            chars_in_scene = []
+                            for sb_idx, sb in enumerate(analysis_data.get('storyboards', [])):
+                                if sb_idx == scene_idx:
+                                    chars_in_scene = sb.get('characters_present', [])
+                                    break
+                            if len(chars_in_scene) == 1:
+                                if scene_idx in cluster_scenes:
+                                    unique_scene_score += 1.0
+                        
                         if target_scenes:
-                            overlap = len(cluster_scenes & target_scenes)
-                            score = overlap / max(len(cluster_scenes), len(target_scenes))
-                        else:
-                            score = len(cluster_faces) / len(all_faces)
+                            unique_scene_score /= len(target_scenes)
                         
-                        log(f"  Cluster {label}: {len(cluster_faces)} faces, scenes={cluster_scenes}, score={score:.2f}")
+                        combined_score = 0.7 * scene_score + 0.3 * unique_scene_score
                         
-                        if score > best_score:
-                            best_score = score
+                        log(f"  Cluster {label}: {len(cluster_faces)} faces, scenes={cluster_scenes}, scene_score={scene_score:.2f}, unique_score={unique_scene_score:.2f}, combined={combined_score:.2f}")
+                        
+                        if combined_score > best_score:
+                            best_score = combined_score
                             best_cluster = (label, cluster_faces)
                     
                     if best_cluster:
