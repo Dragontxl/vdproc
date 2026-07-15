@@ -166,12 +166,30 @@ def main():
         all_faces = []
         saved_scene_frames = []
         
+        scene_face_count = {}
+        scene_expected_chars = {}
+        for scene in scenes:
+            scene_face_count[scene['index']] = 0
+            scene_expected_chars[scene['index']] = 0
+        
+        if os.path.exists(analysis_path):
+            with open(analysis_path, 'r') as f:
+                analysis_data = json.load(f)
+            for scene_idx, sb in enumerate(analysis_data.get('storyboards', [])):
+                scene_expected_chars[scene_idx] = len(sb.get('characters_present', []))
+        
         for scene in scenes:
             duration = scene['end'] - scene['start']
             log(f"Processing scene {scene['index']}: {scene['start']:.3f}s - {scene['end']:.3f}s (duration: {duration:.3f}s)")
             positions = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
             
             for pos in positions:
+                expected_count = scene_expected_chars.get(scene['index'], 0)
+                current_count = scene_face_count.get(scene['index'], 0)
+                if expected_count > 0 and current_count >= expected_count * 3:
+                    log(f"  Found {current_count} faces for {expected_count} expected characters, skipping remaining frames")
+                    break
+                
                 timestamp = scene['start'] + duration * pos
                 frame_num = int(timestamp * fps)
                 
@@ -234,6 +252,7 @@ def main():
                         'angle': float(angle),
                         'blur_score': float(blur_score)
                     })
+                    scene_face_count[scene['index']] += 1
     
         cap.release()
         log(f"Total faces detected: {len(all_faces)}")
