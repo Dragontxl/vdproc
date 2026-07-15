@@ -92,6 +92,7 @@ import urllib.error
 import ssl
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlparse
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
@@ -180,7 +181,10 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
                 model_name = account.get('model_name', 'agnes-video-v2.0').strip()
             else:
                 api_key = os.environ.get('AI_API_KEY', '').strip()
-                base_url = os.environ.get('AI_BASE_URL', 'https://apihub.agnes-ai.com/v1/videos').strip()
+                # 从 AI_BASE_URL 提取域名，拼接视频端点（避免使用图像端点）
+                ai_base_env = os.environ.get('AI_BASE_URL', 'https://apihub.agnes-ai.com').strip()
+                parsed = urlparse(ai_base_env)
+                base_url = f"{parsed.scheme}://{parsed.netloc}/v1/videos"
                 model_name = 'agnes-video-v2.0'
 
             if not base_url.startswith('http'):
@@ -215,18 +219,6 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
                     task_id_result = resp_data.get('task_id') or resp_data.get('id') or resp_data.get('taskId')
                     video_id_result = resp_data.get('video_id')
 
-                    url = None
-                    data_list = resp_data.get('data', [])
-                    if data_list and isinstance(data_list, list) and len(data_list) > 0:
-                        url = data_list[0].get('url')
-                    
-                    if not url:
-                        url = resp_data.get('remixed_from_video_id') or resp_data.get('video_url') or resp_data.get('output_url') or resp_data.get('url')
-                    
-                    if url:
-                        print(f"  Shot {shot_index}: Got direct URL: {url}")
-                        return url
-
                     if task_id_result:
                         print(f"  Shot {shot_index}: Got task ID: {task_id_result}")
                         if video_id_result:
@@ -239,7 +231,12 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
                     if e.code == 401:
                         auth_failed = True
                         break
-                    if attempt < max_retries - 1:
+                    if e.code == 503:
+                        # 队列满，使用更长的指数退避
+                        backoff = retry_delay * (attempt + 2)
+                        print(f"  Shot {shot_index}: 503 queue full, waiting {backoff}s before retry...")
+                        time.sleep(backoff)
+                    elif attempt < max_retries - 1:
                         time.sleep(retry_delay)
                 except Exception as e:
                     print(f"  Shot {shot_index}: Attempt {attempt+1}/{max_retries} failed: {str(e)}")
@@ -280,10 +277,14 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
 
             query_id = video_id_result if video_id_result else task_id_result
 
+            # 根据官方文档，轮询URL格式: {domain}/agnesapi?video_id={video_id}
+            parsed_base = urlparse(base_url)
+            poll_base = f"{parsed_base.scheme}://{parsed_base.netloc}"
+
             for poll_attempt in range(max_polls):
                 time.sleep(poll_interval)
                 try:
-                    poll_url = f"{base_url}/{query_id}"
+                    poll_url = f"{poll_base}/agnesapi?video_id={query_id}"
                     req = urllib.request.Request(poll_url, headers={'Authorization': 'Bearer ' + api_key}, method='GET')
                     resp = urllib.request.urlopen(req, timeout=30)
                     resp_body = resp.read().decode('utf-8')

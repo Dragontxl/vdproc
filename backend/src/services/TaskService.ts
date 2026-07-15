@@ -683,6 +683,13 @@ export class TaskService {
     `).bind(doneStatus, nextPhase, taskId).run();
     console.log('advancePhase: Task status updated to:', { status: doneStatus, currentPhase: nextPhase });
 
+    // 释放上一阶段锁定的 AI 账户，确保下一阶段可以正常获取账户
+    await this.env.DB.prepare(`
+      UPDATE ai_accounts SET cooldown_until = NULL 
+      WHERE cooldown_until IS NOT NULL
+    `).run();
+    console.log('advancePhase: Released all locked AI accounts before next phase');
+
     await this.triggerPhase(taskId, nextPhase);
   }
 
