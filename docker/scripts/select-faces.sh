@@ -122,6 +122,7 @@ def main():
         analysis_path = os.path.join(WORK_DIR, 'analysis_result.json')
         scenes_json_path = os.path.join(WORK_DIR, 'scenes.json')
 
+        analysis_characters = {}
         if os.path.exists(analysis_path):
             log(f"Found analysis_result.json, reading...")
             with open(analysis_path, 'r') as f:
@@ -132,7 +133,14 @@ def main():
                     'end': parse_time(storyboard['end_time']),
                     'index': i
                 })
-            log(f"Loaded {len(scenes)} storyboards from analysis_result.json")
+            for char in data.get('characters', []):
+                role_id = char.get('role_id', '')
+                if role_id:
+                    analysis_characters[role_id] = {
+                        'permanent_features': char.get('permanent_features', ''),
+                        'differentiation_labels': char.get('differentiation_labels', [])
+                    }
+            log(f"Loaded {len(scenes)} storyboards and {len(analysis_characters)} character descriptions from analysis_result.json")
         elif os.path.exists(scenes_json_path):
             log(f"Found scenes.json, reading...")
             with open(scenes_json_path, 'r') as f:
@@ -249,7 +257,48 @@ def main():
             dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='cosine')
             labels = dbscan.fit_predict(embeddings)
             
+            char_to_scenes = {}
+            if analysis_path and os.path.exists(analysis_path):
+                with open(analysis_path, 'r') as f:
+                    analysis_data = json.load(f)
+                for sb in analysis_data.get('storyboards', []):
+                    for char_id in sb.get('characters_present', []):
+                        if char_id not in char_to_scenes:
+                            char_to_scenes[char_id] = set()
+                        char_to_scenes[char_id].add(sb.get('scene_index', sb.get('index', 0)))
+            log(f"Character to scenes mapping from analysis: {char_to_scenes}")
+            
+            cluster_scenes = {}
+            for label in np.unique(labels):
+                if label == -1:
+                    continue
+                cluster_faces = [all_faces[i] for i in range(len(all_faces)) if labels[i] == label]
+                cluster_scenes[label] = set(f['scene_index'] for f in cluster_faces)
+            
+            cluster_to_char = {}
+            used_chars = set()
+            for label in np.unique(labels):
+                if label == -1:
+                    continue
+                best_char = None
+                best_score = 0
+                for char_id, char_scenes in char_to_scenes.items():
+                    if char_id in used_chars:
+                        continue
+                    cluster_s = cluster_scenes[label]
+                    if cluster_s and char_scenes:
+                        overlap = len(cluster_s & char_scenes)
+                        score = overlap / max(len(cluster_s), len(char_scenes))
+                        if score > best_score:
+                            best_score = score
+                            best_char = char_id
+                if best_char and best_score > 0.3:
+                    cluster_to_char[label] = best_char
+                    used_chars.add(best_char)
+                    log(f"Cluster {label} matched to character {best_char} with score {best_score:.2f}")
+            
             characters = []
+            remaining_chars = set(char_to_scenes.keys()) - used_chars
             for label in np.unique(labels):
                 if label == -1:
                     continue
@@ -258,8 +307,14 @@ def main():
                 
                 best_face = max(char_faces, key=lambda f: f['confidence'] * (1 - abs(f['angle'])/90) * (min(f['blur_score'], 2000)/2000))
                 
+                role_id = cluster_to_char.get(label)
+                if not role_id and remaining_chars:
+                    role_id = remaining_chars.pop()
+                if not role_id:
+                    role_id = f'R{len(characters)+1}'
+                
                 character = {
-                    'role_id': f'R{len(characters)+1}',
+                    'role_id': role_id,
                     'best_frame_path': best_face['path'],
                     'face_count': len(char_faces),
                     'avg_confidence': float(sum(f['confidence'] for f in char_faces) / len(char_faces))
