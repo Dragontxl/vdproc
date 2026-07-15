@@ -246,7 +246,6 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
                     bad_accounts.add(cand_idx)
                 
                 import subprocess
-                import os
                 callback_url = os.environ.get('CALLBACK_URL', '')
                 callback_secret = os.environ.get('CALLBACK_SECRET', '')
                 task_id_env = os.environ.get('TASK_ID', '')
