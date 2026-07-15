@@ -102,6 +102,7 @@ process_character() {
 
         local selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
         local selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
+        local selected_alias=$(echo "$ai_accounts" | jq -r ".[$account_index].account_alias")
         if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
             selected_url="https://apihub.agnes-ai.com/v1/images/generations"
         fi
@@ -111,7 +112,7 @@ process_character() {
         exec 200>"$lock_file"
         flock -x 200
 
-        echo "Character $ROLE_ID: Using AI account index $account_index"
+        echo "Character $ROLE_ID: Using AI account index $account_index (alias: $selected_alias)"
 
         for attempt in $(seq 1 $MAX_RETRIES_PER_ACCOUNT); do
             echo "  Character $ROLE_ID: Attempt $attempt/$MAX_RETRIES_PER_ACCOUNT..."

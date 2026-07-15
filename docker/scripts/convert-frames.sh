@@ -157,15 +157,17 @@ process_frame() {
     local selected_key="$AI_API_KEY"
     local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/images/generations"
 
+    local selected_alias=""
     if [ -n "$ai_accounts" ]; then
         selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
         selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
+        selected_alias=$(echo "$ai_accounts" | jq -r ".[$account_index].account_alias")
         if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
             selected_url="https://apihub.agnes-ai.com/v1/images/generations"
         fi
     fi
 
-    echo "Shot $shot_index ${frame_type}: Using AI account index $account_index"
+    echo "Shot $shot_index ${frame_type}: Using AI account index $account_index (alias: $selected_alias)"
 
     MAX_RETRIES=5
     RETRY_DELAY=10

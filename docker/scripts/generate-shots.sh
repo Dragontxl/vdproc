@@ -183,6 +183,8 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
                 api_key = account.get('api_key_encrypted', '').strip()
                 base_url = account.get('base_url', 'https://apihub.agnes-ai.com/v1/videos').strip()
                 model_name = account.get('model_name', 'agnes-video-v2.0').strip()
+                account_alias = account.get('account_alias', '')
+                print(f"  Shot {shot_index}: Using AI account index {cand_idx} (alias: {account_alias})")
             else:
                 api_key = os.environ.get('AI_API_KEY', '').strip()
                 # 从 AI_BASE_URL 提取域名，拼接视频端点（避免使用图像端点）
@@ -190,6 +192,7 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
                 parsed = urlparse(ai_base_env)
                 base_url = f"{parsed.scheme}://{parsed.netloc}/v1/videos"
                 model_name = 'agnes-video-v2.0'
+                print(f"  Shot {shot_index}: Using AI account index {cand_idx} (env default)")
 
             if not base_url.startswith('http'):
                 base_url = 'https://' + base_url
