@@ -242,84 +242,115 @@ def main():
             log("No faces detected")
             result = {'characters': [], 'faces': [], 'total_faces': 0, 'character_count': 0, 'scene_frames': []}
         else:
-            embeddings = np.array([f['embedding'] for f in all_faces])
-            
-            n_faces = len(all_faces)
-            if n_faces < 10:
-                eps = 0.45
-            elif n_faces < 30:
-                eps = 0.5
-            else:
-                eps = 0.55
-            log(f"Using DBSCAN eps={eps} based on {n_faces} faces")
-            
-            min_samples = max(2, int(n_faces * 0.05))
-            dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='cosine')
-            labels = dbscan.fit_predict(embeddings)
-            
+            analysis_char_list = []
             char_to_scenes = {}
             if analysis_path and os.path.exists(analysis_path):
                 with open(analysis_path, 'r') as f:
                     analysis_data = json.load(f)
+                for char in analysis_data.get('characters', []):
+                    analysis_char_list.append(char.get('role_id', ''))
                 for sb in analysis_data.get('storyboards', []):
                     for char_id in sb.get('characters_present', []):
                         if char_id not in char_to_scenes:
                             char_to_scenes[char_id] = set()
                         char_to_scenes[char_id].add(sb.get('scene_index', sb.get('index', 0)))
-            log(f"Character to scenes mapping from analysis: {char_to_scenes}")
+            log(f"Analysis characters: {analysis_char_list}")
+            log(f"Character to scenes mapping: {char_to_scenes}")
             
-            cluster_scenes = {}
-            for label in np.unique(labels):
-                if label == -1:
-                    continue
-                cluster_faces = [all_faces[i] for i in range(len(all_faces)) if labels[i] == label]
-                cluster_scenes[label] = set(f['scene_index'] for f in cluster_faces)
-            
-            cluster_to_char = {}
-            used_chars = set()
-            for label in np.unique(labels):
-                if label == -1:
-                    continue
-                best_char = None
-                best_score = 0
-                for char_id, char_scenes in char_to_scenes.items():
-                    if char_id in used_chars:
+            if analysis_char_list:
+                n_chars = len(analysis_char_list)
+                eps = 0.45 if n_chars == 2 else 0.5
+                min_samples = max(2, int(len(all_faces) * 0.05))
+                log(f"Using DBSCAN eps={eps}, min_samples={min_samples} for {n_chars} characters")
+                
+                embeddings = np.array([f['embedding'] for f in all_faces])
+                dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='cosine')
+                labels = dbscan.fit_predict(embeddings)
+                
+                valid_clusters = []
+                for label in np.unique(labels):
+                    if label == -1:
                         continue
-                    cluster_s = cluster_scenes[label]
-                    if cluster_s and char_scenes:
-                        overlap = len(cluster_s & char_scenes)
-                        score = overlap / max(len(cluster_s), len(char_scenes))
+                    cluster_faces = [all_faces[i] for i in range(len(all_faces)) if labels[i] == label]
+                    if len(cluster_faces) >= min_samples:
+                        valid_clusters.append((label, cluster_faces))
+                
+                valid_clusters.sort(key=lambda x: len(x[1]), reverse=True)
+                log(f"Found {len(valid_clusters)} valid clusters")
+                
+                assigned_clusters = set()
+                characters = []
+                
+                for role_id in analysis_char_list:
+                    target_scenes = char_to_scenes.get(role_id, set())
+                    log(f"Finding best cluster for {role_id} in scenes {target_scenes}")
+                    
+                    best_cluster = None
+                    best_score = 0
+                    
+                    for label, cluster_faces in valid_clusters:
+                        if label in assigned_clusters:
+                            continue
+                        cluster_scenes = set(f['scene_index'] for f in cluster_faces)
+                        if target_scenes:
+                            overlap = len(cluster_scenes & target_scenes)
+                            score = overlap / max(len(cluster_scenes), len(target_scenes))
+                        else:
+                            score = len(cluster_faces) / len(all_faces)
+                        
+                        log(f"  Cluster {label}: {len(cluster_faces)} faces, scenes={cluster_scenes}, score={score:.2f}")
+                        
                         if score > best_score:
                             best_score = score
-                            best_char = char_id
-                if best_char and best_score > 0.3:
-                    cluster_to_char[label] = best_char
-                    used_chars.add(best_char)
-                    log(f"Cluster {label} matched to character {best_char} with score {best_score:.2f}")
-            
-            characters = []
-            remaining_chars = set(char_to_scenes.keys()) - used_chars
-            for label in np.unique(labels):
-                if label == -1:
-                    continue
+                            best_cluster = (label, cluster_faces)
+                    
+                    if best_cluster:
+                        label, cluster_faces = best_cluster
+                        assigned_clusters.add(label)
+                        best_face = max(cluster_faces, key=lambda f: f['confidence'] * (1 - abs(f['angle'])/90) * (min(f['blur_score'], 2000)/2000))
+                        log(f"  Assigned cluster {label} to {role_id}, score={best_score:.2f}, face_count={len(cluster_faces)}")
+                        
+                        characters.append({
+                            'role_id': role_id,
+                            'best_frame_path': best_face['path'],
+                            'face_count': len(cluster_faces),
+                            'avg_confidence': float(sum(f['confidence'] for f in cluster_faces) / len(cluster_faces))
+                        })
+                    else:
+                        log(f"  No cluster found for {role_id}, using fallback")
+                        fallback_face = max(all_faces, key=lambda f: f['confidence'] * (1 - abs(f['angle'])/90) * (min(f['blur_score'], 2000)/2000))
+                        characters.append({
+                            'role_id': role_id,
+                            'best_frame_path': fallback_face['path'],
+                            'face_count': 1,
+                            'avg_confidence': fallback_face['confidence']
+                        })
+            else:
+                n_faces = len(all_faces)
+                if n_faces < 10:
+                    eps = 0.45
+                elif n_faces < 30:
+                    eps = 0.5
+                else:
+                    eps = 0.55
                 
-                char_faces = [all_faces[i] for i in range(len(all_faces)) if labels[i] == label]
+                embeddings = np.array([f['embedding'] for f in all_faces])
+                min_samples = max(2, int(n_faces * 0.05))
+                dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='cosine')
+                labels = dbscan.fit_predict(embeddings)
                 
-                best_face = max(char_faces, key=lambda f: f['confidence'] * (1 - abs(f['angle'])/90) * (min(f['blur_score'], 2000)/2000))
-                
-                role_id = cluster_to_char.get(label)
-                if not role_id and remaining_chars:
-                    role_id = remaining_chars.pop()
-                if not role_id:
-                    role_id = f'R{len(characters)+1}'
-                
-                character = {
-                    'role_id': role_id,
-                    'best_frame_path': best_face['path'],
-                    'face_count': len(char_faces),
-                    'avg_confidence': float(sum(f['confidence'] for f in char_faces) / len(char_faces))
-                }
-                characters.append(character)
+                characters = []
+                for label in np.unique(labels):
+                    if label == -1:
+                        continue
+                    char_faces = [all_faces[i] for i in range(len(all_faces)) if labels[i] == label]
+                    best_face = max(char_faces, key=lambda f: f['confidence'] * (1 - abs(f['angle'])/90) * (min(f['blur_score'], 2000)/2000))
+                    characters.append({
+                        'role_id': f'R{len(characters)+1}',
+                        'best_frame_path': best_face['path'],
+                        'face_count': len(char_faces),
+                        'avg_confidence': float(sum(f['confidence'] for f in char_faces) / len(char_faces))
+                    })
             
             result = {
                 'characters': characters,
