@@ -26,7 +26,7 @@ export default function Tasks() {
 
     const interval = setInterval(() => {
       loadTasks();
-    }, 5000);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [statusFilter]);

@@ -27,7 +27,7 @@ export default function Dashboard() {
     const interval = setInterval(() => {
       loadStats();
       loadRecentTasks();
-    }, 5000);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, []);
