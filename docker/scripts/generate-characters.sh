@@ -37,6 +37,12 @@ mkdir -p ./locks
 ACCOUNT_COUNT=1
 if [ -n "$AI_ACCOUNTS" ]; then
     ACCOUNT_COUNT=$(echo "$AI_ACCOUNTS" | jq -r '. | length')
+    if [ -z "$ACCOUNT_COUNT" ] || [ "$ACCOUNT_COUNT" = "null" ] || ! [[ "$ACCOUNT_COUNT" =~ ^[0-9]+$ ]]; then
+        ACCOUNT_COUNT=1
+    fi
+    if [ "$ACCOUNT_COUNT" -eq 0 ]; then
+        ACCOUNT_COUNT=1
+    fi
 fi
 
 MAX_CONCURRENT=${MAX_CONCURRENT:-2}
@@ -73,6 +79,9 @@ process_character() {
     PROMPT="American animation style character design, white background, full body portrait, professional character sheet, clean line art, vibrant colors, high quality, anime style, based on the provided reference image"
 
     local ACCOUNT_COUNT=$(echo "$ai_accounts" | jq -r '. | length')
+    if [ -z "$ACCOUNT_COUNT" ] || [ "$ACCOUNT_COUNT" = "null" ] || ! [[ "$ACCOUNT_COUNT" =~ ^[0-9]+$ ]]; then
+        ACCOUNT_COUNT=1
+    fi
     if [ "$ACCOUNT_COUNT" -eq 0 ]; then
         ACCOUNT_COUNT=1
     fi
