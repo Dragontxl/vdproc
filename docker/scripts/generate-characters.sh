@@ -73,6 +73,9 @@ process_character() {
     PROMPT="American animation style character design, white background, full body portrait, professional character sheet, clean line art, vibrant colors, high quality, anime style, based on the provided reference image"
 
     local ACCOUNT_COUNT=$(echo "$ai_accounts" | jq -r '. | length')
+    if [ "$ACCOUNT_COUNT" -eq 0 ]; then
+        ACCOUNT_COUNT=1
+    fi
     local START_ACCOUNT_INDEX=$((char_index % ACCOUNT_COUNT))
 
     MAX_RETRIES_PER_ACCOUNT=3
