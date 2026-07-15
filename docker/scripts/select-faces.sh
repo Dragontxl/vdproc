@@ -364,6 +364,11 @@ def main():
                 
                 if unassigned_indices:
                     log(f"  {len(unassigned_indices)} unassigned faces, distributing to characters with target scenes")
+                    expected_total = len(analysis_char_list)
+                    actual_total = len(all_faces)
+                    
+                    has_background = actual_total > expected_total * 2
+                    
                     for i in unassigned_indices:
                         face = all_faces[i]
                         best_role = None
@@ -373,14 +378,18 @@ def main():
                             if face['scene_index'] in target_scenes:
                                 score = 0
                                 if len(char_faces[role_id]) == 0:
-                                    score += 10
+                                    score += 20
+                                elif has_background and len(char_faces[role_id]) < len(all_faces) // expected_total:
+                                    score += 15
+                                elif len(char_faces[role_id]) < len(all_faces) // expected_total:
+                                    score += 5
                                 score += len(target_scenes)
                                 if score > best_score:
                                     best_score = score
                                     best_role = role_id
                         if best_role:
                             char_faces[best_role].append(face)
-                            log(f"  Unassigned face {i} assigned to {best_role}")
+                            log(f"  Unassigned face {i} assigned to {best_role} (score: {best_score})")
                 
                 characters = []
                 for role_id in analysis_char_list:
