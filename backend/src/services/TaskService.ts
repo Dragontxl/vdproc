@@ -379,9 +379,8 @@ export class TaskService {
       return result.results || [];
     };
 
-    const phasesNeedingAllAccounts: TaskPhase[] = ['GENERATE_CHARACTERS', 'CONVERT_FRAMES'];
-    if (phasesNeedingAllAccounts.includes(phase)) {
-      const lockedAccounts = await lockAIAccounts(undefined, maxConcurrent);
+    if (phase === 'CONVERT_FRAMES' || phase === 'GENERATE_CHARACTERS') {
+      const lockedAccounts = await lockAIAccounts('image', maxConcurrent);
 
       if (lockedAccounts.length > 0) {
         const decryptedAccounts = await Promise.all(
