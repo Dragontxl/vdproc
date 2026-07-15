@@ -297,99 +297,35 @@ def main():
                 for role_id in analysis_char_list:
                     char_faces[role_id] = []
                 
-                unassigned_indices = set(range(len(all_faces)))
+                log("Using global clustering to assign faces to characters")
                 
-                if sum(len(anchors) for anchors in char_anchors.values()) > 0:
-                    anchor_indices = []
-                    anchor_char_ids = []
-                    for role_id, indices in char_anchors.items():
-                        for idx in indices:
-                            anchor_indices.append(idx)
-                            anchor_char_ids.append(role_id)
-                    
-                    anchor_embeddings = embeddings[anchor_indices]
-                    
-                    for i in range(len(all_faces)):
-                        if i in anchor_indices:
-                            continue
-                        
-                        face_embedding = embeddings[i]
-                        similarities = np.dot(anchor_embeddings, face_embedding)
-                        max_sim_idx = np.argmax(similarities)
-                        max_sim = similarities[max_sim_idx]
-                        best_role = anchor_char_ids[max_sim_idx]
-                        
-                        face_scene = all_faces[i]['scene_index']
-                        scene_chars = set()
-                        if face_scene < len(analysis_data.get('storyboards', [])):
-                            scene_chars = set(analysis_data['storyboards'][face_scene].get('characters_present', []))
-                        
-                        if max_sim > 0.7:
-                            char_faces[best_role].append(all_faces[i])
-                            unassigned_indices.discard(i)
-                            log(f"  Face {i} (scene {face_scene}, time {all_faces[i]['timestamp']:.3f}s) assigned to {best_role} (similarity: {max_sim:.2f})")
-                        elif max_sim > 0.5 and len(scene_chars) == 1:
-                            for char_id in scene_chars:
-                                char_faces[char_id].append(all_faces[i])
-                                unassigned_indices.discard(i)
-                                log(f"  Face {i} (scene {face_scene}, time {all_faces[i]['timestamp']:.3f}s) assigned to {char_id} (scene-only)")
-                                break
-                    
-                    for role_id, indices in char_anchors.items():
-                        for idx in indices:
-                            char_faces[role_id].append(all_faces[idx])
-                            unassigned_indices.discard(idx)
-                            log(f"  Anchor face {idx} (scene {all_faces[idx]['scene_index']}) assigned to {role_id}")
-                else:
-                    log("No anchor faces found, using DBSCAN clustering")
-                    n_faces = len(all_faces)
-                    eps = 0.45 if n_faces < 10 else 0.5
-                    min_samples = max(2, int(n_faces * 0.05))
-                    dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='cosine')
-                    labels = dbscan.fit_predict(embeddings)
-                    
-                    clusters = {}
-                    for label in np.unique(labels):
-                        if label == -1:
-                            continue
-                        clusters[label] = [all_faces[i] for i in range(len(all_faces)) if labels[i] == label]
-                    
-                    sorted_clusters = sorted(clusters.items(), key=lambda x: len(x[1]), reverse=True)
-                    
-                    for idx, (label, faces) in enumerate(sorted_clusters):
-                        if idx < len(analysis_char_list):
-                            role_id = analysis_char_list[idx]
-                            char_faces[role_id] = faces
-                            log(f"  Cluster {label} ({len(faces)} faces) assigned to {role_id}")
+                n_faces = len(all_faces)
+                eps = 0.45 if n_faces < 10 else 0.5
+                min_samples = max(2, int(n_faces * 0.05))
+                dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='cosine')
+                labels = dbscan.fit_predict(embeddings)
                 
-                if unassigned_indices:
-                    log(f"  {len(unassigned_indices)} unassigned faces, distributing to characters with target scenes")
-                    expected_total = len(analysis_char_list)
-                    actual_total = len(all_faces)
-                    
-                    has_background = actual_total > expected_total * 2
-                    
-                    for i in unassigned_indices:
-                        face = all_faces[i]
-                        best_role = None
-                        best_score = 0
-                        for role_id in analysis_char_list:
-                            target_scenes = char_to_scenes.get(role_id, set())
-                            if face['scene_index'] in target_scenes:
-                                score = 0
-                                if len(char_faces[role_id]) == 0:
-                                    score += 20
-                                elif has_background and len(char_faces[role_id]) < len(all_faces) // expected_total:
-                                    score += 15
-                                elif len(char_faces[role_id]) < len(all_faces) // expected_total:
-                                    score += 5
-                                score += len(target_scenes)
-                                if score > best_score:
-                                    best_score = score
-                                    best_role = role_id
-                        if best_role:
-                            char_faces[best_role].append(face)
-                            log(f"  Unassigned face {i} assigned to {best_role} (score: {best_score})")
+                clusters = {}
+                for label in np.unique(labels):
+                    if label == -1:
+                        continue
+                    clusters[label] = [all_faces[i] for i in range(len(all_faces)) if labels[i] == label]
+                
+                log(f"Found {len(clusters)} clusters: {[len(faces) for faces in clusters.values()]}")
+                
+                sorted_clusters = sorted(clusters.items(), key=lambda x: len(x[1]), reverse=True)
+                
+                num_chars = len(analysis_char_list)
+                if len(sorted_clusters) > num_chars:
+                    log(f"  Too many clusters ({len(sorted_clusters)}), keeping top {num_chars}")
+                    sorted_clusters = sorted_clusters[:num_chars]
+                
+                for idx, (label, faces) in enumerate(sorted_clusters):
+                    if idx < len(analysis_char_list):
+                        role_id = analysis_char_list[idx]
+                        char_faces[role_id] = faces
+                        log(f"  Cluster {label} ({len(faces)} faces) assigned to {role_id}")
+
                 
                 characters = []
                 for role_id in analysis_char_list:
