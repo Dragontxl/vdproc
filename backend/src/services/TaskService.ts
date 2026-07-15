@@ -20,7 +20,7 @@ const phasesRequiringAI: Partial<Record<TaskPhase, string>> = {
   ANALYZE: 'text',
   GENERATE_CHARACTERS: 'image',
   CONVERT_FRAMES: 'image',
-  GENERATE_SHOTS: 'image',
+  GENERATE_SHOTS: 'video',
 };
 
 export class TaskService {
