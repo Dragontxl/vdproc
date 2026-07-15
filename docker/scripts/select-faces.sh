@@ -260,54 +260,92 @@ def main():
             if analysis_char_list:
                 embeddings = np.array([f['embedding'] for f in all_faces])
                 
+                char_anchors = {}
+                for role_id in analysis_char_list:
+                    char_anchors[role_id] = []
+                
+                for sb_idx, sb in enumerate(analysis_data.get('storyboards', [])):
+                    chars_in_scene = sb.get('characters_present', [])
+                    if len(chars_in_scene) == 1:
+                        role_id = chars_in_scene[0]
+                        for i, face in enumerate(all_faces):
+                            if face['scene_index'] == sb_idx:
+                                char_anchors[role_id].append(i)
+                
+                log(f"Anchor faces per character: {dict((k, len(v)) for k, v in char_anchors.items())}")
+                
                 char_faces = {}
                 for role_id in analysis_char_list:
                     char_faces[role_id] = []
                 
-                assigned_face_indices = set()
+                unassigned_indices = set(range(len(all_faces)))
                 
-                for role_id in analysis_char_list:
-                    target_scenes = char_to_scenes.get(role_id, set())
-                    log(f"Assigning faces for {role_id} (scenes: {target_scenes})")
+                if sum(len(anchors) for anchors in char_anchors.values()) > 0:
+                    anchor_indices = []
+                    anchor_char_ids = []
+                    for role_id, indices in char_anchors.items():
+                        for idx in indices:
+                            anchor_indices.append(idx)
+                            anchor_char_ids.append(role_id)
                     
-                    anchor_faces = []
-                    for scene_idx in target_scenes:
-                        chars_in_scene = []
-                        for sb_idx, sb in enumerate(analysis_data.get('storyboards', [])):
-                            if sb_idx == scene_idx:
-                                chars_in_scene = sb.get('characters_present', [])
-                                break
-                        if len(chars_in_scene) == 1:
-                            for i, face in enumerate(all_faces):
-                                if i not in assigned_face_indices and face['scene_index'] == scene_idx:
-                                    anchor_faces.append((i, face))
+                    anchor_embeddings = embeddings[anchor_indices]
                     
-                    if anchor_faces:
-                        log(f"  Found {len(anchor_faces)} anchor faces from unique scenes")
-                        anchor_embeddings = np.array([f[1]['embedding'] for f in anchor_faces])
+                    for i in range(len(all_faces)):
+                        if i in anchor_indices:
+                            continue
                         
-                        for i, face in enumerate(all_faces):
-                            if i in assigned_face_indices:
-                                continue
-                            
+                        face_embedding = embeddings[i]
+                        similarities = np.dot(anchor_embeddings, face_embedding)
+                        max_sim_idx = np.argmax(similarities)
+                        max_sim = similarities[max_sim_idx]
+                        best_role = anchor_char_ids[max_sim_idx]
+                        
+                        if max_sim > 0.5:
+                            char_faces[best_role].append(all_faces[i])
+                            unassigned_indices.discard(i)
+                            log(f"  Face {i} (scene {all_faces[i]['scene_index']}, time {all_faces[i]['timestamp']:.3f}s) assigned to {best_role} (similarity: {max_sim:.2f})")
+                    
+                    for role_id, indices in char_anchors.items():
+                        for idx in indices:
+                            char_faces[role_id].append(all_faces[idx])
+                            unassigned_indices.discard(idx)
+                            log(f"  Anchor face {idx} (scene {all_faces[idx]['scene_index']}) assigned to {role_id}")
+                else:
+                    log("No anchor faces found, using DBSCAN clustering")
+                    n_faces = len(all_faces)
+                    eps = 0.45 if n_faces < 10 else 0.5
+                    min_samples = max(2, int(n_faces * 0.05))
+                    dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='cosine')
+                    labels = dbscan.fit_predict(embeddings)
+                    
+                    clusters = {}
+                    for label in np.unique(labels):
+                        if label == -1:
+                            continue
+                        clusters[label] = [all_faces[i] for i in range(len(all_faces)) if labels[i] == label]
+                    
+                    sorted_clusters = sorted(clusters.items(), key=lambda x: len(x[1]), reverse=True)
+                    
+                    for idx, (label, faces) in enumerate(sorted_clusters):
+                        if idx < len(analysis_char_list):
+                            role_id = analysis_char_list[idx]
+                            char_faces[role_id] = faces
+                            log(f"  Cluster {label} ({len(faces)} faces) assigned to {role_id}")
+                
+                if unassigned_indices:
+                    log(f"  {len(unassigned_indices)} unassigned faces, distributing to characters with target scenes")
+                    for i in unassigned_indices:
+                        face = all_faces[i]
+                        best_role = None
+                        best_score = 0
+                        for role_id in analysis_char_list:
+                            target_scenes = char_to_scenes.get(role_id, set())
                             if face['scene_index'] in target_scenes:
-                                face_embedding = np.array(face['embedding'])
-                                similarities = np.dot(anchor_embeddings, face_embedding)
-                                max_sim = np.max(similarities)
-                                
-                                if max_sim > 0.5:
-                                    char_faces[role_id].append(face)
-                                    assigned_face_indices.add(i)
-                                    log(f"    Face at scene {face['scene_index']}, time {face['timestamp']:.3f}s assigned to {role_id} (similarity: {max_sim:.2f})")
-                    else:
-                        log(f"  No anchor faces found, assigning faces from target scenes")
-                        for i, face in enumerate(all_faces):
-                            if i in assigned_face_indices:
-                                continue
-                            if face['scene_index'] in target_scenes:
-                                char_faces[role_id].append(face)
-                                assigned_face_indices.add(i)
-                                log(f"    Face at scene {face['scene_index']}, time {face['timestamp']:.3f}s assigned to {role_id}")
+                                best_role = role_id
+                                break
+                        if best_role:
+                            char_faces[best_role].append(face)
+                            log(f"  Unassigned face {i} assigned to {best_role}")
                 
                 characters = []
                 for role_id in analysis_char_list:
