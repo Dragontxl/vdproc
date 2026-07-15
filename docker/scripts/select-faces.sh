@@ -310,6 +310,11 @@ def main():
                 assigned_clusters = set()
                 unassigned_clusters = set(clusters.keys())
                 
+                sb_chars = {}
+                for sb_idx, sb in enumerate(analysis_data.get('storyboards', [])):
+                    chars_in_scene = set(sb.get('characters_present', []))
+                    sb_chars[sb_idx] = chars_in_scene
+                
                 for role_id in analysis_char_list:
                     target_scenes = char_to_scenes.get(role_id, set())
                     if not target_scenes:
@@ -326,11 +331,6 @@ def main():
                             if scene_idx in cluster_scene_dist[label]:
                                 score += cluster_scene_dist[label][scene_idx] * 10
                         
-                        sb_chars = {}
-                        for sb_idx, sb in enumerate(analysis_data.get('storyboards', [])):
-                            chars_in_scene = set(sb.get('characters_present', []))
-                            sb_chars[sb_idx] = chars_in_scene
-                        
                         for scene_idx in target_scenes:
                             if scene_idx in cluster_scene_dist[label]:
                                 chars_in_scene = sb_chars.get(scene_idx, set())
@@ -338,6 +338,15 @@ def main():
                                     score += cluster_scene_dist[label][scene_idx] * 50
                                 elif role_id in chars_in_scene:
                                     score += cluster_scene_dist[label][scene_idx] * 20
+                        
+                        avg_confidence = np.mean([float(f['confidence']) for f in faces])
+                        avg_angle = np.mean([abs(float(f['angle'])) for f in faces])
+                        avg_blur = np.mean([float(f['blur_score']) for f in faces])
+                        
+                        quality_score = (avg_confidence * 100) - (avg_angle * 0.5) + (min(avg_blur, 2000) * 0.02)
+                        score += quality_score
+                        
+                        log(f"    Cluster {label}: scene_score={score - quality_score:.1f}, quality_score={quality_score:.1f}, total={score:.1f}")
                         
                         if score > best_score:
                             best_score = score
