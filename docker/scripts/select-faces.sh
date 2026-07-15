@@ -318,7 +318,6 @@ def main():
                 char_anchor_embeddings = {}
                 for role_id in analysis_char_list:
                     anchor_faces = []
-                    target_scenes = char_to_scenes.get(role_id, set())
                     for sb_idx, sb in enumerate(analysis_data.get('storyboards', [])):
                         chars_in_scene = set(sb.get('characters_present', []))
                         if len(chars_in_scene) == 1 and role_id in chars_in_scene:
@@ -329,15 +328,15 @@ def main():
                         char_anchor_embeddings[role_id] = np.array(anchor_faces)
                         log(f"  Character {role_id} has {len(anchor_faces)} anchor faces")
                 
-                for role_id in analysis_char_list:
+                cluster_list = list(clusters.keys())
+                n_chars = len(analysis_char_list)
+                n_clusters = len(cluster_list)
+                
+                cost_matrix = np.zeros((n_chars, n_clusters))
+                
+                for i, role_id in enumerate(analysis_char_list):
                     target_scenes = char_to_scenes.get(role_id, set())
-                    if not target_scenes:
-                        continue
-                    
-                    best_cluster = None
-                    best_score = -1
-                    
-                    for label in unassigned_clusters:
+                    for j, label in enumerate(cluster_list):
                         faces = clusters[label]
                         score = 0
                         
@@ -357,35 +356,22 @@ def main():
                             cluster_embeddings = np.array([f['embedding'] for f in faces])
                             anchor_sim = np.mean(np.dot(cluster_embeddings, char_anchor_embeddings[role_id].T))
                             score += anchor_sim * 100
-                            log(f"    Cluster {label}: scene_score={score - anchor_sim*100:.1f}, anchor_sim={anchor_sim:.3f}, total={score:.1f}")
-                        else:
-                            for other_role, other_anchors in char_anchor_embeddings.items():
-                                if other_role != role_id and other_role in char_faces and len(char_faces[other_role]) > 0:
-                                    cluster_embeddings = np.array([f['embedding'] for f in faces])
-                                    other_sim = np.mean(np.dot(cluster_embeddings, other_anchors.T))
-                                    dissimilarity_score = (1 - other_sim) * 100
-                                    score += dissimilarity_score
-                                    log(f"    Cluster {label}: scene_score={score - dissimilarity_score:.1f}, dissimilarity_to_{other_role}={dissimilarity_score:.1f}, total={score:.1f}")
                         
-                        if score > best_score:
-                            best_score = score
-                            best_cluster = label
-                    
-                    if best_cluster is not None and best_score > 0:
-                        char_faces[role_id] = clusters[best_cluster]
-                        assigned_clusters.add(best_cluster)
-                        unassigned_clusters.discard(best_cluster)
-                        log(f"  Character {role_id} assigned to cluster {best_cluster} ({len(char_faces[role_id])} faces, score: {best_score})")
-                    else:
-                        log(f"  Character {role_id}: no matching cluster found")
+                        cost_matrix[i, j] = -score
                 
-                for role_id in analysis_char_list:
-                    if len(char_faces[role_id]) == 0 and unassigned_clusters:
-                        largest_cluster = max(unassigned_clusters, key=lambda x: len(clusters[x]))
-                        char_faces[role_id] = clusters[largest_cluster]
-                        assigned_clusters.add(largest_cluster)
-                        unassigned_clusters.discard(largest_cluster)
-                        log(f"  Character {role_id} assigned to remaining cluster {largest_cluster} ({len(char_faces[role_id])} faces)")
+                log(f"  Cost matrix shape: {cost_matrix.shape}")
+                log(f"  Cost matrix:\n{cost_matrix}")
+                
+                from scipy.optimize import linear_sum_assignment
+                row_ind, col_ind = linear_sum_assignment(cost_matrix)
+                
+                log(f"  Hungarian algorithm result:")
+                for i, j in zip(row_ind, col_ind):
+                    role_id = analysis_char_list[i]
+                    label = cluster_list[j]
+                    score = -cost_matrix[i, j]
+                    char_faces[role_id] = clusters[label]
+                    log(f"    {role_id} -> cluster {label} (score: {score:.1f})")
                 
                 for role_id in analysis_char_list:
                     if len(char_faces[role_id]) == 0:
