@@ -216,7 +216,14 @@ def main():
                         gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY)
                         blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
                         face_size = (bbox[2]-bbox[0]) * (bbox[3]-bbox[1])
-                        quality = (confidence * 100) - (abs(angle) * 0.5) + (min(blur_score, 2000) * 0.02) + (face_size * 0.001)
+                        
+                        frame_center_x = frame.shape[1] / 2
+                        frame_center_y = frame.shape[0] / 2
+                        distance_to_center = np.sqrt((cx - frame_center_x)**2 + (cy - frame_center_y)**2)
+                        max_distance = np.sqrt(frame_center_x**2 + frame_center_y**2)
+                        position_score = (1 - distance_to_center / max_distance) * 50
+                        
+                        quality = (confidence * 100) - (abs(angle) * 0.5) + (min(blur_score, 2000) * 0.02) + (face_size * 0.001) + position_score
                         scored_faces.append({
                             'face': face,
                             'bbox': bbox,
@@ -246,7 +253,7 @@ def main():
                             'blur_score': float(sf['blur_score']),
                             'role_id': role_id
                         })
-                        log(f"    Selected best face for {role_id}: confidence={sf['confidence']:.3f}, angle={sf['angle']:.1f}, blur={sf['blur_score']:.0f}, quality={sf['quality']:.1f}")
+                        log(f"    Selected best face for {role_id}: confidence={sf['confidence']:.3f}, angle={sf['angle']:.1f}, blur={sf['blur_score']:.0f}, position={position_score:.1f}, quality={sf['quality']:.1f}")
                     else:
                         log(f"    No valid faces found for {role_id}")
                 else:
