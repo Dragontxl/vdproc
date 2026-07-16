@@ -1,0 +1,1 @@
+ALTER TABLE ai_accounts ADD COLUMN api_type TEXT DEFAULT 'image';
