@@ -193,6 +193,8 @@ def main():
                     log(f"  Reading frame for {role_id} at {timestamp:.3f}s (frame {frame_num})")
                     faces = app.get(frame)
                     log(f"    Found {len(faces)} faces")
+                    
+                    scored_faces = []
                     for face in faces:
                         bbox = face.bbox
                         confidence = face.det_score
@@ -213,20 +215,40 @@ def main():
                         face_crop = frame[y1:y2, x1:x2]
                         gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY)
                         blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
+                        face_size = (bbox[2]-bbox[0]) * (bbox[3]-bbox[1])
+                        quality = (confidence * 100) - (abs(angle) * 0.5) + (min(blur_score, 2000) * 0.02) + (face_size * 0.001)
+                        scored_faces.append({
+                            'face': face,
+                            'bbox': bbox,
+                            'confidence': confidence,
+                            'angle': angle,
+                            'blur_score': blur_score,
+                            'face_size': face_size,
+                            'quality': quality,
+                            'face_crop': face_crop,
+                            'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2
+                        })
+                    
+                    if scored_faces:
+                        scored_faces.sort(key=lambda x: x['quality'], reverse=True)
+                        selected_face = scored_faces[0]
+                        sf = selected_face
                         frame_path = os.path.join(WORK_DIR, 'face_frames', f"face_best_{role_id}_{len(all_faces)}.jpg")
-                        cv2.imwrite(frame_path, face_crop)
+                        cv2.imwrite(frame_path, sf['face_crop'])
                         all_faces.append({
                             'path': frame_path,
                             'scene_index': -1,
                             'position': -1,
                             'timestamp': timestamp,
-                            'embedding': face.normed_embedding.tolist(),
-                            'confidence': float(confidence),
-                            'angle': float(angle),
-                            'blur_score': float(blur_score),
+                            'embedding': sf['face'].normed_embedding.tolist(),
+                            'confidence': float(sf['confidence']),
+                            'angle': float(sf['angle']),
+                            'blur_score': float(sf['blur_score']),
                             'role_id': role_id
                         })
-                        log(f"    Saved face for {role_id} with confidence {confidence:.3f}, angle {angle:.1f}")
+                        log(f"    Selected best face for {role_id}: confidence={sf['confidence']:.3f}, angle={sf['angle']:.1f}, blur={sf['blur_score']:.0f}, quality={sf['quality']:.1f}")
+                    else:
+                        log(f"    No valid faces found for {role_id}")
                 else:
                     log(f"  Failed to read frame for {role_id} at {timestamp:.3f}s")
         
