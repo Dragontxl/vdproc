@@ -356,6 +356,14 @@ def main():
                             cluster_embeddings = np.array([f['embedding'] for f in faces])
                             anchor_sim = np.mean(np.dot(cluster_embeddings, char_anchor_embeddings[role_id].T))
                             score += anchor_sim * 100
+                        else:
+                            max_dissimilarity = 0
+                            for other_role, other_anchors in char_anchor_embeddings.items():
+                                cluster_embeddings = np.array([f['embedding'] for f in faces])
+                                other_sim = np.mean(np.dot(cluster_embeddings, other_anchors.T))
+                                dissimilarity = 1 - other_sim
+                                max_dissimilarity = max(max_dissimilarity, dissimilarity)
+                            score += max_dissimilarity * 100
                         
                         cost_matrix[i, j] = -score
                 
