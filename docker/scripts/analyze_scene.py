@@ -248,9 +248,9 @@ def main():
 
 请严格按照以下JSON格式输出，必须包含 characters 和 storyboards 两个顶层键：
 
-{
+{{
   "characters": [
-    {
+    {{
       "role_id": "R1",
       "gender": "男",
       "body_type": "中等身形",
@@ -258,10 +258,10 @@ def main():
       "permanent_features": "描述",
       "differentiation_labels": ["标签1", "标签2"],
       "best_face_time": "00:00:02.500"
-    }
+    }}
   ],
   "storyboards": [
-    {
+    {{
       "start_time": "00:00:00.000",
       "end_time": "00:00:05.000",
       "characters_present": ["R1"],
@@ -272,9 +272,9 @@ def main():
       "camera_movement": "运镜描述",
       "positive_prompt": "AI生成正向prompt",
       "negative_prompt": "AI生成反向prompt"
-    }
+    }}
   ]
-}
+}}
 
 注意：
 - start_time、end_time 和 best_face_time 必须使用 HH:MM:SS.mmm 格式
