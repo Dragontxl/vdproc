@@ -253,7 +253,10 @@ def main():
                         })
                     
                     if scored_faces:
-                        scored_faces.sort(key=lambda x: x['quality'], reverse=True)
+                        if gemini_pos:
+                            scored_faces.sort(key=lambda x: x['distance_score'], reverse=True)
+                        else:
+                            scored_faces.sort(key=lambda x: x['quality'], reverse=True)
                         selected_face = scored_faces[0]
                         sf = selected_face
                         frame_path = os.path.join(WORK_DIR, 'face_frames', f"face_best_{role_id}_{len(all_faces)}.jpg")
@@ -270,7 +273,7 @@ def main():
                             'role_id': role_id
                         })
                         if gemini_pos:
-                            log(f"    Selected face for {role_id} using Gemini position ({gemini_pos[0]:.2f}, {gemini_pos[1]:.2f}): confidence={sf['confidence']:.3f}, distance={sf['distance_score']:.1f}, quality={sf['quality']:.1f}")
+                            log(f"    Selected face for {role_id} using Gemini position ({gemini_pos[0]:.2f}, {gemini_pos[1]:.2f}): confidence={sf['confidence']:.3f}, distance_score={sf['distance_score']:.1f}")
                         else:
                             log(f"    Selected best face for {role_id}: confidence={sf['confidence']:.3f}, position={sf['distance_score']:.1f}, quality={sf['quality']:.1f}")
                     else:
