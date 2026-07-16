@@ -39,13 +39,80 @@ fi
 TOTAL_FRAMES=$((SHOT_COUNT + 1))
 
 mkdir -p ./ai_shot_frames
+mkdir -p ./locks
+
+ACCOUNT_COUNT=1
+if [ -n "$AI_ACCOUNTS" ]; then
+    ACCOUNT_COUNT=$(echo "$AI_ACCOUNTS" | jq -r '. | length')
+fi
 
 MAX_CONCURRENT=${MAX_CONCURRENT:-2}
+EFFECTIVE_CONCURRENCY=$(( ACCOUNT_COUNT < MAX_CONCURRENT ? ACCOUNT_COUNT : MAX_CONCURRENT ))
+
+echo "Available AI accounts: $ACCOUNT_COUNT"
+echo "Max concurrent (from GitHub accounts): $MAX_CONCURRENT"
+echo "Effective concurrency: $EFFECTIVE_CONCURRENCY"
+
+ACQUIRE_ACCOUNT_TIMEOUT=300
+ACQUIRE_ACCOUNT_INTERVAL=5
+
+acquire_ai_account() {
+    local ai_accounts="$1"
+    local work_dir="$2"
+    local shot_index="$3"
+    local frame_type="$4"
+    
+    cd "$work_dir"
+    
+    local target_index=$(( (shot_index * 2 + (frame_type == "first" ? 0 : 1)) % ACCOUNT_COUNT ))
+    local max_attempts=$((ACQUIRE_ACCOUNT_TIMEOUT / ACQUIRE_ACCOUNT_INTERVAL))
+    local attempts=0
+    
+    while [ $attempts -lt $max_attempts ]; do
+        local lock_file="./locks/account_${target_index}.lock"
+        
+        if (set -o noclobber; echo "$$" > "$lock_file") 2>/dev/null; then
+            trap "rm -f '$lock_file'" EXIT
+            
+            if [ -n "$ai_accounts" ]; then
+                local is_bad=$(grep -c "^${target_index}$" "./bad_accounts.txt" 2>/dev/null || echo 0)
+                if [ "$is_bad" -gt 0 ]; then
+                    rm -f "$lock_file"
+                    attempts=$((attempts + 1))
+                    sleep $ACQUIRE_ACCOUNT_INTERVAL
+                    continue
+                fi
+            fi
+            
+            echo "Shot $shot_index ${frame_type}: Acquired AI account index $target_index"
+            echo "$target_index"
+            return 0
+        fi
+        
+        attempts=$((attempts + 1))
+        sleep $ACQUIRE_ACCOUNT_INTERVAL
+    done
+    
+    echo "Shot $shot_index ${frame_type}: Failed to acquire AI account after $ACQUIRE_ACCOUNT_TIMEOUT seconds"
+    echo "-1"
+    return 1
+}
+
+release_ai_account() {
+    local work_dir="$1"
+    local account_index="$2"
+    
+    cd "$work_dir"
+    local lock_file="./locks/account_${account_index}.lock"
+    rm -f "$lock_file"
+    echo "Released AI account index $account_index"
+}
 
 process_frame() {
     local shot_index="$1"
     local frame_type="$2"
     local work_dir="$3"
+    local ai_accounts="$4"
 
     cd "$work_dir"
 
@@ -79,12 +146,35 @@ process_frame() {
         fi
     fi
 
-    API_URL="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/images/generations"
+    local account_index=$(acquire_ai_account "$ai_accounts" "$work_dir" "$shot_index" "$frame_type")
+    
+    if [ "$account_index" = "-1" ]; then
+        echo "Error: Failed to acquire AI account for shot $shot_index, ${frame_type} frame"
+        echo "${shot_index}_${frame_type}:FAILED" >> "./frame_results.txt"
+        return 1
+    fi
+
+    local selected_key="$AI_API_KEY"
+    local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/images/generations"
+
+    local selected_alias=""
+    if [ -n "$ai_accounts" ]; then
+        selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
+        selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
+        selected_alias=$(echo "$ai_accounts" | jq -r ".[$account_index].account_alias")
+        if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
+            selected_url="https://apihub.agnes-ai.com/v1/images/generations"
+        fi
+    fi
+
+    echo "Shot $shot_index ${frame_type}: Using AI account index $account_index (alias: $selected_alias)"
 
     MAX_RETRIES=5
     RETRY_DELAY=10
     API_SUCCESS=0
     RESPONSE=""
+
+    BAD_ACCOUNTS_FILE="./bad_accounts.txt"
 
     for attempt in $(seq 1 $MAX_RETRIES); do
         echo "  Shot $shot_index ${frame_type}: Attempt $attempt/$MAX_RETRIES..."
@@ -102,7 +192,7 @@ process_frame() {
             --max-time 120 \
             -w "\n%{http_code}" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $AI_API_KEY" \
+            -H "Authorization: Bearer $selected_key" \
             -d "{
                 \"model\": \"agnes-image-2.1-flash\",
                 \"prompt\": \"$MAIN_PROMPT\",
@@ -112,7 +202,7 @@ process_frame() {
                     \"response_format\": \"url\"
                 }
             }" \
-            "$API_URL")
+            "$selected_url")
 
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
         RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
@@ -126,6 +216,24 @@ process_frame() {
             API_SUCCESS=1
             RESPONSE="$RESPONSE_BODY"
             break
+        fi
+
+        if [ "$HTTP_CODE" -eq 401 ] || [ "$HTTP_CODE" -eq 403 ]; then
+            local ACCOUNT_ALIAS=$(echo "$ai_accounts" | jq -r ".[$account_index].account_alias // \"Unknown\"")
+            local ACCOUNT_ID=$(echo "$ai_accounts" | jq -r ".[$account_index].id // \"\"")
+            echo "  Shot $shot_index ${frame_type}: Account [$ACCOUNT_ALIAS] (index $account_index) returned $HTTP_CODE, marking as bad"
+            echo "$account_index" >> "$BAD_ACCOUNTS_FILE"
+            
+            set +e
+            curl -s --connect-timeout 10 --max-time 30 -X POST "$CALLBACK_URL/account-error" \
+                -H "Content-Type: application/json" \
+                -H "X-Callback-Signature: $CALLBACK_SECRET" \
+                -d "{\"task_id\":\"$TASK_ID\",\"account_id\":${ACCOUNT_ID:-null},\"error_type\":\"invalid_credentials\",\"message\":\"Account returned $HTTP_CODE\"}" > /dev/null 2>&1
+            set -e
+            
+            release_ai_account "$work_dir" "$account_index"
+            echo "${shot_index}_${frame_type}:FAILED" >> "./frame_results.txt"
+            return 1
         fi
 
         if [ "$HTTP_CODE" -eq 429 ] || [ "$HTTP_CODE" -eq 503 ]; then
@@ -142,6 +250,8 @@ process_frame() {
             sleep $RETRY_DELAY
         fi
     done
+
+    release_ai_account "$work_dir" "$account_index"
 
     if [ $API_SUCCESS -ne 1 ]; then
         echo "Error: Failed to convert shot $shot_index, ${frame_type} frame"
@@ -176,12 +286,17 @@ process_frame() {
 }
 
 export -f process_frame
+export -f acquire_ai_account
+export -f release_ai_account
 export RESULT
 export TASK_ID
 export R2_BUCKET_NAME
 export R2_ENDPOINT_URL
 export AI_API_KEY
 export AI_BASE_URL
+export ACCOUNT_COUNT
+export ACQUIRE_ACCOUNT_TIMEOUT
+export ACQUIRE_ACCOUNT_INTERVAL
 
 MAX_ROUNDS=10
 
@@ -229,8 +344,9 @@ for round in $(seq 1 $MAX_ROUNDS); do
     echo "=== Round $round/$MAX_ROUNDS: Processing remaining frames ==="
 
     rm -f "./frame_results.txt"
+    rm -f "./bad_accounts.txt"
 
-    echo -e "$PENDING_FRAMES" | xargs -P "$MAX_CONCURRENT" -n 2 -I {} bash -c 'process_frame {} "$WORK_DIR"' || true
+    echo -e "$PENDING_FRAMES" | xargs -P "$EFFECTIVE_CONCURRENCY" -n 2 bash -c 'process_frame "$@"' _ || true
 
     echo "Uploading converted frames..."
     aws s3 sync "./ai_shot_frames" "s3://$R2_BUCKET_NAME/${TASK_ID}/ai_shot_frames" \

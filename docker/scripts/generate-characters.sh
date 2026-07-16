@@ -32,12 +32,30 @@ ROLE_COUNT=$(echo "$RESULT" | jq -r '.characters | length')
 echo "Found $ROLE_COUNT characters"
 
 mkdir -p ./characters
+mkdir -p ./locks
+
+ACCOUNT_COUNT=1
+if [ -n "$AI_ACCOUNTS" ]; then
+    ACCOUNT_COUNT=$(echo "$AI_ACCOUNTS" | jq -r '. | length')
+    if [ -z "$ACCOUNT_COUNT" ] || [ "$ACCOUNT_COUNT" = "null" ] || ! [[ "$ACCOUNT_COUNT" =~ ^[0-9]+$ ]]; then
+        ACCOUNT_COUNT=1
+    fi
+    if [ "$ACCOUNT_COUNT" -eq 0 ]; then
+        ACCOUNT_COUNT=1
+    fi
+fi
 
 MAX_CONCURRENT=${MAX_CONCURRENT:-2}
+EFFECTIVE_CONCURRENCY=$(( ACCOUNT_COUNT < MAX_CONCURRENT ? ACCOUNT_COUNT : MAX_CONCURRENT ))
+
+echo "Available AI accounts: $ACCOUNT_COUNT"
+echo "Max concurrent (from GitHub accounts): $MAX_CONCURRENT"
+echo "Effective concurrency: $EFFECTIVE_CONCURRENCY"
 
 process_character() {
     local char_index="$1"
     local work_dir="$2"
+    local ai_accounts="$3"
 
     cd "$work_dir"
 
@@ -60,56 +78,109 @@ process_character() {
 
     PROMPT="American animation style character design, white background, full body portrait, professional character sheet, clean line art, vibrant colors, high quality, anime style, based on the provided reference image"
 
-    MAX_RETRIES=3
+    local ACCOUNT_COUNT=$(echo "$ai_accounts" | jq -r '. | length')
+    if [ -z "$ACCOUNT_COUNT" ] || [ "$ACCOUNT_COUNT" = "null" ] || ! [[ "$ACCOUNT_COUNT" =~ ^[0-9]+$ ]]; then
+        ACCOUNT_COUNT=1
+    fi
+    if [ "$ACCOUNT_COUNT" -eq 0 ]; then
+        ACCOUNT_COUNT=1
+    fi
+    local START_ACCOUNT_INDEX=$((char_index % ACCOUNT_COUNT))
+
+    MAX_RETRIES_PER_ACCOUNT=3
     RETRY_DELAY=5
     API_SUCCESS=0
     RESPONSE=""
 
-    API_URL="${AI_BASE_URL:-https://apihub.agnes-ai.com/v1/images/generations}"
+    for account_offset in $(seq 0 $((ACCOUNT_COUNT - 1))); do
+        local account_index=$(((START_ACCOUNT_INDEX + account_offset) % ACCOUNT_COUNT))
 
-    for attempt in $(seq 1 $MAX_RETRIES); do
-        echo "  Character $ROLE_ID: Attempt $attempt/$MAX_RETRIES..."
-        echo "  Character $ROLE_ID: API URL: ${API_URL:0:50}..."
-        echo "  Character $ROLE_ID: API Key: ${AI_API_KEY:0:10}..."
-
-        RESPONSE=$(curl -s -X POST \
-            --connect-timeout 30 \
-            --max-time 120 \
-            -w "\n%{http_code}" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $AI_API_KEY" \
-            -d "{
-                \"model\": \"agnes-image-2.1-flash\",
-                \"prompt\": \"$PROMPT\",
-                \"size\": \"1024x1024\",
-                \"extra_body\": {
-                    \"image\": [\"data:image/jpeg;base64,$INPUT_IMAGE_BASE64\"],
-                    \"response_format\": \"url\"
-                }
-            }" \
-            "$API_URL")
-
-        HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-        RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
-
-        echo "  Character $ROLE_ID: HTTP code: $HTTP_CODE"
-        if [ ${#RESPONSE_BODY} -gt 0 ]; then
-            echo "  Character $ROLE_ID: Response (first 500 chars): ${RESPONSE_BODY:0:500}"
+        if grep -q "^$account_index$" "./bad_accounts.txt" 2>/dev/null; then
+            echo "  Character $ROLE_ID: Skipping bad account index $account_index"
+            continue
         fi
 
-        if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-            API_SUCCESS=1
-            RESPONSE="$RESPONSE_BODY"
+        local selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
+        local selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
+        local selected_alias=$(echo "$ai_accounts" | jq -r ".[$account_index].account_alias")
+        if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
+            selected_url="https://apihub.agnes-ai.com/v1/images/generations"
+        fi
+
+        local lock_file="./locks/account_${account_index}.lock"
+
+        exec 200>"$lock_file"
+        flock -x 200
+
+        echo "Character $ROLE_ID: Using AI account index $account_index (alias: $selected_alias)"
+
+        for attempt in $(seq 1 $MAX_RETRIES_PER_ACCOUNT); do
+            echo "  Character $ROLE_ID: Attempt $attempt/$MAX_RETRIES_PER_ACCOUNT..."
+            echo "  Character $ROLE_ID: API URL: ${selected_url:0:50}..."
+            echo "  Character $ROLE_ID: API Key: ${selected_key:0:10}..."
+
+            RESPONSE=$(curl -s -X POST \
+                --connect-timeout 30 \
+                --max-time 120 \
+                -w "\n%{http_code}" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $selected_key" \
+                -d "{
+                    \"model\": \"agnes-image-2.1-flash\",
+                    \"prompt\": \"$PROMPT\",
+                    \"size\": \"1024x1024\",
+                    \"extra_body\": {
+                        \"image\": [\"data:image/jpeg;base64,$INPUT_IMAGE_BASE64\"],
+                        \"response_format\": \"url\"
+                    }
+                }" \
+                "$selected_url")
+
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
+
+            echo "  Character $ROLE_ID: HTTP code: $HTTP_CODE"
+            if [ ${#RESPONSE_BODY} -gt 0 ]; then
+                echo "  Character $ROLE_ID: Response (first 500 chars): ${RESPONSE_BODY:0:500}"
+            fi
+
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+                API_SUCCESS=1
+                RESPONSE="$RESPONSE_BODY"
+                break 2
+            fi
+
+            if [ "$HTTP_CODE" -eq 401 ] || [ "$HTTP_CODE" -eq 403 ]; then
+                local ACCOUNT_ALIAS=$(echo "$ai_accounts" | jq -r ".[$account_index].account_alias // \"Unknown\"")
+                local ACCOUNT_ID=$(echo "$ai_accounts" | jq -r ".[$account_index].id // \"\"")
+                echo "  Character $ROLE_ID: Account [$ACCOUNT_ALIAS] (index $account_index) returned $HTTP_CODE, marking as bad - please check this account"
+                echo "$account_index" >> "./bad_accounts.txt"
+                
+                set +e
+                curl -s --connect-timeout 10 --max-time 30 -X POST "$CALLBACK_URL/account-error" \
+                    -H "Content-Type: application/json" \
+                    -H "X-Callback-Signature: $CALLBACK_SECRET" \
+                    -d "{\"task_id\":\"$TASK_ID\",\"account_id\":${ACCOUNT_ID:-null},\"error_type\":\"invalid_credentials\",\"message\":\"Account returned $HTTP_CODE\"}" > /dev/null 2>&1
+                set -e
+                
+                flock -u 200
+                break
+            fi
+
+            if [ $attempt -lt $MAX_RETRIES_PER_ACCOUNT ]; then
+                sleep $RETRY_DELAY
+            fi
+        done
+
+        flock -u 200
+
+        if [ $API_SUCCESS -eq 1 ]; then
             break
-        fi
-
-        if [ $attempt -lt $MAX_RETRIES ]; then
-            sleep $RETRY_DELAY
         fi
     done
 
     if [ $API_SUCCESS -ne 1 ]; then
-        echo "Error: Failed to generate character $ROLE_ID"
+        echo "Error: Failed to generate character $ROLE_ID after trying all available accounts"
         rm -f "./reference_${char_index}.jpg"
         echo "${ROLE_ID}:FAILED" >> "./character_results.txt"
         return 1
@@ -192,7 +263,7 @@ for round in $(seq 1 $MAX_ROUNDS); do
     rm -f "./character_results.txt"
 
     echo "$PENDING_INDICES" | tr ',' '\n' | \
-        xargs -P "$MAX_CONCURRENT" -I {} bash -c 'process_character "$@"' _ {} "$WORK_DIR" || true
+        xargs -P "$EFFECTIVE_CONCURRENCY" -I {} bash -c 'process_character "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS" || true
 
     echo "Uploading character images..."
     aws s3 sync "./characters" "s3://$R2_BUCKET_NAME/${TASK_ID}/characters" \

@@ -2,7 +2,7 @@ name: Video Processing Workflow
 
 on:
   repository_dispatch:
-    types: [video-processing-detect, video-processing-analyze, video-processing-select-faces, video-processing-generate-characters, video-processing-crop-shots, video-processing-convert-frames, video-processing-generate-shots, video-processing-compose, video-processing-range]
+    types: [video-processing-detect, video-processing-analyze, video-processing-select-faces, video-processing-generate-characters, video-processing-crop-shots, video-processing-convert-frames, video-processing-generate-shots, video-processing-compose]
   workflow_dispatch:
     inputs:
       task_id:
@@ -43,7 +43,6 @@ on:
 
 jobs:
   process:
-    if: ${{ github.event_name != 'repository_dispatch' || github.event.action != 'video-processing-range' }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     concurrency:
@@ -423,141 +422,5 @@ jobs:
           
           if [ $SUCCESS -ne 1 ]; then
             echo "ERROR: Failed to notify completion after $MAX_RETRIES attempts"
-            exit 1
-          fi
-
-  process-range:
-    if: ${{ github.event_name == 'repository_dispatch' && github.event.action == 'video-processing-range' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 180
-    concurrency:
-      group: ${{ github.event.client_payload.task_id }}-range-${{ github.event.client_payload.start_phase }}-${{ github.event.client_payload.end_phase }}
-      cancel-in-progress: false
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image
-        run: |
-          docker build -t ai-video-processor ./docker
-
-      - name: Parse config JSON
-        id: parse_config
-        env:
-          CONFIG_JSON: ${{ github.event.client_payload.config || '{}' }}
-          PARSED_VIDEO_PATH: ${{ fromJSON(github.event.client_payload.config || '{}').video_path || github.event.client_payload.video_path || '' }}
-          PARSED_FPS: ${{ fromJSON(github.event.client_payload.config || '{}').fps || github.event.client_payload.fps || 30 }}
-          PARSED_PROMPT: ${{ fromJSON(github.event.client_payload.config || '{}').prompt || github.event.client_payload.prompt || '' }}
-          PARSED_OUTPUT_FPS: ${{ fromJSON(github.event.client_payload.config || '{}').output_fps || github.event.client_payload.output_fps || 24 }}
-          PARSED_MAX_CONCURRENT: ${{ fromJSON(github.event.client_payload.config || '{}').max_concurrent || github.event.client_payload.max_concurrent || 2 }}
-        run: |
-          echo "VIDEO_PATH=$PARSED_VIDEO_PATH" >> $GITHUB_OUTPUT
-          echo "FPS=$PARSED_FPS" >> $GITHUB_OUTPUT
-          echo "PROMPT=$PARSED_PROMPT" >> $GITHUB_OUTPUT
-          echo "OUTPUT_FPS=$PARSED_OUTPUT_FPS" >> $GITHUB_OUTPUT
-          echo "MAX_CONCURRENT=$PARSED_MAX_CONCURRENT" >> $GITHUB_OUTPUT
-
-      - name: Run workflow in single Docker container
-        env:
-          TASK_ID: ${{ github.event.client_payload.task_id }}
-          GH_ACCOUNT_ID: ${{ github.event.client_payload.gh_account_id }}
-          AI_ACCOUNT_ID: ${{ github.event.client_payload.ai_account_id }}
-          START_PHASE: ${{ github.event.client_payload.start_phase }}
-          END_PHASE: ${{ github.event.client_payload.end_phase }}
-          VIDEO_PATH: ${{ steps.parse_config.outputs.VIDEO_PATH }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
-          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-          CALLBACK_URL: ${{ secrets.CALLBACK_URL }}
-          CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
-          BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
-          AI_API_KEY: ${{ github.event.client_payload.ai_api_key || secrets.AI_API_KEY }}
-          AI_BASE_URL: ${{ github.event.client_payload.ai_base_url || secrets.AI_BASE_URL }}
-          AI_ACCOUNTS: ${{ github.event.client_payload.ai_accounts }}
-          COOLDOWN_SECONDS: ${{ github.event.client_payload.cooldown_seconds || 1 }}
-          MAX_CONCURRENT: ${{ steps.parse_config.outputs.MAX_CONCURRENT }}
-          PROMPT: ${{ steps.parse_config.outputs.PROMPT }}
-          FPS: ${{ steps.parse_config.outputs.FPS }}
-          OUTPUT_FPS: ${{ steps.parse_config.outputs.OUTPUT_FPS }}
-        run: |
-          docker run --rm \
-            -e TASK_ID="$TASK_ID" \
-            -e GH_ACCOUNT_ID="$GH_ACCOUNT_ID" \
-            -e AI_ACCOUNT_ID="$AI_ACCOUNT_ID" \
-            -e START_PHASE="$START_PHASE" \
-            -e END_PHASE="$END_PHASE" \
-            -e VIDEO_PATH="$VIDEO_PATH" \
-            -e R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
-            -e R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
-            -e R2_ENDPOINT_URL="$R2_ENDPOINT_URL" \
-            -e R2_BUCKET_NAME="$R2_BUCKET_NAME" \
-            -e CALLBACK_URL="$CALLBACK_URL" \
-            -e CALLBACK_SECRET="$CALLBACK_SECRET" \
-            -e BACKEND_API_KEY="$BACKEND_API_KEY" \
-            -e AI_API_KEY="$AI_API_KEY" \
-            -e AI_BASE_URL="$AI_BASE_URL" \
-            -e AI_ACCOUNTS="$AI_ACCOUNTS" \
-            -e COOLDOWN_SECONDS="$COOLDOWN_SECONDS" \
-            -e MAX_CONCURRENT="$MAX_CONCURRENT" \
-            -e PROMPT="$PROMPT" \
-            -e FPS="$FPS" \
-            -e OUTPUT_FPS="$OUTPUT_FPS" \
-            ai-video-processor \
-            bash /scripts/run-workflow.sh
-
-      - name: Notify range completion
-        if: always()
-        env:
-          TASK_ID: ${{ github.event.client_payload.task_id }}
-          STATUS: ${{ job.status }}
-          RUN_ID: ${{ github.run_id }}
-          RUN_NUMBER: ${{ github.run_number }}
-          CALLBACK_URL: ${{ secrets.CALLBACK_URL }}
-          CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
-          PHASE: ${{ github.event.client_payload.start_phase }}-to-${{ github.event.client_payload.end_phase }}
-        run: |
-          MAX_RETRIES=3
-          RETRY_DELAY=5
-          SUCCESS=0
-          
-          for attempt in $(seq 1 $MAX_RETRIES); do
-            echo "Attempt $attempt/$MAX_RETRIES to notify range completion..."
-            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-              "$CALLBACK_URL/github" \
-              -H "Content-Type: application/json" \
-              -H "X-Callback-Signature: $CALLBACK_SECRET" \
-              -d "{
-                \"task_id\": \"$TASK_ID\",
-                \"status\": \"$STATUS\",
-                \"run_id\": \"$RUN_ID\",
-                \"run_number\": \"$RUN_NUMBER\",
-                \"phase\": \"$PHASE\",
-                \"is_range\": true
-              }")
-            
-            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-            BODY=$(echo "$RESPONSE" | head -n -1)
-            
-            echo "Range completion callback response code: $HTTP_CODE"
-            echo "Range completion callback response body: $BODY"
-            
-            if [ "$HTTP_CODE" -eq 200 ]; then
-              SUCCESS=1
-              break
-            fi
-            
-            if [ "$attempt" -lt "$MAX_RETRIES" ]; then
-              echo "Range completion notification failed, retrying in $RETRY_DELAY seconds..."
-              sleep $RETRY_DELAY
-            fi
-          done
-          
-          if [ $SUCCESS -ne 1 ]; then
-            echo "ERROR: Failed to notify range completion after $MAX_RETRIES attempts"
             exit 1
           fi

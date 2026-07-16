@@ -188,8 +188,8 @@ export class TaskService {
     return this.getTask(id);
   }
 
-  async triggerPhase(taskId: string, phase: TaskPhase, startPhase?: TaskPhase, endPhase?: TaskPhase) {
-    console.log('triggerPhase called:', { taskId, phase, startPhase, endPhase });
+  async triggerPhase(taskId: string, phase: TaskPhase) {
+    console.log('triggerPhase called:', { taskId, phase });
     
     const task = await this.getTask(taskId);
     if (!task) {
@@ -218,7 +218,7 @@ export class TaskService {
         }
       }
 
-      await this.dispatchGitHubWorkflow(taskId, phase, ghAccount?.id, aiAccount?.id, startPhase, endPhase);
+      await this.dispatchGitHubWorkflow(taskId, phase, ghAccount?.id, aiAccount?.id);
       
       await this.env.DB.prepare(`
         UPDATE tasks SET github_account_id = ?, current_phase = ?, status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -448,104 +448,7 @@ export class TaskService {
       }
     }
 
-    const isRangeExecution = startPhase && endPhase && startPhase !== endPhase;
-    const eventType = isRangeExecution ? 'range' : phase.toLowerCase().replace(/_/g, '-');
-    
-    if (isRangeExecution) {
-      const startIndex = phaseOrder.indexOf(startPhase);
-      const endIndex = phaseOrder.indexOf(endPhase);
-      
-      let needsTextAccounts = false;
-      let needsImageAccounts = false;
-      let needsVideoAccounts = false;
-      
-      for (let i = startIndex; i <= endIndex; i++) {
-        const p = phaseOrder[i];
-        if (p === 'ANALYZE') {
-          needsTextAccounts = true;
-        }
-        if (p === 'CONVERT_FRAMES' || p === 'GENERATE_CHARACTERS') {
-          needsImageAccounts = true;
-        }
-        if (p === 'GENERATE_SHOTS') {
-          needsVideoAccounts = true;
-        }
-      }
-      
-      const accountService = new (await import('./AccountService')).AccountService(this.env);
-      const allAccounts: any[] = [];
-      
-      if (needsTextAccounts) {
-        for (let i = 0; i < maxConcurrent; i++) {
-          const account = await accountService.selectAIAccountForGitHub(ghAccount.id, 'text');
-          if (account) {
-            let decryptedKey = '';
-            if ((account as any).api_key_encrypted) {
-              try {
-                decryptedKey = await this.cryptoService.decrypt((account as any).api_key_encrypted);
-              } catch {
-                decryptedKey = (account as any).api_key_encrypted;
-              }
-            }
-            allAccounts.push({
-              ...account,
-              api_key_encrypted: decryptedKey,
-              base_url: ((account as any).base_url || '').trim(),
-              model_name: ((account as any).model_name || '').trim()
-            });
-          }
-        }
-      }
-      
-      if (needsImageAccounts) {
-        for (let i = 0; i < maxConcurrent; i++) {
-          const account = await accountService.selectAIAccountForGitHub(ghAccount.id, 'image');
-          if (account) {
-            let decryptedKey = '';
-            if ((account as any).api_key_encrypted) {
-              try {
-                decryptedKey = await this.cryptoService.decrypt((account as any).api_key_encrypted);
-              } catch {
-                decryptedKey = (account as any).api_key_encrypted;
-              }
-            }
-            allAccounts.push({
-              ...account,
-              api_key_encrypted: decryptedKey,
-              base_url: ((account as any).base_url || '').trim(),
-              model_name: ((account as any).model_name || '').trim()
-            });
-          }
-        }
-      }
-      
-      if (needsVideoAccounts) {
-        for (let i = 0; i < maxConcurrent; i++) {
-          const account = await accountService.selectAIAccountForGitHub(ghAccount.id, 'video');
-          if (account) {
-            let decryptedKey = '';
-            if ((account as any).api_key_encrypted) {
-              try {
-                decryptedKey = await this.cryptoService.decrypt((account as any).api_key_encrypted);
-              } catch {
-                decryptedKey = (account as any).api_key_encrypted;
-              }
-            }
-            allAccounts.push({
-              ...account,
-              api_key_encrypted: decryptedKey,
-              base_url: ((account as any).base_url || '').trim(),
-              model_name: ((account as any).model_name || '').trim()
-            });
-          }
-        }
-      }
-      
-      if (allAccounts.length > 0) {
-        aiAccountsJson = JSON.stringify(allAccounts);
-      }
-    }
-    
+    const eventType = phase.toLowerCase().replace(/_/g, '-');
     const payload = {
       event_type: `video-processing-${eventType}`,
       client_payload: {
@@ -717,9 +620,9 @@ export class TaskService {
   }
 
   async handleGitHubCallback(body: any) {
-    const { task_id: taskId, phase, status, run_id: runId, is_range: isRange } = body;
+    const { task_id: taskId, phase, status, run_id: runId } = body;
 
-    console.log('handleGitHubCallback called:', { taskId, phase, status, runId, isRange });
+    console.log('handleGitHubCallback called:', { taskId, phase, status, runId });
 
     const task = await this.getTask(taskId);
     if (task) {
@@ -737,34 +640,19 @@ export class TaskService {
     }
 
     await this.env.DB.prepare(`
-      UPDATE ai_accounts SET cooldown_until = NULL 
-      WHERE cooldown_until IS NOT NULL
-    `).run();
-    console.log('handleGitHubCallback: Released all locked AI accounts');
-
-    await this.env.DB.prepare(`
       UPDATE tasks SET current_run_id = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ?
     `).bind(runId, taskId).run();
 
     if (status === 'success') {
-      if (isRange) {
-        console.log('handleGitHubCallback: Range execution completed, marking task as COMPLETED');
+      try {
+        await this.advancePhase(taskId);
+      } catch (error) {
+        console.error('handleGitHubCallback: Failed to advance phase:', error);
         await this.env.DB.prepare(`
-          UPDATE tasks SET status = ?, completed_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+          UPDATE tasks SET status = ?, error_msg = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
           WHERE id = ?
-        `).bind('COMPLETED', taskId).run();
-        await this.logTask(taskId, phase, 'INFO', `Range execution completed: ${phase}`);
-      } else {
-        try {
-          await this.advancePhase(taskId);
-        } catch (error) {
-          console.error('handleGitHubCallback: Failed to advance phase:', error);
-          await this.env.DB.prepare(`
-            UPDATE tasks SET status = ?, error_msg = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-            WHERE id = ?
-          `).bind('FAILED', (error as Error).message, taskId).run();
-        }
+        `).bind('FAILED', (error as Error).message, taskId).run();
       }
     } else {
       await this.env.DB.prepare(`

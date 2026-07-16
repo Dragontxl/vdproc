@@ -54,7 +54,7 @@ def read_file(path):
         return f.read()
 
 def upload_video_to_gemini(video_path):
-    log("Uploading video to Gemini...")
+    log("Uploading video to Gemini using google.generativeai SDK...")
     
     if not os.path.exists(video_path):
         raise Exception(f"Video file not found: {video_path}")
@@ -166,12 +166,12 @@ def main():
             log("Error: TASK_ID not set")
             sys.exit(1)
         
-        if not VIDEO_PATH:
-            log("Error: VIDEO_PATH not set")
-            sys.exit(1)
-        
         if not AI_API_KEY:
             log("Error: AI_API_KEY not set")
+            sys.exit(1)
+        
+        if not VIDEO_PATH:
+            log("Error: VIDEO_PATH not set")
             sys.exit(1)
         
         log(f"Environment variables:")
@@ -182,12 +182,7 @@ def main():
         log(f"  R2_BUCKET_NAME: {R2_BUCKET_NAME}")
         log(f"  PRIMARY_MODEL: {PRIMARY_MODEL}")
         
-        if AI_BASE_URL:
-            genai.configure(api_key=AI_API_KEY, transport="rest")
-            os.environ['GENERATIVEAI_API_KEY'] = AI_API_KEY
-            os.environ['GENERATIVEAI_BASE_URL'] = AI_BASE_URL
-        else:
-            genai.configure(api_key=AI_API_KEY)
+        genai.configure(api_key=AI_API_KEY)
         log("Google GenerativeAI configured")
         
         os.makedirs(WORK_DIR, exist_ok=True)

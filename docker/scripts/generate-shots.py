@@ -6,21 +6,20 @@ import time
 import urllib.request
 import urllib.error
 import ssl
-from urllib.parse import urlparse
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
 def main():
     task_id = os.environ.get('TASK_ID')
+    ai_accounts_json = os.environ.get('AI_ACCOUNTS', '[]')
     r2_bucket = os.environ.get('R2_BUCKET_NAME')
     r2_endpoint = os.environ.get('R2_ENDPOINT_URL')
-    ai_api_key = os.environ.get('AI_API_KEY', '')
-    ai_base_url = os.environ.get('AI_BASE_URL', 'https://apihub.agnes-ai.com')
 
     with open('./analysis_result.json', 'r') as f:
         result = json.load(f)
 
     storyboards = result.get('storyboards', [])
+    accounts = json.loads(ai_accounts_json)
 
     def parse_time(time_str):
         parts = time_str.split(':')
@@ -31,9 +30,10 @@ def main():
         ms = int(s_parts[1]) if len(s_parts) > 1 else 0
         return h * 3600 + m * 60 + s + ms / 1000
 
-    def generate_video(image_urls, prompt, shot_index):
-        parsed = urlparse(ai_base_url)
-        base_url = f"{parsed.scheme}://{parsed.netloc}/v1/videos"
+    def generate_video(account, image_urls, prompt, shot_index):
+        api_key = account.get('api_key_encrypted', '')
+        base_url = account.get('base_url', 'https://apihub.agnes-ai.com/v1/videos')
+        model_name = account.get('model_name', 'agnes-video-v2.0')
         
         if not base_url.startswith('http'):
             base_url = 'https://' + base_url
@@ -41,7 +41,7 @@ def main():
         full_prompt = "在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。" + prompt
         
         request_body = {
-            'model': 'agnes-video-v2.0',
+            'model': model_name,
             'prompt': full_prompt,
             'extra_body': {
                 'image': image_urls,
@@ -58,7 +58,7 @@ def main():
         
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + ai_api_key
+            'Authorization': 'Bearer ' + api_key
         }
         
         task_id_result = None
@@ -103,7 +103,7 @@ def main():
             time.sleep(poll_interval)
             try:
                 poll_url = f"{base_url}/{task_id_result}"
-                req = urllib.request.Request(poll_url, headers={'Authorization': 'Bearer ' + ai_api_key}, method='GET')
+                req = urllib.request.Request(poll_url, headers={'Authorization': 'Bearer ' + api_key}, method='GET')
                 resp = urllib.request.urlopen(req, timeout=30)
                 resp_body = resp.read().decode('utf-8')
                 resp_data = json.loads(resp_body)
@@ -163,9 +163,13 @@ def main():
         if dialogue and dialogue != 'null':
             main_prompt += f", dialogue: {dialogue}"
         
-        print(f"Shot {shot_index}: Using URL: {ai_base_url}")
+        account_index = shot_index % len(accounts) if accounts else 0
+        account = accounts[account_index] if accounts else {'api_key_encrypted': os.environ.get('AI_API_KEY', ''), 'base_url': os.environ.get('AI_BASE_URL', 'https://apihub.agnes-ai.com/v1/videos'), 'model_name': 'agnes-video-v2.0'}
         
-        video_url = generate_video([first_frame_url, last_frame_url], main_prompt, shot_index)
+        print(f"Shot {shot_index}: Using model {account.get('model_name', 'agnes-video-v2.0')} at {account.get('base_url', '')}")
+        print(f"Shot {shot_index}: Using AI account index {account_index}")
+        
+        video_url = generate_video(account, [first_frame_url, last_frame_url], main_prompt, shot_index)
         
         if video_url:
             print(f"Downloading generated video for shot {shot_index}...")
