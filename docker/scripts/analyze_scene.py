@@ -235,6 +235,8 @@ def main():
    - 永久固定特征（跨画风有效识别特征，如发型、面部特征）
    - 人物差异化标签（不记录临时服装、光线、镜头角度）
    - best_face_time（该人物最佳人脸帧的时间戳，格式为HH:MM:SS.mmm，选择人物面部最清晰、正面、完整的帧）
+   - face_position_x（人脸在画面中的水平位置，归一化0-1，0为最左侧，1为最右侧）
+   - face_position_y（人脸在画面中的垂直位置，归一化0-1，0为最顶部，1为最底部）
 3. 每段分镜输出：
    - 精确起止时间（修改后的）
    - 本段所有出场人物role_id
@@ -257,7 +259,9 @@ def main():
       "height": "中等偏高",
       "permanent_features": "描述",
       "differentiation_labels": ["标签1", "标签2"],
-      "best_face_time": "00:00:02.500"
+      "best_face_time": "00:00:02.500",
+      "face_position_x": 0.5,
+      "face_position_y": 0.3
     }}
   ],
   "storyboards": [

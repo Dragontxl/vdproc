@@ -124,6 +124,7 @@ def main():
 
         analysis_characters = {}
         analysis_best_face_times = {}
+        analysis_face_positions = {}
         if os.path.exists(analysis_path):
             log(f"Found analysis_result.json, reading...")
             with open(analysis_path, 'r') as f:
@@ -145,6 +146,11 @@ def main():
                     if best_face_time:
                         analysis_best_face_times[role_id] = parse_time(best_face_time)
                         log(f"  Character {role_id} best face time: {best_face_time} ({analysis_best_face_times[role_id]:.3f}s)")
+                    face_pos_x = char.get('face_position_x', None)
+                    face_pos_y = char.get('face_position_y', None)
+                    if face_pos_x is not None and face_pos_y is not None:
+                        analysis_face_positions[role_id] = (float(face_pos_x), float(face_pos_y))
+                        log(f"  Character {role_id} face position: ({face_pos_x}, {face_pos_y})")
             log(f"Loaded {len(scenes)} storyboards and {len(analysis_characters)} character descriptions from analysis_result.json")
         elif os.path.exists(scenes_json_path):
             log(f"Found scenes.json, reading...")
@@ -195,6 +201,8 @@ def main():
                     log(f"    Found {len(faces)} faces")
                     
                     scored_faces = []
+                    gemini_pos = analysis_face_positions.get(role_id, None)
+                    
                     for face in faces:
                         bbox = face.bbox
                         confidence = face.det_score
@@ -217,13 +225,19 @@ def main():
                         blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
                         face_size = (bbox[2]-bbox[0]) * (bbox[3]-bbox[1])
                         
-                        frame_center_x = frame.shape[1] / 2
-                        frame_center_y = frame.shape[0] / 2
-                        distance_to_center = np.sqrt((cx - frame_center_x)**2 + (cy - frame_center_y)**2)
-                        max_distance = np.sqrt(frame_center_x**2 + frame_center_y**2)
-                        position_score = (1 - distance_to_center / max_distance) * 50
+                        if gemini_pos:
+                            norm_cx = cx / frame.shape[1]
+                            norm_cy = cy / frame.shape[0]
+                            distance_to_gemini = np.sqrt((norm_cx - gemini_pos[0])**2 + (norm_cy - gemini_pos[1])**2)
+                            distance_score = (1 - min(distance_to_gemini, 1.0)) * 100
+                        else:
+                            frame_center_x = frame.shape[1] / 2
+                            frame_center_y = frame.shape[0] / 2
+                            distance_to_center = np.sqrt((cx - frame_center_x)**2 + (cy - frame_center_y)**2)
+                            max_distance = np.sqrt(frame_center_x**2 + frame_center_y**2)
+                            distance_score = (1 - distance_to_center / max_distance) * 50
                         
-                        quality = (confidence * 100) - (abs(angle) * 0.5) + (min(blur_score, 2000) * 0.02) + (face_size * 0.001) + position_score
+                        quality = (confidence * 100) - (abs(angle) * 0.5) + (min(blur_score, 2000) * 0.02) + (face_size * 0.001) + distance_score
                         scored_faces.append({
                             'face': face,
                             'bbox': bbox,
@@ -232,8 +246,10 @@ def main():
                             'blur_score': blur_score,
                             'face_size': face_size,
                             'quality': quality,
+                            'distance_score': distance_score,
                             'face_crop': face_crop,
-                            'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2
+                            'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2,
+                            'cx': cx, 'cy': cy
                         })
                     
                     if scored_faces:
@@ -253,7 +269,10 @@ def main():
                             'blur_score': float(sf['blur_score']),
                             'role_id': role_id
                         })
-                        log(f"    Selected best face for {role_id}: confidence={sf['confidence']:.3f}, angle={sf['angle']:.1f}, blur={sf['blur_score']:.0f}, position={position_score:.1f}, quality={sf['quality']:.1f}")
+                        if gemini_pos:
+                            log(f"    Selected face for {role_id} using Gemini position ({gemini_pos[0]:.2f}, {gemini_pos[1]:.2f}): confidence={sf['confidence']:.3f}, distance={sf['distance_score']:.1f}, quality={sf['quality']:.1f}")
+                        else:
+                            log(f"    Selected best face for {role_id}: confidence={sf['confidence']:.3f}, position={sf['distance_score']:.1f}, quality={sf['quality']:.1f}")
                     else:
                         log(f"    No valid faces found for {role_id}")
                 else:
