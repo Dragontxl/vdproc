@@ -27,7 +27,11 @@ def get_ai_account():
             text_accounts = [acc for acc in accounts if acc.get('api_type') == 'text']
             if text_accounts:
                 acc = text_accounts[0]
-                return acc.get('api_key_encrypted'), acc.get('base_url', ''), acc.get('model_name', '')
+                acc_key = acc.get('api_key_encrypted')
+                acc_base_url = acc.get('base_url', '').strip()
+                if acc_key:
+                    effective_base_url = acc_base_url if acc_base_url else AI_BASE_URL
+                    return acc_key, effective_base_url, acc.get('model_name', '')
         except:
             pass
     return AI_API_KEY, AI_BASE_URL, ''
