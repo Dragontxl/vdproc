@@ -5,7 +5,6 @@ import json
 import time
 import traceback
 import io
-import google.generativeai as genai
 
 TASK_ID = os.environ.get('TASK_ID')
 AI_API_KEY = os.environ.get('AI_API_KEY')
@@ -204,10 +203,15 @@ def main():
         log(f"  R2_BUCKET_NAME: {R2_BUCKET_NAME}")
         log(f"  PRIMARY_MODEL: {PRIMARY_MODEL}")
         
+        os.environ['GENERATIVEAI_API_KEY'] = api_key
         if base_url:
-            genai.configure(api_key=api_key, base_url=base_url, transport="rest")
-            os.environ['GENERATIVEAI_API_KEY'] = api_key
             os.environ['GENERATIVEAI_BASE_URL'] = base_url
+        
+        global genai
+        import google.generativeai as genai
+        
+        if base_url:
+            genai.configure(api_key=api_key, transport="rest")
         else:
             genai.configure(api_key=api_key)
         log("Google GenerativeAI configured")
