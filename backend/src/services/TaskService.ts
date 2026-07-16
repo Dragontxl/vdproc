@@ -349,31 +349,47 @@ export class TaskService {
 
     const lockAIAccounts = async (apiType?: string, limit?: number) => {
       const accountsToLock = limit || maxConcurrent;
-      const typeCondition = apiType ? ' AND api_type = ?' : '';
-      const params: (string | number)[] = apiType ? [apiType] : [];
+      const typeCondition = apiType ? ' AND aa.api_type = ?' : '';
+      const params: (string | number)[] = [];
       
       const lockTime = new Date(Date.now() + 3600 * 1000);
       
       const lockQuery = `
-        UPDATE ai_accounts
+        UPDATE ai_accounts aa
         SET cooldown_until = ?
         WHERE is_active = TRUE 
+          AND is_healthy = TRUE
           AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
           ${typeCondition}
-        ORDER BY priority_weight DESC, total_usage ASC
+          AND EXISTS (
+            SELECT 1 FROM github_ai_bindings gab 
+            WHERE gab.ai_account_id = aa.id AND gab.is_active = TRUE
+          )
+        ORDER BY 
+          CASE WHEN EXISTS (
+            SELECT 1 FROM github_ai_bindings gab 
+            WHERE gab.ai_account_id = aa.id AND gab.github_account_id = ? AND gab.is_active = TRUE
+          ) THEN 0 ELSE 1 END,
+          priority_weight DESC, total_usage ASC
         LIMIT ?
       `;
-      params.push(lockTime.toISOString(), accountsToLock);
+      
+      params.push(lockTime.toISOString());
+      if (apiType) params.push(apiType);
+      params.push(ghAccountId);
+      params.push(accountsToLock);
       
       await this.env.DB.prepare(lockQuery).bind(...params).run();
       
       const selectQuery = `
-        SELECT id, api_key_encrypted, base_url, model_name, account_alias FROM ai_accounts
+        SELECT aa.id, aa.api_key_encrypted, aa.base_url, aa.model_name, aa.account_alias 
+        FROM ai_accounts aa
         WHERE is_active = TRUE 
           AND cooldown_until = ?
           ${typeCondition}
       `;
-      const selectParams = [lockTime.toISOString(), ...(apiType ? [apiType] : [])];
+      const selectParams: (string | number)[] = [lockTime.toISOString()];
+      if (apiType) selectParams.push(apiType);
       
       const result = await this.env.DB.prepare(selectQuery).bind(...selectParams).all();
       return result.results || [];

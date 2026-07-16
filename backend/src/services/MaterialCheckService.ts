@@ -57,7 +57,7 @@ export class MaterialCheckService {
       case 'shot_details':
         return this.checkR2PathExists(`${taskId}/scenes/`);
       case 'character_frames':
-        return this.checkTableHasData('character_frames', taskId);
+        return this.checkR2PathExists(`${taskId}/character_frames/`);
       case 'character_avatars':
         return this.checkR2PathExists(`${taskId}/characters/`);
       case 'shot_frames':
