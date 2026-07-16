@@ -29,6 +29,17 @@ declare -A phase_map=(
   ["COMPOSE"]=7
 )
 
+declare -A phase_api_types=(
+  ["DETECT"]=""
+  ["ANALYZE"]="text"
+  ["SELECT_FACES"]=""
+  ["GENERATE_CHARACTERS"]="image"
+  ["CROP_SHOTS"]=""
+  ["CONVERT_FRAMES"]="image"
+  ["GENERATE_SHOTS"]="image"
+  ["COMPOSE"]=""
+)
+
 phase_scripts=(
   "detect-shots.sh"
   "analyze-scene.sh"
@@ -52,6 +63,50 @@ if [ "$start" -gt "$end" ]; then
   echo "Error: Start phase cannot be after end phase"
   exit 1
 fi
+
+select_ai_account() {
+  local api_type=$1
+  local accounts_json=$AI_ACCOUNTS
+  
+  if [ -z "$accounts_json" ] || [ -z "$api_type" ]; then
+    echo "AI_ACCOUNTS not set or no API type needed for this phase"
+    return
+  fi
+  
+  local result=$(echo "$accounts_json" | python3 -c "
+import sys, json
+
+accounts = json.loads(sys.stdin.read())
+matched = [acc for acc in accounts if acc.get('api_type') == '$api_type']
+
+if matched:
+    acc = matched[0]
+    key = acc.get('api_key_encrypted', '')
+    base_url = acc.get('base_url', '').strip()
+    print(key)
+    print(base_url)
+else:
+    print('')
+    print('')
+")
+  
+  local api_key=$(echo "$result" | head -n 1 | tr -d '\n')
+  local base_url=$(echo "$result" | tail -n 1 | tr -d '\n')
+  
+  if [ -n "$api_key" ]; then
+    export AI_API_KEY="$api_key"
+    if [ -n "$base_url" ]; then
+      export AI_BASE_URL="$base_url"
+    else
+      export AI_BASE_URL=""
+    fi
+    echo "Selected $api_type account, AI_API_KEY set, AI_BASE_URL=${AI_BASE_URL:-empty}"
+  else
+    echo "No $api_type account found in AI_ACCOUNTS"
+    export AI_API_KEY=""
+    export AI_BASE_URL=""
+  fi
+}
 
 report_progress() {
   local phase=$1
@@ -84,6 +139,9 @@ for i in $(seq $start $end); do
   echo "========================================"
   
   report_progress "$phase_name" "running" "Starting phase $phase_name"
+  
+  api_type="${phase_api_types[$phase_name]}"
+  select_ai_account "$api_type"
   
   if ! bash "/scripts/$script_name"; then
     echo "ERROR: Phase $phase_name failed"
