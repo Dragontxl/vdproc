@@ -203,16 +203,18 @@ def main():
                     scored_faces = []
                     gemini_pos = analysis_face_positions.get(role_id, None)
                     
-                    for face in faces:
+                    for idx, face in enumerate(faces):
                         bbox = face.bbox
                         confidence = face.det_score
                         if confidence < 0.8:
+                            log(f"    Face {idx}: skipped (confidence={confidence:.3f} < 0.8)")
                             continue
                         landmarks = face.kps
                         left_eye = landmarks[0]
                         right_eye = landmarks[1]
                         angle = np.degrees(np.arctan2(right_eye[1]-left_eye[1], right_eye[0]-left_eye[0]))
                         if abs(angle) > 45:
+                            log(f"    Face {idx}: skipped (angle={angle:.1f} > 45)")
                             continue
                         crop_size = max(bbox[2]-bbox[0], bbox[3]-bbox[1]) * 1.5
                         cx, cy = (bbox[0]+bbox[2])/2, (bbox[1]+bbox[3])/2
@@ -225,11 +227,13 @@ def main():
                         blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
                         face_size = (bbox[2]-bbox[0]) * (bbox[3]-bbox[1])
                         
+                        norm_cx = cx / frame.shape[1]
+                        norm_cy = cy / frame.shape[0]
+                        
                         if gemini_pos:
-                            norm_cx = cx / frame.shape[1]
-                            norm_cy = cy / frame.shape[0]
                             distance_to_gemini = np.sqrt((norm_cx - gemini_pos[0])**2 + (norm_cy - gemini_pos[1])**2)
                             distance_score = (1 - min(distance_to_gemini, 1.0)) * 100
+                            log(f"    Face {idx}: pos=({norm_cx:.3f}, {norm_cy:.3f}), confidence={confidence:.3f}, distance_to_gemini={distance_to_gemini:.3f}, distance_score={distance_score:.1f}")
                         else:
                             frame_center_x = frame.shape[1] / 2
                             frame_center_y = frame.shape[0] / 2
