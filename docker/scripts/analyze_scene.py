@@ -191,8 +191,11 @@ def main():
         
         log(f"Environment variables:")
         log(f"  TASK_ID: {TASK_ID}")
-        log(f"  AI_API_KEY: {'set' if api_key else 'not set'}")
-        log(f"  AI_BASE_URL: {base_url}")
+        log(f"  AI_API_KEY: {'set' if AI_API_KEY else 'not set'}")
+        log(f"  AI_ACCOUNTS: {'set' if AI_ACCOUNTS else 'not set'}")
+        log(f"  AI_ACCOUNTS length: {len(AI_ACCOUNTS) if AI_ACCOUNTS else 0}")
+        log(f"  Selected API_KEY: {'set' if api_key else 'not set'}")
+        log(f"  Selected BASE_URL: {base_url}")
         log(f"  VIDEO_PATH: {VIDEO_PATH}")
         log(f"  R2_BUCKET_NAME: {R2_BUCKET_NAME}")
         log(f"  PRIMARY_MODEL: {PRIMARY_MODEL}")
