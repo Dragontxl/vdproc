@@ -295,13 +295,28 @@ def main():
                 log(f"Found {len(clusters)} clusters: {[len(faces) for faces in clusters.values()]}")
                 
                 cluster_scene_dist = {}
+                cluster_quality = {}
                 for label, faces in clusters.items():
                     scene_count = {}
+                    total_confidence = 0
+                    total_angle = 0
+                    total_blur = 0
+                    total_size = 0
                     for face in faces:
                         scene_idx = face['scene_index']
                         scene_count[scene_idx] = scene_count.get(scene_idx, 0) + 1
+                        total_confidence += float(face['confidence'])
+                        total_angle += abs(float(face['angle']))
+                        total_blur += float(face['blur_score'])
+                        total_size += float(face.get('size', 1))
                     cluster_scene_dist[label] = scene_count
-                    log(f"  Cluster {label}: {len(faces)} faces, scene distribution: {scene_count}")
+                    avg_confidence = total_confidence / len(faces)
+                    avg_angle = total_angle / len(faces)
+                    avg_blur = total_blur / len(faces)
+                    avg_size = total_size / len(faces)
+                    quality = (avg_confidence * 100) - (avg_angle * 0.5) + (min(avg_blur, 2000) * 0.02) + (avg_size * 10)
+                    cluster_quality[label] = quality
+                    log(f"  Cluster {label}: {len(faces)} faces, scene distribution: {scene_count}, quality: {quality:.1f}")
                 
                 char_faces = {}
                 for role_id in analysis_char_list:
@@ -364,6 +379,8 @@ def main():
                                 dissimilarity = 1 - other_sim
                                 max_dissimilarity = max(max_dissimilarity, dissimilarity)
                             score += max_dissimilarity * 100
+                        
+                        score += cluster_quality.get(label, 0) * 0.5
                         
                         cost_matrix[i, j] = -score
                 
