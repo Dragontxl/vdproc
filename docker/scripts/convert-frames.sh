@@ -41,9 +41,17 @@ TOTAL_FRAMES=$((SHOT_COUNT + 1))
 mkdir -p ./ai_shot_frames
 mkdir -p ./locks
 
+IMAGE_ACCOUNTS=""
 ACCOUNT_COUNT=1
 if [ -n "$AI_ACCOUNTS" ]; then
-    ACCOUNT_COUNT=$(echo "$AI_ACCOUNTS" | jq -r '. | length')
+    IMAGE_ACCOUNTS=$(echo "$AI_ACCOUNTS" | jq -r '[.[] | select(.api_type == "image")]')
+    ACCOUNT_COUNT=$(echo "$IMAGE_ACCOUNTS" | jq -r '. | length')
+    if [ -z "$ACCOUNT_COUNT" ] || [ "$ACCOUNT_COUNT" = "null" ] || ! [[ "$ACCOUNT_COUNT" =~ ^[0-9]+$ ]]; then
+        ACCOUNT_COUNT=1
+    fi
+    if [ "$ACCOUNT_COUNT" -eq 0 ]; then
+        ACCOUNT_COUNT=1
+    fi
 fi
 
 MAX_CONCURRENT=${MAX_CONCURRENT:-2}
@@ -346,7 +354,7 @@ for round in $(seq 1 $MAX_ROUNDS); do
     rm -f "./frame_results.txt"
     rm -f "./bad_accounts.txt"
 
-    echo -e "$PENDING_FRAMES" | xargs -P "$EFFECTIVE_CONCURRENCY" -n 2 bash -c 'process_frame "$@"' _ || true
+    echo -e "$PENDING_FRAMES" | xargs -P "$EFFECTIVE_CONCURRENCY" -n 2 -I {} bash -c 'process_frame {} "$WORK_DIR" "$IMAGE_ACCOUNTS"' || true
 
     echo "Uploading converted frames..."
     aws s3 sync "./ai_shot_frames" "s3://$R2_BUCKET_NAME/${TASK_ID}/ai_shot_frames" \

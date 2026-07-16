@@ -34,9 +34,17 @@ echo "Found $SHOT_COUNT shots to generate"
 
 mkdir -p ./generated_shots
 
+VIDEO_ACCOUNTS=""
 ACCOUNT_COUNT=1
 if [ -n "$AI_ACCOUNTS" ]; then
-    ACCOUNT_COUNT=$(echo "$AI_ACCOUNTS" | jq -r '. | length')
+    VIDEO_ACCOUNTS=$(echo "$AI_ACCOUNTS" | jq -r '[.[] | select(.api_type == "video")]')
+    ACCOUNT_COUNT=$(echo "$VIDEO_ACCOUNTS" | jq -r '. | length')
+    if [ -z "$ACCOUNT_COUNT" ] || [ "$ACCOUNT_COUNT" = "null" ] || ! [[ "$ACCOUNT_COUNT" =~ ^[0-9]+$ ]]; then
+        ACCOUNT_COUNT=1
+    fi
+    if [ "$ACCOUNT_COUNT" -eq 0 ]; then
+        ACCOUNT_COUNT=1
+    fi
 fi
 
 MAX_CONCURRENT=${MAX_CONCURRENT:-2}
@@ -81,6 +89,7 @@ for round in $(seq 1 $MAX_ROUNDS); do
 
     export PENDING_INDICES
     export EFFECTIVE_CONCURRENCY
+    export AI_ACCOUNTS="$VIDEO_ACCOUNTS"
 
     python3 << PYTHON_SCRIPT
 import json

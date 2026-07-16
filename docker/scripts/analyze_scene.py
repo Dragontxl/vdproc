@@ -24,8 +24,9 @@ def get_ai_account():
     if AI_ACCOUNTS:
         try:
             accounts = json.loads(AI_ACCOUNTS)
-            if accounts:
-                acc = accounts[0]
+            text_accounts = [acc for acc in accounts if acc.get('api_type') == 'text']
+            if text_accounts:
+                acc = text_accounts[0]
                 return acc.get('api_key_encrypted'), acc.get('base_url', ''), acc.get('model_name', '')
         except:
             pass

@@ -34,9 +34,11 @@ echo "Found $ROLE_COUNT characters"
 mkdir -p ./characters
 mkdir -p ./locks
 
+IMAGE_ACCOUNTS=""
 ACCOUNT_COUNT=1
 if [ -n "$AI_ACCOUNTS" ]; then
-    ACCOUNT_COUNT=$(echo "$AI_ACCOUNTS" | jq -r '. | length')
+    IMAGE_ACCOUNTS=$(echo "$AI_ACCOUNTS" | jq -r '[.[] | select(.api_type == "image")]')
+    ACCOUNT_COUNT=$(echo "$IMAGE_ACCOUNTS" | jq -r '. | length')
     if [ -z "$ACCOUNT_COUNT" ] || [ "$ACCOUNT_COUNT" = "null" ] || ! [[ "$ACCOUNT_COUNT" =~ ^[0-9]+$ ]]; then
         ACCOUNT_COUNT=1
     fi
@@ -263,7 +265,7 @@ for round in $(seq 1 $MAX_ROUNDS); do
     rm -f "./character_results.txt"
 
     echo "$PENDING_INDICES" | tr ',' '\n' | \
-        xargs -P "$EFFECTIVE_CONCURRENCY" -I {} bash -c 'process_character "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS" || true
+        xargs -P "$EFFECTIVE_CONCURRENCY" -I {} bash -c 'process_character "$@"' _ {} "$WORK_DIR" "$IMAGE_ACCOUNTS" || true
 
     echo "Uploading character images..."
     aws s3 sync "./characters" "s3://$R2_BUCKET_NAME/${TASK_ID}/characters" \

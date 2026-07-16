@@ -472,7 +472,9 @@ export class TaskService {
         }
       }
       
-      if (needsTextAccounts && !aiAccountsJson) {
+      const allAccounts: any[] = [];
+      
+      if (needsTextAccounts) {
         const lockedAccounts = await lockAIAccounts('text', maxConcurrent);
         if (lockedAccounts.length > 0) {
           const decryptedAccounts = await Promise.all(
@@ -493,11 +495,11 @@ export class TaskService {
               };
             })
           );
-          aiAccountsJson = JSON.stringify(decryptedAccounts);
+          allAccounts.push(...decryptedAccounts);
         }
       }
       
-      if (needsImageAccounts && !aiAccountsJson) {
+      if (needsImageAccounts) {
         const lockedAccounts = await lockAIAccounts('image', maxConcurrent);
         if (lockedAccounts.length > 0) {
           const decryptedAccounts = await Promise.all(
@@ -518,11 +520,11 @@ export class TaskService {
               };
             })
           );
-          aiAccountsJson = JSON.stringify(decryptedAccounts);
+          allAccounts.push(...decryptedAccounts);
         }
       }
       
-      if (needsVideoAccounts && !aiAccountsJson) {
+      if (needsVideoAccounts) {
         const lockedAccounts = await lockAIAccounts('video', maxConcurrent);
         if (lockedAccounts.length > 0) {
           const decryptedAccounts = await Promise.all(
@@ -543,8 +545,12 @@ export class TaskService {
               };
             })
           );
-          aiAccountsJson = JSON.stringify(decryptedAccounts);
+          allAccounts.push(...decryptedAccounts);
         }
+      }
+      
+      if (allAccounts.length > 0) {
+        aiAccountsJson = JSON.stringify(allAccounts);
       }
     }
     
