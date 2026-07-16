@@ -472,11 +472,12 @@ export class TaskService {
         }
       }
       
+      const accountService = new (await import('./AccountService')).AccountService(this.env);
       const allAccounts: any[] = [];
       
       if (needsTextAccounts) {
         for (let i = 0; i < maxConcurrent; i++) {
-          const account = await selectAIAccountForGitHub(ghAccount.id, 'text');
+          const account = await accountService.selectAIAccountForGitHub(ghAccount.id, 'text');
           if (account) {
             let decryptedKey = '';
             if ((account as any).api_key_encrypted) {
@@ -498,7 +499,7 @@ export class TaskService {
       
       if (needsImageAccounts) {
         for (let i = 0; i < maxConcurrent; i++) {
-          const account = await selectAIAccountForGitHub(ghAccount.id, 'image');
+          const account = await accountService.selectAIAccountForGitHub(ghAccount.id, 'image');
           if (account) {
             let decryptedKey = '';
             if ((account as any).api_key_encrypted) {
@@ -520,7 +521,7 @@ export class TaskService {
       
       if (needsVideoAccounts) {
         for (let i = 0; i < maxConcurrent; i++) {
-          const account = await selectAIAccountForGitHub(ghAccount.id, 'video');
+          const account = await accountService.selectAIAccountForGitHub(ghAccount.id, 'video');
           if (account) {
             let decryptedKey = '';
             if ((account as any).api_key_encrypted) {

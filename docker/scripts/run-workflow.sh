@@ -9,6 +9,8 @@ echo "=== Running Workflow ==="
 echo "Task ID: $TASK_ID"
 echo "Start Phase: $START_PHASE"
 echo "End Phase: $END_PHASE"
+echo "AI_ACCOUNTS raw: $AI_ACCOUNTS"
+echo "AI_ACCOUNTS length: ${#AI_ACCOUNTS}"
 
 WORK_DIR="/tmp/$TASK_ID"
 mkdir -p "$WORK_DIR"
@@ -73,25 +75,43 @@ select_ai_account() {
     return
   fi
   
+  echo "select_ai_account: Looking for $api_type accounts..."
+  echo "select_ai_account: accounts_json length: ${#accounts_json}"
+  echo "select_ai_account: first 200 chars: ${accounts_json:0:200}"
+  
   local result=$(echo "$accounts_json" | python3 -c "
 import sys, json
 
-accounts = json.loads(sys.stdin.read())
-matched = [acc for acc in accounts if acc.get('api_type') == '$api_type']
-
-if matched:
-    acc = matched[0]
-    key = acc.get('api_key_encrypted', '')
-    base_url = acc.get('base_url', '').strip()
-    print(key)
-    print(base_url)
-else:
-    print('')
-    print('')
+try:
+    accounts = json.loads(sys.stdin.read())
+    print('DEBUG: Loaded', len(accounts), 'accounts')
+    
+    for acc in accounts:
+        print('DEBUG: Account:', acc.get('id'), acc.get('api_type'))
+    
+    matched = [acc for acc in accounts if acc.get('api_type') == '$api_type']
+    print('DEBUG: Found', len(matched), '$api_type accounts')
+    
+    if matched:
+        acc = matched[0]
+        key = acc.get('api_key_encrypted', '')
+        base_url = acc.get('base_url', '').strip()
+        print('KEY:', key)
+        print('BASE_URL:', base_url)
+    else:
+        print('KEY:')
+        print('BASE_URL:')
+except Exception as e:
+    print('ERROR:', str(e))
+    print('KEY:')
+    print('BASE_URL:')
 ")
   
-  local api_key=$(echo "$result" | head -n 1 | tr -d '\n')
-  local base_url=$(echo "$result" | tail -n 1 | tr -d '\n')
+  local api_key=$(echo "$result" | grep '^KEY:' | sed 's/^KEY://' | tr -d '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  local base_url=$(echo "$result" | grep '^BASE_URL:' | sed 's/^BASE_URL://' | tr -d '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  
+  echo "select_ai_account: api_key extracted: ${api_key:0:20}..."
+  echo "select_ai_account: base_url extracted: $base_url"
   
   if [ -n "$api_key" ]; then
     export AI_API_KEY="$api_key"
