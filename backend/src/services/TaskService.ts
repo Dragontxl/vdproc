@@ -475,77 +475,68 @@ export class TaskService {
       const allAccounts: any[] = [];
       
       if (needsTextAccounts) {
-        const lockedAccounts = await lockAIAccounts('text', maxConcurrent);
-        if (lockedAccounts.length > 0) {
-          const decryptedAccounts = await Promise.all(
-            (lockedAccounts as any[]).map(async (acc) => {
-              let decryptedKey = '';
-              if (acc.api_key_encrypted) {
-                try {
-                  decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
-                } catch {
-                  decryptedKey = acc.api_key_encrypted;
-                }
+        for (let i = 0; i < maxConcurrent; i++) {
+          const account = await selectAIAccountForGitHub(ghAccount.id, 'text');
+          if (account) {
+            let decryptedKey = '';
+            if ((account as any).api_key_encrypted) {
+              try {
+                decryptedKey = await this.cryptoService.decrypt((account as any).api_key_encrypted);
+              } catch {
+                decryptedKey = (account as any).api_key_encrypted;
               }
-              return {
-                ...acc,
-                api_key_encrypted: decryptedKey,
-                base_url: (acc.base_url || '').trim(),
-                model_name: (acc.model_name || '').trim()
-              };
-            })
-          );
-          allAccounts.push(...decryptedAccounts);
+            }
+            allAccounts.push({
+              ...account,
+              api_key_encrypted: decryptedKey,
+              base_url: ((account as any).base_url || '').trim(),
+              model_name: ((account as any).model_name || '').trim()
+            });
+          }
         }
       }
       
       if (needsImageAccounts) {
-        const lockedAccounts = await lockAIAccounts('image', maxConcurrent);
-        if (lockedAccounts.length > 0) {
-          const decryptedAccounts = await Promise.all(
-            (lockedAccounts as any[]).map(async (acc) => {
-              let decryptedKey = '';
-              if (acc.api_key_encrypted) {
-                try {
-                  decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
-                } catch {
-                  decryptedKey = acc.api_key_encrypted;
-                }
+        for (let i = 0; i < maxConcurrent; i++) {
+          const account = await selectAIAccountForGitHub(ghAccount.id, 'image');
+          if (account) {
+            let decryptedKey = '';
+            if ((account as any).api_key_encrypted) {
+              try {
+                decryptedKey = await this.cryptoService.decrypt((account as any).api_key_encrypted);
+              } catch {
+                decryptedKey = (account as any).api_key_encrypted;
               }
-              return {
-                ...acc,
-                api_key_encrypted: decryptedKey,
-                base_url: (acc.base_url || '').trim(),
-                model_name: (acc.model_name || '').trim()
-              };
-            })
-          );
-          allAccounts.push(...decryptedAccounts);
+            }
+            allAccounts.push({
+              ...account,
+              api_key_encrypted: decryptedKey,
+              base_url: ((account as any).base_url || '').trim(),
+              model_name: ((account as any).model_name || '').trim()
+            });
+          }
         }
       }
       
       if (needsVideoAccounts) {
-        const lockedAccounts = await lockAIAccounts('video', maxConcurrent);
-        if (lockedAccounts.length > 0) {
-          const decryptedAccounts = await Promise.all(
-            (lockedAccounts as any[]).map(async (acc) => {
-              let decryptedKey = '';
-              if (acc.api_key_encrypted) {
-                try {
-                  decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
-                } catch {
-                  decryptedKey = acc.api_key_encrypted;
-                }
+        for (let i = 0; i < maxConcurrent; i++) {
+          const account = await selectAIAccountForGitHub(ghAccount.id, 'video');
+          if (account) {
+            let decryptedKey = '';
+            if ((account as any).api_key_encrypted) {
+              try {
+                decryptedKey = await this.cryptoService.decrypt((account as any).api_key_encrypted);
+              } catch {
+                decryptedKey = (account as any).api_key_encrypted;
               }
-              return {
-                ...acc,
-                api_key_encrypted: decryptedKey,
-                base_url: (acc.base_url || '').trim(),
-                model_name: (acc.model_name || '').trim()
-              };
-            })
-          );
-          allAccounts.push(...decryptedAccounts);
+            }
+            allAccounts.push({
+              ...account,
+              api_key_encrypted: decryptedKey,
+              base_url: ((account as any).base_url || '').trim(),
+              model_name: ((account as any).model_name || '').trim()
+            });
+          }
         }
       }
       
