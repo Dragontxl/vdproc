@@ -455,16 +455,45 @@ export class TaskService {
       const startIndex = phaseOrder.indexOf(startPhase);
       const endIndex = phaseOrder.indexOf(endPhase);
       
+      let needsTextAccounts = false;
       let needsImageAccounts = false;
       let needsVideoAccounts = false;
       
       for (let i = startIndex; i <= endIndex; i++) {
         const p = phaseOrder[i];
+        if (p === 'ANALYZE') {
+          needsTextAccounts = true;
+        }
         if (p === 'CONVERT_FRAMES' || p === 'GENERATE_CHARACTERS') {
           needsImageAccounts = true;
         }
         if (p === 'GENERATE_SHOTS') {
           needsVideoAccounts = true;
+        }
+      }
+      
+      if (needsTextAccounts && !aiAccountsJson) {
+        const lockedAccounts = await lockAIAccounts('text', maxConcurrent);
+        if (lockedAccounts.length > 0) {
+          const decryptedAccounts = await Promise.all(
+            (lockedAccounts as any[]).map(async (acc) => {
+              let decryptedKey = '';
+              if (acc.api_key_encrypted) {
+                try {
+                  decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
+                } catch {
+                  decryptedKey = acc.api_key_encrypted;
+                }
+              }
+              return {
+                ...acc,
+                api_key_encrypted: decryptedKey,
+                base_url: (acc.base_url || '').trim(),
+                model_name: (acc.model_name || '').trim()
+              };
+            })
+          );
+          aiAccountsJson = JSON.stringify(decryptedAccounts);
         }
       }
       

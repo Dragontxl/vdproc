@@ -10,6 +10,7 @@ import google.generativeai as genai
 TASK_ID = os.environ.get('TASK_ID')
 AI_API_KEY = os.environ.get('AI_API_KEY')
 AI_BASE_URL = os.environ.get('AI_BASE_URL')
+AI_ACCOUNTS = os.environ.get('AI_ACCOUNTS')
 VIDEO_PATH = os.environ.get('VIDEO_PATH')
 R2_ACCESS_KEY_ID = os.environ.get('R2_ACCESS_KEY_ID')
 R2_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY')
@@ -18,6 +19,17 @@ R2_BUCKET_NAME = os.environ.get('R2_BUCKET_NAME')
 
 PRIMARY_MODEL = "models/gemini-3.5-flash"
 FALLBACK_MODEL = "models/gemini-3.1-flash-lite"
+
+def get_ai_account():
+    if AI_ACCOUNTS:
+        try:
+            accounts = json.loads(AI_ACCOUNTS)
+            if accounts:
+                acc = accounts[0]
+                return acc.get('api_key_encrypted'), acc.get('base_url', ''), acc.get('model_name', '')
+        except:
+            pass
+    return AI_API_KEY, AI_BASE_URL, ''
 
 WORK_DIR = f"/tmp/{TASK_ID}"
 
@@ -166,23 +178,30 @@ def main():
             log("Error: TASK_ID not set")
             sys.exit(1)
         
-        if not AI_API_KEY:
-            log("Error: AI_API_KEY not set")
-            sys.exit(1)
-        
         if not VIDEO_PATH:
             log("Error: VIDEO_PATH not set")
             sys.exit(1)
         
+        api_key, base_url, model_name = get_ai_account()
+        
+        if not api_key:
+            log("Error: No AI API key available")
+            sys.exit(1)
+        
         log(f"Environment variables:")
         log(f"  TASK_ID: {TASK_ID}")
-        log(f"  AI_API_KEY: {'set' if AI_API_KEY else 'not set'}")
-        log(f"  AI_BASE_URL: {AI_BASE_URL}")
+        log(f"  AI_API_KEY: {'set' if api_key else 'not set'}")
+        log(f"  AI_BASE_URL: {base_url}")
         log(f"  VIDEO_PATH: {VIDEO_PATH}")
         log(f"  R2_BUCKET_NAME: {R2_BUCKET_NAME}")
         log(f"  PRIMARY_MODEL: {PRIMARY_MODEL}")
         
-        genai.configure(api_key=AI_API_KEY)
+        if base_url:
+            genai.configure(api_key=api_key, transport="rest")
+            os.environ['GENERATIVEAI_API_KEY'] = api_key
+            os.environ['GENERATIVEAI_BASE_URL'] = base_url
+        else:
+            genai.configure(api_key=api_key)
         log("Google GenerativeAI configured")
         
         os.makedirs(WORK_DIR, exist_ok=True)

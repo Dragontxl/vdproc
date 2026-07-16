@@ -1,156 +1,184 @@
 Run docker run --rm \
-=== Phase 3: Face Selection ===
+  
+=== Running Workflow ===
 Task ID: fa931072cf804cbe85d2050936c5d4de
-VIDEO_PATH: test/0701.mp4
-R2_BUCKET_NAME: ***
-R2_ENDPOINT_URL: ***
-=== Round 1/3 ===
+Start Phase: DETECT
+End Phase: COMPOSE
+========================================
+Running Phase 1: DETECT
+Script: detect-shots.sh
+========================================
+=== Phase 1: Shot Detection ===
+Task ID: fa931072cf804cbe85d2050936c5d4de
+Video Path: test/0701.mp4
+R2 Bucket: ***
+R2 Endpoint: ***
+R2 Access Key: d171674b...
+Listing R2 bucket contents...
+                           PRE 384f96fd14344055a20c28991310f1f9/
+                           PRE b40f1e5f9b374522bba49b5d853b824b/
+                           PRE c9e7931f4f30443e9a50e61e2a66da0d/
+                           PRE fa931072cf804cbe85d2050936c5d4de/
+                           PRE test-manual/
+                           PRE test/
 Downloading video from R2...
-Completed 256.0 KiB/1.1 MiB (1.7 MiB/s) with 1 file(s) remaining
-Completed 512.0 KiB/1.1 MiB (3.0 MiB/s) with 1 file(s) remaining
-Completed 768.0 KiB/1.1 MiB (4.3 MiB/s) with 1 file(s) remaining
-Completed 1.0 MiB/1.1 MiB (5.6 MiB/s) with 1 file(s) remaining  
-Completed 1.1 MiB/1.1 MiB (6.1 MiB/s) with 1 file(s) remaining  
+Completed 256.0 KiB/1.1 MiB (2.3 MiB/s) with 1 file(s) remaining
+Completed 512.0 KiB/1.1 MiB (4.4 MiB/s) with 1 file(s) remaining
+Completed 768.0 KiB/1.1 MiB (6.4 MiB/s) with 1 file(s) remaining
+Completed 1.0 MiB/1.1 MiB (8.3 MiB/s) with 1 file(s) remaining  
+Completed 1.1 MiB/1.1 MiB (9.1 MiB/s) with 1 file(s) remaining  
 download: s3://***/test/0701.mp4 to ./input_video.mp4
-Downloading scene detection results...
-Completed 2.2 KiB/2.2 KiB (11.8 KiB/s) with 1 file(s) remaining
-download: s3://***/fa931072cf804cbe85d2050936c5d4de/analysis_result.json to ./analysis_result.json
-Using AI-analyzed storyboards from analysis_result.json
-Running face selection Python script...
-[FACE_SELECTION] Starting face selection
-[FACE_SELECTION] TASK_ID: fa931072cf804cbe85d2050936c5d4de
-[FACE_SELECTION] WORK_DIR: /tmp/fa931072cf804cbe85d2050936c5d4de
-download_path: /root/.insightface/models/buffalo_l
-Downloading /root/.insightface/models/buffalo_l.zip from https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip...
-
-  0%|          | 0/281857 [00:00<?, ?KB/s]
-  1%|          | 1760/281857 [00:00<00:15, 17516.33KB/s]
-  2%|▏         | 5197/281857 [00:00<00:10, 27409.23KB/s]
-  4%|▍         | 11183/281857 [00:00<00:06, 42208.70KB/s]
-  8%|▊         | 21782/281857 [00:00<00:03, 67370.02KB/s]
- 14%|█▎        | 38207/281857 [00:00<00:02, 102283.23KB/s]
- 20%|█▉        | 55910/281857 [00:00<00:01, 127685.72KB/s]
- 26%|██▌       | 73626/281857 [00:00<00:01, 143852.74KB/s]
- 32%|███▏      | 90949/281857 [00:00<00:01, 153199.21KB/s]
- 39%|███▊      | 108961/281857 [00:00<00:01, 161607.63KB/s]
- 45%|████▌     | 126913/281857 [00:01<00:00, 167126.81KB/s]
- 51%|█████▏    | 144458/281857 [00:01<00:00, 169670.39KB/s]
- 58%|█████▊    | 162485/281857 [00:01<00:00, 172889.48KB/s]
- 64%|██████▍   | 179775/281857 [00:01<00:00, 172752.11KB/s]
- 70%|███████   | 197343/281857 [00:01<00:00, 173626.35KB/s]
- 76%|███████▌  | 214880/281857 [00:01<00:00, 174148.98KB/s]
- 82%|████████▏ | 232334/281857 [00:01<00:00, 174258.44KB/s]
- 89%|████████▊ | 249760/281857 [00:01<00:00, 169664.43KB/s]
- 95%|█████████▍| 266753/281857 [00:01<00:00, 168702.25KB/s]
-100%|██████████| 281857/281857 [00:01<00:00, 148364.57KB/s]
-Applied providers: ['CPUExecutionProvider'], with options: {'CPUExecutionProvider': {}}
-find model: /root/.insightface/models/buffalo_l/1k3d68.onnx landmark_3d_68 ['None', 3, 192, 192] 0.0 1.0
-Applied providers: ['CPUExecutionProvider'], with options: {'CPUExecutionProvider': {}}
-find model: /root/.insightface/models/buffalo_l/2d106det.onnx landmark_2d_106 ['None', 3, 192, 192] 0.0 1.0
-Applied providers: ['CPUExecutionProvider'], with options: {'CPUExecutionProvider': {}}
-find model: /root/.insightface/models/buffalo_l/det_10g.onnx detection [1, 3, '?', '?'] 127.5 128.0
-Applied providers: ['CPUExecutionProvider'], with options: {'CPUExecutionProvider': {}}
-find model: /root/.insightface/models/buffalo_l/genderage.onnx genderage ['None', 3, 96, 96] 0.0 1.0
-Applied providers: ['CPUExecutionProvider'], with options: {'CPUExecutionProvider': {}}
-find model: /root/.insightface/models/buffalo_l/w600k_r50.onnx recognition ['None', 3, 112, 112] 127.5 127.5
-set det-size: (640, 640)
-[FACE_SELECTION] InsightFace model loaded
-[FACE_SELECTION] Found analysis_result.json, reading...
-[FACE_SELECTION]   Character R1 best face time: 00:00:04.500 (4.500s)
-[FACE_SELECTION]   Character R1 face position: (0.55, 0.45)
-[FACE_SELECTION]   Character R2 best face time: 00:00:02.500 (2.500s)
-[FACE_SELECTION]   Character R2 face position: (0.4, 0.35)
-[FACE_SELECTION] Loaded 1 storyboards and 2 character descriptions from analysis_result.json
-[FACE_SELECTION] Video path: /tmp/fa931072cf804cbe85d2050936c5d4de/input_video.mp4
-[FACE_SELECTION] Video FPS: 30.0
-[FACE_SELECTION] Extracting faces at Gemini-specified best face times:
-[FACE_SELECTION]   Reading frame for R1 at 4.500s (frame 135)
-[FACE_SELECTION]     Found 1 faces
-[FACE_SELECTION]     Face 0: pos=(0.614, 0.371), confidence=0.845, distance_to_gemini=0.102, distance_score=89.8
-[FACE_SELECTION]     Selected face for R1 using Gemini position (0.55, 0.45): confidence=0.845, distance_score=89.8
-[FACE_SELECTION]   Reading frame for R2 at 2.500s (frame 75)
-[FACE_SELECTION]     Found 3 faces
-[FACE_SELECTION]     Face 0: pos=(0.173, 0.467), confidence=0.833, distance_to_gemini=0.256, distance_score=74.4
-[FACE_SELECTION]     Face 1: pos=(0.881, 0.532), confidence=0.826, distance_to_gemini=0.514, distance_score=48.6
-[FACE_SELECTION]     Face 2: skipped (confidence=0.727 < 0.8)
-[FACE_SELECTION]     Selected face for R2 using Gemini position (0.40, 0.35): confidence=0.833, distance_score=74.4
-[FACE_SELECTION] Processing scene 0: 0.000s - 7.067s (duration: 7.067s)
-[FACE_SELECTION] Found 1 faces at 0.000s
-[FACE_SELECTION] Found 1 faces at 0.707s
-[FACE_SELECTION] Found 3 faces at 1.413s
-[FACE_SELECTION] Found 3 faces at 2.120s
-[FACE_SELECTION] Found 3 faces at 2.827s
-[FACE_SELECTION] Found 3 faces at 3.534s
-[FACE_SELECTION] Found 1 faces at 4.240s
-[FACE_SELECTION]   Found 6 faces for 2 expected characters, skipping remaining frames
-[FACE_SELECTION] Total faces detected: 8
-[FACE_SELECTION] Analysis characters: ['R1', 'R2']
-[FACE_SELECTION] Character to scenes mapping: {'R1': {0}, 'R2': {0}}
-[FACE_SELECTION] Running DBSCAN clustering on all faces
-[FACE_SELECTION] Found 3 clusters: [3, 3, 2]
-[FACE_SELECTION]   Cluster 0: 3 faces, scene distribution: {-1: 1, 0: 2}, quality: 111.3
-[FACE_SELECTION]   Cluster 1: 3 faces, scene distribution: {-1: 1, 0: 2}, quality: 100.8
-[FACE_SELECTION]   Cluster 2: 2 faces, scene distribution: {0: 2}, quality: 92.4
-[FACE_SELECTION]   Character R1: using 1 faces from Gemini best_face_time
-[FACE_SELECTION]   Character R2: using 1 faces from Gemini best_face_time
-[FACE_SELECTION]   No unassigned characters or clusters, skipping Hungarian algorithm
-[FACE_SELECTION]   Final: Character R1: 1 faces
-[FACE_SELECTION]   Final: Character R2: 1 faces
-[FACE_SELECTION] Character R1: 1 faces, best at scene -1, time 4.500s
-[FACE_SELECTION] Character R2: 1 faces, best at scene -1, time 2.500s
-[FACE_SELECTION] Found 2 characters from 8 faces, saved 7 scene frames
-[FACE_SELECTION] Face selection result saved to: /tmp/fa931072cf804cbe85d2050936c5d4de/face_selection_result.json
-[FACE_SELECTION] Uploading to R2: /tmp/fa931072cf804cbe85d2050936c5d4de/face_selection_result.json -> fa931072cf804cbe85d2050936c5d4de/face_selection_result.json
-[FACE_SELECTION] Running command: aws s3 cp "/tmp/fa931072cf804cbe85d2050936c5d4de/face_selection_result.json" "s3://***/fa931072cf804cbe85d2050936c5d4de/face_selection_result.json" --endpoint-url "***" --content-type "application/json"
-[FACE_SELECTION] Command output: Completed 492 Bytes/492 Bytes (2.0 KiB/s) with 1 file(s) remaining
-upload: ./face_selection_result.json to s3://***/fa931072cf804cbe85d2050936c5d4de/face_selection_result.json
-
-[FACE_SELECTION] Uploading to R2: /tmp/fa931072cf804cbe85d2050936c5d4de/face_frames/face_best_R1_0.jpg -> fa931072cf804cbe85d2050936c5d4de/character_frames/R1_best.jpg
-[FACE_SELECTION] Running command: aws s3 cp "/tmp/fa931072cf804cbe85d2050936c5d4de/face_frames/face_best_R1_0.jpg" "s3://***/fa931072cf804cbe85d2050936c5d4de/character_frames/R1_best.jpg" --endpoint-url "***" --content-type "image/jpeg"
-[FACE_SELECTION] Command output: Completed 13.0 KiB/13.0 KiB (50.1 KiB/s) with 1 file(s) remaining
-upload: face_frames/face_best_R1_0.jpg to s3://***/fa931072cf804cbe85d2050936c5d4de/character_frames/R1_best.jpg
-
-[FACE_SELECTION] Uploading to R2: /tmp/fa931072cf804cbe85d2050936c5d4de/face_frames/face_best_R2_1.jpg -> fa931072cf804cbe85d2050936c5d4de/character_frames/R2_best.jpg
-[FACE_SELECTION] Running command: aws s3 cp "/tmp/fa931072cf804cbe85d2050936c5d4de/face_frames/face_best_R2_1.jpg" "s3://***/fa931072cf804cbe85d2050936c5d4de/character_frames/R2_best.jpg" --endpoint-url "***" --content-type "image/jpeg"
-[FACE_SELECTION] Command output: Completed 5.5 KiB/5.5 KiB (24.6 KiB/s) with 1 file(s) remaining
-upload: face_frames/face_best_R2_1.jpg to s3://***/fa931072cf804cbe85d2050936c5d4de/character_frames/R2_best.jpg
-
-[FACE_SELECTION] Uploading to R2: /tmp/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_0.jpg -> fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_0.jpg
-[FACE_SELECTION] Running command: aws s3 cp "/tmp/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_0.jpg" "s3://***/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_0.jpg" --endpoint-url "***" --content-type "image/jpeg"
-[FACE_SELECTION] Command output: Completed 60.0 KiB/60.0 KiB (223.4 KiB/s) with 1 file(s) remaining
-upload: scene_frames/scene_0_0.jpg to s3://***/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_0.jpg
-
-[FACE_SELECTION] Uploading to R2: /tmp/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_10.jpg -> fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_10.jpg
-[FACE_SELECTION] Running command: aws s3 cp "/tmp/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_10.jpg" "s3://***/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_10.jpg" --endpoint-url "***" --content-type "image/jpeg"
-[FACE_SELECTION] Command output: Completed 65.7 KiB/65.7 KiB (285.8 KiB/s) with 1 file(s) remaining
-upload: scene_frames/scene_0_10.jpg to s3://***/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_10.jpg
-
-[FACE_SELECTION] Uploading to R2: /tmp/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_20.jpg -> fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_20.jpg
-[FACE_SELECTION] Running command: aws s3 cp "/tmp/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_20.jpg" "s3://***/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_20.jpg" --endpoint-url "***" --content-type "image/jpeg"
-[FACE_SELECTION] Command output: Completed 85.7 KiB/85.7 KiB (366.1 KiB/s) with 1 file(s) remaining
-upload: scene_frames/scene_0_20.jpg to s3://***/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_20.jpg
-
-[FACE_SELECTION] Uploading to R2: /tmp/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_30.jpg -> fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_30.jpg
-[FACE_SELECTION] Running command: aws s3 cp "/tmp/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_30.jpg" "s3://***/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_30.jpg" --endpoint-url "***" --content-type "image/jpeg"
-[FACE_SELECTION] Command output: Completed 90.9 KiB/90.9 KiB (323.5 KiB/s) with 1 file(s) remaining
-upload: scene_frames/scene_0_30.jpg to s3://***/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_30.jpg
-
-[FACE_SELECTION] Uploading to R2: /tmp/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_40.jpg -> fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_40.jpg
-[FACE_SELECTION] Running command: aws s3 cp "/tmp/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_40.jpg" "s3://***/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_40.jpg" --endpoint-url "***" --content-type "image/jpeg"
-[FACE_SELECTION] Command output: Completed 87.5 KiB/87.5 KiB (383.0 KiB/s) with 1 file(s) remaining
-upload: scene_frames/scene_0_40.jpg to s3://***/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_40.jpg
-
-[FACE_SELECTION] Uploading to R2: /tmp/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_50.jpg -> fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_50.jpg
-[FACE_SELECTION] Running command: aws s3 cp "/tmp/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_50.jpg" "s3://***/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_50.jpg" --endpoint-url "***" --content-type "image/jpeg"
-[FACE_SELECTION] Command output: Completed 88.6 KiB/88.6 KiB (315.6 KiB/s) with 1 file(s) remaining
-upload: scene_frames/scene_0_50.jpg to s3://***/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_50.jpg
-
-[FACE_SELECTION] Uploading to R2: /tmp/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_60.jpg -> fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_60.jpg
-[FACE_SELECTION] Running command: aws s3 cp "/tmp/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_60.jpg" "s3://***/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_60.jpg" --endpoint-url "***" --content-type "image/jpeg"
-[FACE_SELECTION] Command output: Completed 71.7 KiB/71.7 KiB (311.5 KiB/s) with 1 file(s) remaining
-upload: scene_frames/scene_0_60.jpg to s3://***/fa931072cf804cbe85d2050936c5d4de/scene_frames/scene_0_60.jpg
-
-[FACE_SELECTION] Face selection completed successfully
-Face selection succeeded at round 1
-Phase 3 completed
-Reporting progress: 最优帧选择完成，识别到 2 个角色
+Running PySceneDetect...
+[PySceneDetect] PySceneDetect 0.7
+  Detected: 0 | Progress:   0%|          | 0/212 [00:00<?, ?frames/s]
+                                                                     
+  Detected: 0 | Progress:   0%|          | 0/212 [00:00<?, ?frames/s][PySceneDetect] Detecting scenes...
+  Detected: 1 | Progress:  23%|██▎       | 49/212 [00:00<00:00, 489.49frames/s]
+  Detected: 1 | Progress:  46%|████▌     | 98/212 [00:00<00:00, 477.97frames/s]
+  Detected: 2 | Progress:  69%|██████▉   | 147/212 [00:00<00:00, 481.49frames/s]
+  Detected: 4 | Progress:  92%|█████████▏| 196/212 [00:00<00:00, 468.70frames/s]
+  Detected: 5 | Progress: 100%|██████████| 212/212 [00:00<00:00, 468.70frames/s]
+  Detected: 5 | Progress: 100%|██████████| 212/212 [00:00<00:00, 470.50frames/s]
+[PySceneDetect] Processed 212 frames in 0.5 seconds (average 466.19 FPS).
+[PySceneDetect] Detected 6 scenes, average shot length 1.2 seconds.
+[PySceneDetect] Writing scene list to CSV file:
+  ./scenes/input_video-Scenes.csv
+[PySceneDetect] Scene List:
+-----------------------------------------------------------------------
+ | Scene # | Start Frame |  Start Time  |  End Frame  |   End Time   |
+-----------------------------------------------------------------------
+ |      1  |           1 | 00:00:00.000 |          37 | 00:00:01.233 |
+ |      2  |          38 | 00:00:01.233 |         124 | 00:00:04.133 |
+ |      3  |         125 | 00:00:04.133 |         161 | 00:00:05.367 |
+ |      4  |         162 | 00:00:05.367 |         184 | 00:00:06.133 |
+ |      5  |         185 | 00:00:06.133 |         206 | 00:00:06.867 |
+ |      6  |         207 | 00:00:06.867 |         212 | 00:00:07.067 |
+-----------------------------------------------------------------------
+[PySceneDetect] Comma-separated timecode list:
+  00:00:01.233,00:00:04.133,00:00:05.367,00:00:06.133,00:00:06.867
+Parsing scene detection results...
+total 12
+drwxr-xr-x 2 root root 4096 Jul 16 12:47 .
+drwxr-xr-x 3 root root 4096 Jul 16 12:47 ..
+-rw-r--r-- 1 root root  649 Jul 16 12:47 input_video-Scenes.csv
+CSV file content:
+Timecode List:,00:00:01.233,00:00:04.133,00:00:05.367,00:00:06.133,00:00:06.867
+Scene Number,Start Frame,Start Timecode,Start Time (seconds),End Frame,End Timecode,End Time (seconds),Length (frames),Length (timecode),Length (seconds)
+1,1,00:00:00.000,0.000,37,00:00:01.233,1.233,37,00:00:01.233,1.233
+2,38,00:00:01.233,1.233,124,00:00:04.133,4.133,87,00:00:02.900,2.900
+3,125,00:00:04.133,4.133,161,00:00:05.367,5.367,37,00:00:01.233,1.233
+4,162,00:00:05.367,5.367,184,00:00:06.133,6.133,23,00:00:00.767,0.767
+5,185,00:00:06.133,6.133,206,00:00:06.867,6.867,22,00:00:00.733,0.733
+6,207,00:00:06.867,6.867,212,00:00:07.067,7.067,6,00:00:00.200,0.200
+CSV Headers: ['Scene Number', 'Start Frame', 'Start Timecode', 'Start Time (seconds)', 'End Frame', 'End Timecode', 'End Time (seconds)', 'Length (frames)', 'Length (timecode)', 'Length (seconds)']
+Row: {'Scene Number': '1', 'Start Frame': '1', 'Start Timecode': '00:00:00.000', 'Start Time (seconds)': '0.000', 'End Frame': '37', 'End Timecode': '00:00:01.233', 'End Time (seconds)': '1.233', 'Length (frames)': '37', 'Length (timecode)': '00:00:01.233', 'Length (seconds)': '1.233'}
+Row: {'Scene Number': '2', 'Start Frame': '38', 'Start Timecode': '00:00:01.233', 'Start Time (seconds)': '1.233', 'End Frame': '124', 'End Timecode': '00:00:04.133', 'End Time (seconds)': '4.133', 'Length (frames)': '87', 'Length (timecode)': '00:00:02.900', 'Length (seconds)': '2.900'}
+Row: {'Scene Number': '3', 'Start Frame': '125', 'Start Timecode': '00:00:04.133', 'Start Time (seconds)': '4.133', 'End Frame': '161', 'End Timecode': '00:00:05.367', 'End Time (seconds)': '5.367', 'Length (frames)': '37', 'Length (timecode)': '00:00:01.233', 'Length (seconds)': '1.233'}
+Row: {'Scene Number': '4', 'Start Frame': '162', 'Start Timecode': '00:00:05.367', 'Start Time (seconds)': '5.367', 'End Frame': '184', 'End Timecode': '00:00:06.133', 'End Time (seconds)': '6.133', 'Length (frames)': '23', 'Length (timecode)': '00:00:00.767', 'Length (seconds)': '0.767'}
+Row: {'Scene Number': '5', 'Start Frame': '185', 'Start Timecode': '00:00:06.133', 'Start Time (seconds)': '6.133', 'End Frame': '206', 'End Timecode': '00:00:06.867', 'End Time (seconds)': '6.867', 'Length (frames)': '22', 'Length (timecode)': '00:00:00.733', 'Length (seconds)': '0.733'}
+Row: {'Scene Number': '6', 'Start Frame': '207', 'Start Timecode': '00:00:06.867', 'Start Time (seconds)': '6.867', 'End Frame': '212', 'End Timecode': '00:00:07.067', 'End Time (seconds)': '7.067', 'Length (frames)': '6', 'Length (timecode)': '00:00:00.200', 'Length (seconds)': '0.200'}
+Total shots: 6
+Generated scenes.json
+6
+Total shots detected: 6
+Uploading scene detection results...
+Completed 1.6 KiB/2.2 KiB (9.0 KiB/s) with 2 file(s) remaining
+upload: scenes/scenes.json to s3://***/fa931072cf804cbe85d2050936c5d4de/scenes/scenes.json
+Completed 1.6 KiB/2.2 KiB (9.0 KiB/s) with 1 file(s) remaining
+Completed 2.2 KiB/2.2 KiB (9.9 KiB/s) with 1 file(s) remaining
+upload: scenes/input_video-Scenes.csv to s3://***/fa931072cf804cbe85d2050936c5d4de/scenes/input_video-Scenes.csv
+Updating progress...
+CALLBACK_URL: ***
+Attempt 1/3 to update progress...
+Progress callback response code: 200
+Progress callback response body: {"code":200,"data":{"success":true,"taskId":"fa931072cf804cbe85d2050936c5d4de","progress":100},"msg":"Progress updated"}
+Phase 1 completed: 6 shots detected
+Phase DETECT completed successfully
+========================================
+Running Phase 2: ANALYZE
+Script: analyze-scene.sh
+========================================
+=== Phase 2: Scene Analysis ===
+Task ID: fa931072cf804cbe85d2050936c5d4de
+AI Account ID: 
+Checking Python3 availability...
+/usr/bin/python3
+Python 3.10.12
+Checking script path...
+-rwxr-xr-x 1 root root 12531 Jul 16 12:43 /scripts/analyze_scene.py
+Starting Python script...
+/usr/local/lib/python3.10/dist-packages/google/api_core/_python_version_support.py:255: FutureWarning: You are using a Python version (3.10.12) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.api_core past that date.
+  warnings.warn(message, FutureWarning)
+/scripts/analyze_scene.py:8: FutureWarning: 
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+  import google.generativeai as genai
+[2026-07-16 12:47:13] Starting scene analysis phase
+[2026-07-16 12:47:13] Environment variables:
+[2026-07-16 12:47:13]   TASK_ID: fa931072cf804cbe85d2050936c5d4de
+[2026-07-16 12:47:13]   AI_API_KEY: set
+[2026-07-16 12:47:13]   AI_BASE_URL: ***
+[2026-07-16 12:47:13]   VIDEO_PATH: test/0701.mp4
+[2026-07-16 12:47:13]   R2_BUCKET_NAME: ***
+[2026-07-16 12:47:13]   PRIMARY_MODEL: models/gemini-3.5-flash
+[2026-07-16 12:47:13] Google GenerativeAI configured
+[2026-07-16 12:47:13] Working directory: /tmp/fa931072cf804cbe85d2050936c5d4de
+[2026-07-16 12:47:13] Downloading video: test/0701.mp4 -> ./input_video.mp4
+[2026-07-16 12:47:13] Downloading from R2: s3://***/test/0701.mp4 -> ./input_video.mp4
+[2026-07-16 12:47:13] Running command: aws s3 cp "s3://***/test/0701.mp4" "./input_video.mp4" --endpoint-url "***"
+[2026-07-16 12:47:14] Command output: Completed 256.0 KiB/1.1 MiB (2.7 MiB/s) with 1 file(s) remaining
+Completed 512.0 KiB/1.1 MiB (5.2 MiB/s) with 1 file(s) remaining
+Completed 768.0 KiB/1.1 MiB (7.5 MiB/s) with 1 file(s) remaining
+Completed 1.0 MiB/1.1 MiB (9.7 MiB/s) with 1 file(s) remaining  
+Completed 1.1 MiB/1.1 MiB (10.6 MiB/s) with 1 file(s) remaining 
+download: s3://***/test/0701.mp4 to ./input_video.mp4
+[2026-07-16 12:47:14] Downloading SRT: test/0701.srt -> ./input_video.srt
+[2026-07-16 12:47:14] Downloading from R2: s3://***/test/0701.srt -> ./input_video.srt
+[2026-07-16 12:47:14] Running command: aws s3 cp "s3://***/test/0701.srt" "./input_video.srt" --endpoint-url "***"
+[2026-07-16 12:47:14] Command output: Completed 6.1 KiB/6.1 KiB (80.8 KiB/s) with 1 file(s) remaining
+download: s3://***/test/0701.srt to ./input_video.srt
+[2026-07-16 12:47:14] SRT downloaded successfully
+[2026-07-16 12:47:14] Downloading scenes: fa931072cf804cbe85d2050936c5d4de/scenes/scenes.json -> ./scenes.json
+[2026-07-16 12:47:14] Downloading from R2: s3://***/fa931072cf804cbe85d2050936c5d4de/scenes/scenes.json -> ./scenes.json
+[2026-07-16 12:47:14] Running command: aws s3 cp "s3://***/fa931072cf804cbe85d2050936c5d4de/scenes/scenes.json" "./scenes.json" --endpoint-url "***"
+[2026-07-16 12:47:15] Command output: Completed 1.6 KiB/1.6 KiB (14.6 KiB/s) with 1 file(s) remaining
+download: s3://***/fa931072cf804cbe85d2050936c5d4de/scenes/scenes.json to ./scenes.json
+[2026-07-16 12:47:15] Scenes JSON downloaded successfully
+[2026-07-16 12:47:15] Reading scenes from: ./scenes.json
+[2026-07-16 12:47:15] Scene content: Shot 1: 00:00:00.000 -> 00:00:01.233 (1.233s)
+Shot 2: 00:00:01.233 -> 00:00:04.133 (2.9s)
+Shot 3: 00:00:04.133 -> 00:00:05.367 (1.233s)
+Shot 4: 00:00:05.367 -> 00:00:06.133 (0.767s)
+Shot 5: 00:00:06.133 -> 00:00:06.867 (0.733s)
+Shot 6: 00:00:06.867 -> 00:00:07.067 (0.2s)
+[2026-07-16 12:47:15] Reading SRT from: ./input_video.srt
+[2026-07-16 12:47:15] SRT content length: 2090 chars
+[2026-07-16 12:47:15] Uploading video to Gemini using google.generativeai SDK...
+[2026-07-16 12:47:15] Video file size: 1154511 bytes
+[2026-07-16 12:47:15] Calling genai.upload_file...
+[2026-07-16 12:47:15] Error in scene analysis: <HttpError 400 when requesting https://generativelanguage.googleapis.com/$discovery/rest?version=v1beta&key=*** returned "API key not valid. Please pass a valid API key.". Details: "[{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'API_KEY_INVALID', 'domain': 'googleapis.com', 'metadata': {'service': 'generativelanguage.googleapis.com'}}, {'@type': 'type.googleapis.com/google.rpc.LocalizedMessage', 'locale': 'en-US', 'message': 'API key not valid. Please pass a valid API key.'}]">
+Traceback: Traceback (most recent call last):
+  File "/scripts/analyze_scene.py", line 291, in main
+    video_file = upload_video_to_gemini(video_local_path)
+  File "/scripts/analyze_scene.py", line 71, in upload_video_to_gemini
+    video_file = genai.upload_file(
+  File "/usr/local/lib/python3.10/dist-packages/google/generativeai/files.py", line 85, in upload_file
+    response = client.create_file(
+  File "/usr/local/lib/python3.10/dist-packages/google/generativeai/client.py", line 103, in create_file
+    self._setup_discovery_api(metadata)
+  File "/usr/local/lib/python3.10/dist-packages/google/generativeai/client.py", line 84, in _setup_discovery_api
+    response, content = request.execute()
+  File "/usr/local/lib/python3.10/dist-packages/googleapiclient/_helpers.py", line 130, in positional_wrapper
+    return wrapped(*args, **kwargs)
+  File "/usr/local/lib/python3.10/dist-packages/googleapiclient/http.py", line 938, in execute
+    raise HttpError(resp, content, uri=self.uri)
+googleapiclient.errors.HttpError: <HttpError 400 when requesting https://generativelanguage.googleapis.com/$discovery/rest?version=v1beta&key=*** returned "API key not valid. Please pass a valid API key.". Details: "[{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'API_KEY_INVALID', 'domain': 'googleapis.com', 'metadata': {'service': 'generativelanguage.googleapis.com'}}, {'@type': 'type.googleapis.com/google.rpc.LocalizedMessage', 'locale': 'en-US', 'message': 'API key not valid. Please pass a valid API key.'}]">
+[2026-07-16 12:47:15] Uploading to R2: ./error_log.txt -> s3://***/fa931072cf804cbe85d2050936c5d4de/error_log.txt
+[2026-07-16 12:47:15] Running command: aws s3 cp "./error_log.txt" "s3://***/fa931072cf804cbe85d2050936c5d4de/error_log.txt" --endpoint-url "***" --content-type "text/plain"
+[2026-07-16 12:47:16] Command output: Completed 2.1 KiB/2.1 KiB (11.3 KiB/s) with 1 file(s) remaining
+upload: ./error_log.txt to s3://***/fa931072cf804cbe85d2050936c5d4de/error_log.txt
+[2026-07-16 12:47:16] Error log uploaded to R2
+ERROR: Phase ANALYZE failed
+Error: Process completed with exit code 1.
