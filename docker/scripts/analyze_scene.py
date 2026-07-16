@@ -234,6 +234,7 @@ def main():
    - 性别、体型、身高特征
    - 永久固定特征（跨画风有效识别特征，如发型、面部特征）
    - 人物差异化标签（不记录临时服装、光线、镜头角度）
+   - best_face_time（该人物最佳人脸帧的时间戳，格式为HH:MM:SS.mmm，选择人物面部最清晰、正面、完整的帧）
 3. 每段分镜输出：
    - 精确起止时间（修改后的）
    - 本段所有出场人物role_id
@@ -247,19 +248,20 @@ def main():
 
 请严格按照以下JSON格式输出，必须包含 characters 和 storyboards 两个顶层键：
 
-{{
+{
   "characters": [
-    {{
+    {
       "role_id": "R1",
       "gender": "男",
       "body_type": "中等身形",
       "height": "中等偏高",
       "permanent_features": "描述",
-      "differentiation_labels": ["标签1", "标签2"]
-    }}
+      "differentiation_labels": ["标签1", "标签2"],
+      "best_face_time": "00:00:02.500"
+    }
   ],
   "storyboards": [
-    {{
+    {
       "start_time": "00:00:00.000",
       "end_time": "00:00:05.000",
       "characters_present": ["R1"],
@@ -270,15 +272,16 @@ def main():
       "camera_movement": "运镜描述",
       "positive_prompt": "AI生成正向prompt",
       "negative_prompt": "AI生成反向prompt"
-    }}
+    }
   ]
-}}
+}
 
 注意：
-- start_time 和 end_time 必须使用 HH:MM:SS.mmm 格式
+- start_time、end_time 和 best_face_time 必须使用 HH:MM:SS.mmm 格式
 - storyboards 数组不能为空，必须至少包含一个分镜
 - characters_present 和 differentiation_labels 必须是数组
 - speaker 可以为 null
+- best_face_time 必须选择该人物面部最清晰、正面、完整的帧，确保后续可以准确提取人脸
 - 不要添加任何额外的顶层键"""
         
         video_file = upload_video_to_gemini(video_local_path)

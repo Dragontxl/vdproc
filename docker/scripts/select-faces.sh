@@ -123,6 +123,7 @@ def main():
         scenes_json_path = os.path.join(WORK_DIR, 'scenes.json')
 
         analysis_characters = {}
+        analysis_best_face_times = {}
         if os.path.exists(analysis_path):
             log(f"Found analysis_result.json, reading...")
             with open(analysis_path, 'r') as f:
@@ -140,6 +141,10 @@ def main():
                         'permanent_features': char.get('permanent_features', ''),
                         'differentiation_labels': char.get('differentiation_labels', [])
                     }
+                    best_face_time = char.get('best_face_time', '')
+                    if best_face_time:
+                        analysis_best_face_times[role_id] = parse_time(best_face_time)
+                        log(f"  Character {role_id} best face time: {best_face_time} ({analysis_best_face_times[role_id]:.3f}s)")
             log(f"Loaded {len(scenes)} storyboards and {len(analysis_characters)} character descriptions from analysis_result.json")
         elif os.path.exists(scenes_json_path):
             log(f"Found scenes.json, reading...")
@@ -177,6 +182,53 @@ def main():
                 analysis_data = json.load(f)
             for scene_idx, sb in enumerate(analysis_data.get('storyboards', [])):
                 scene_expected_chars[scene_idx] = len(sb.get('characters_present', []))
+        
+        if analysis_best_face_times:
+            log(f"Extracting faces at Gemini-specified best face times:")
+            for role_id, timestamp in analysis_best_face_times.items():
+                frame_num = int(timestamp * fps)
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
+                ret, frame = cap.read()
+                if ret:
+                    log(f"  Reading frame for {role_id} at {timestamp:.3f}s (frame {frame_num})")
+                    faces = app.get(frame)
+                    log(f"    Found {len(faces)} faces")
+                    for face in faces:
+                        bbox = face.bbox
+                        confidence = face.det_score
+                        if confidence < 0.8:
+                            continue
+                        landmarks = face.kps
+                        left_eye = landmarks[0]
+                        right_eye = landmarks[1]
+                        angle = np.degrees(np.arctan2(right_eye[1]-left_eye[1], right_eye[0]-left_eye[0]))
+                        if abs(angle) > 45:
+                            continue
+                        crop_size = max(bbox[2]-bbox[0], bbox[3]-bbox[1]) * 1.5
+                        cx, cy = (bbox[0]+bbox[2])/2, (bbox[1]+bbox[3])/2
+                        x1 = max(0, int(cx - crop_size/2))
+                        y1 = max(0, int(cy - crop_size/2))
+                        x2 = min(frame.shape[1], int(cx + crop_size/2))
+                        y2 = min(frame.shape[0], int(cy + crop_size/2))
+                        face_crop = frame[y1:y2, x1:x2]
+                        gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY)
+                        blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
+                        frame_path = os.path.join(WORK_DIR, 'face_frames', f"face_best_{role_id}_{len(all_faces)}.jpg")
+                        cv2.imwrite(frame_path, face_crop)
+                        all_faces.append({
+                            'path': frame_path,
+                            'scene_index': -1,
+                            'position': -1,
+                            'timestamp': timestamp,
+                            'embedding': face.normed_embedding.tolist(),
+                            'confidence': float(confidence),
+                            'angle': float(angle),
+                            'blur_score': float(blur_score),
+                            'role_id': role_id
+                        })
+                        log(f"    Saved face for {role_id} with confidence {confidence:.3f}, angle {angle:.1f}")
+                else:
+                    log(f"  Failed to read frame for {role_id} at {timestamp:.3f}s")
         
         for scene in scenes:
             duration = scene['end'] - scene['start']
@@ -330,6 +382,18 @@ def main():
                     chars_in_scene = set(sb.get('characters_present', []))
                     sb_chars[sb_idx] = chars_in_scene
                 
+                for role_id in analysis_char_list:
+                    gemini_faces = [f for f in all_faces if f.get('role_id') == role_id]
+                    if gemini_faces:
+                        char_faces[role_id] = gemini_faces
+                        log(f"  Character {role_id}: using {len(gemini_faces)} faces from Gemini best_face_time")
+                        for f in gemini_faces:
+                            for label, cluster_faces in clusters.items():
+                                if f in cluster_faces:
+                                    assigned_clusters.add(label)
+                                    unassigned_clusters.discard(label)
+                                    break
+                
                 char_anchor_embeddings = {}
                 for role_id in analysis_char_list:
                     anchor_faces = []
@@ -343,60 +407,65 @@ def main():
                         char_anchor_embeddings[role_id] = np.array(anchor_faces)
                         log(f"  Character {role_id} has {len(anchor_faces)} anchor faces")
                 
-                cluster_list = list(clusters.keys())
-                n_chars = len(analysis_char_list)
-                n_clusters = len(cluster_list)
+                unassigned_chars = [r for r in analysis_char_list if len(char_faces[r]) == 0]
+                unassigned_cluster_list = list(unassigned_clusters)
                 
-                cost_matrix = np.zeros((n_chars, n_clusters))
-                
-                for i, role_id in enumerate(analysis_char_list):
-                    target_scenes = char_to_scenes.get(role_id, set())
-                    for j, label in enumerate(cluster_list):
-                        faces = clusters[label]
-                        score = 0
-                        
-                        for scene_idx in target_scenes:
-                            if scene_idx in cluster_scene_dist[label]:
-                                score += cluster_scene_dist[label][scene_idx] * 10
-                        
-                        for scene_idx in target_scenes:
-                            if scene_idx in cluster_scene_dist[label]:
-                                chars_in_scene = sb_chars.get(scene_idx, set())
-                                if len(chars_in_scene) == 1 and role_id in chars_in_scene:
-                                    score += cluster_scene_dist[label][scene_idx] * 50
-                                elif role_id in chars_in_scene:
-                                    score += cluster_scene_dist[label][scene_idx] * 20
-                        
-                        if role_id in char_anchor_embeddings:
-                            cluster_embeddings = np.array([f['embedding'] for f in faces])
-                            anchor_sim = np.mean(np.dot(cluster_embeddings, char_anchor_embeddings[role_id].T))
-                            score += anchor_sim * 100
-                        else:
-                            max_dissimilarity = 0
-                            for other_role, other_anchors in char_anchor_embeddings.items():
+                if unassigned_chars and unassigned_cluster_list:
+                    n_chars = len(unassigned_chars)
+                    n_clusters = len(unassigned_cluster_list)
+                    
+                    cost_matrix = np.zeros((n_chars, n_clusters))
+                    
+                    for i, role_id in enumerate(unassigned_chars):
+                        target_scenes = char_to_scenes.get(role_id, set())
+                        for j, label in enumerate(unassigned_cluster_list):
+                            faces = clusters[label]
+                            score = 0
+                            
+                            for scene_idx in target_scenes:
+                                if scene_idx in cluster_scene_dist[label]:
+                                    score += cluster_scene_dist[label][scene_idx] * 10
+                            
+                            for scene_idx in target_scenes:
+                                if scene_idx in cluster_scene_dist[label]:
+                                    chars_in_scene = sb_chars.get(scene_idx, set())
+                                    if len(chars_in_scene) == 1 and role_id in chars_in_scene:
+                                        score += cluster_scene_dist[label][scene_idx] * 50
+                                    elif role_id in chars_in_scene:
+                                        score += cluster_scene_dist[label][scene_idx] * 20
+                            
+                            if role_id in char_anchor_embeddings:
                                 cluster_embeddings = np.array([f['embedding'] for f in faces])
-                                other_sim = np.mean(np.dot(cluster_embeddings, other_anchors.T))
-                                dissimilarity = 1 - other_sim
-                                max_dissimilarity = max(max_dissimilarity, dissimilarity)
-                            score += max_dissimilarity * 100
-                        
-                        score += cluster_quality.get(label, 0) * 0.5
-                        
-                        cost_matrix[i, j] = -score
-                
-                log(f"  Cost matrix shape: {cost_matrix.shape}")
-                log(f"  Cost matrix:\n{cost_matrix}")
-                
-                from scipy.optimize import linear_sum_assignment
-                row_ind, col_ind = linear_sum_assignment(cost_matrix)
-                
-                log(f"  Hungarian algorithm result:")
-                for i, j in zip(row_ind, col_ind):
-                    role_id = analysis_char_list[i]
-                    label = cluster_list[j]
-                    score = -cost_matrix[i, j]
-                    char_faces[role_id] = clusters[label]
-                    log(f"    {role_id} -> cluster {label} (score: {score:.1f})")
+                                anchor_sim = np.mean(np.dot(cluster_embeddings, char_anchor_embeddings[role_id].T))
+                                score += anchor_sim * 100
+                            else:
+                                max_dissimilarity = 0
+                                for other_role, other_anchors in char_anchor_embeddings.items():
+                                    cluster_embeddings = np.array([f['embedding'] for f in faces])
+                                    other_sim = np.mean(np.dot(cluster_embeddings, other_anchors.T))
+                                    dissimilarity = 1 - other_sim
+                                    max_dissimilarity = max(max_dissimilarity, dissimilarity)
+                                score += max_dissimilarity * 100
+                            
+                            score += cluster_quality.get(label, 0) * 0.5
+                            
+                            cost_matrix[i, j] = -score
+                    
+                    log(f"  Cost matrix shape: {cost_matrix.shape}")
+                    log(f"  Cost matrix:\n{cost_matrix}")
+                    
+                    from scipy.optimize import linear_sum_assignment
+                    row_ind, col_ind = linear_sum_assignment(cost_matrix)
+                    
+                    log(f"  Hungarian algorithm result:")
+                    for i, j in zip(row_ind, col_ind):
+                        role_id = unassigned_chars[i]
+                        label = unassigned_cluster_list[j]
+                        score = -cost_matrix[i, j]
+                        char_faces[role_id] = clusters[label]
+                        log(f"    {role_id} -> cluster {label} (score: {score:.1f})")
+                else:
+                    log(f"  No unassigned characters or clusters, skipping Hungarian algorithm")
                 
                 for role_id in analysis_char_list:
                     if len(char_faces[role_id]) == 0:
