@@ -203,18 +203,25 @@ def main():
                     scored_faces = []
                     gemini_pos = analysis_face_positions.get(role_id, None)
                     
+                    if gemini_pos:
+                        confidence_threshold = 0.6
+                        angle_threshold = 60
+                    else:
+                        confidence_threshold = 0.8
+                        angle_threshold = 45
+                    
                     for idx, face in enumerate(faces):
                         bbox = face.bbox
                         confidence = face.det_score
-                        if confidence < 0.8:
-                            log(f"    Face {idx}: skipped (confidence={confidence:.3f} < 0.8)")
+                        if confidence < confidence_threshold:
+                            log(f"    Face {idx}: skipped (confidence={confidence:.3f} < {confidence_threshold})")
                             continue
                         landmarks = face.kps
                         left_eye = landmarks[0]
                         right_eye = landmarks[1]
                         angle = np.degrees(np.arctan2(right_eye[1]-left_eye[1], right_eye[0]-left_eye[0]))
-                        if abs(angle) > 45:
-                            log(f"    Face {idx}: skipped (angle={angle:.1f} > 45)")
+                        if abs(angle) > angle_threshold:
+                            log(f"    Face {idx}: skipped (angle={angle:.1f} > {angle_threshold})")
                             continue
                         crop_size = max(bbox[2]-bbox[0], bbox[3]-bbox[1]) * 1.5
                         cx, cy = (bbox[0]+bbox[2])/2, (bbox[1]+bbox[3])/2
