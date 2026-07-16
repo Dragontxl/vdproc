@@ -188,8 +188,8 @@ export class TaskService {
     return this.getTask(id);
   }
 
-  async triggerPhase(taskId: string, phase: TaskPhase) {
-    console.log('triggerPhase called:', { taskId, phase });
+  async triggerPhase(taskId: string, phase: TaskPhase, startPhase?: TaskPhase, endPhase?: TaskPhase) {
+    console.log('triggerPhase called:', { taskId, phase, startPhase, endPhase });
     
     const task = await this.getTask(taskId);
     if (!task) {
@@ -218,7 +218,7 @@ export class TaskService {
         }
       }
 
-      await this.dispatchGitHubWorkflow(taskId, phase, ghAccount?.id, aiAccount?.id);
+      await this.dispatchGitHubWorkflow(taskId, phase, ghAccount?.id, aiAccount?.id, startPhase, endPhase);
       
       await this.env.DB.prepare(`
         UPDATE tasks SET github_account_id = ?, current_phase = ?, status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')

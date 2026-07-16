@@ -43,6 +43,7 @@ on:
 
 jobs:
   process:
+    if: ${{ github.event_name != 'repository_dispatch' || github.event.action != 'video-processing-range' }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     concurrency:
