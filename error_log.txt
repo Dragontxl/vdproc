@@ -1,8 +1,8 @@
 Error in scene analysis: <HttpError 400 when requesting https://generativelanguage.googleapis.com/$discovery/rest?version=v1beta&key=sk-EXNF7rPJmu280rUZZrQN8f5AbnboJct8WHgn0oE0aZyYv7fF returned "API key not valid. Please pass a valid API key.". Details: "[{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'API_KEY_INVALID', 'domain': 'googleapis.com', 'metadata': {'service': 'generativelanguage.googleapis.com'}}, {'@type': 'type.googleapis.com/google.rpc.LocalizedMessage', 'locale': 'en-US', 'message': 'API key not valid. Please pass a valid API key.'}]">
 Traceback: Traceback (most recent call last):
-  File "/scripts/analyze_scene.py", line 314, in main
+  File "/scripts/analyze_scene.py", line 318, in main
     video_file = upload_video_to_gemini(video_local_path)
-  File "/scripts/analyze_scene.py", line 84, in upload_video_to_gemini
+  File "/scripts/analyze_scene.py", line 88, in upload_video_to_gemini
     video_file = genai.upload_file(
   File "/usr/local/lib/python3.10/dist-packages/google/generativeai/files.py", line 85, in upload_file
     response = client.create_file(
