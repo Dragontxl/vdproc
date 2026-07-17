@@ -46,6 +46,49 @@ echo "Available AI accounts: $ACCOUNT_COUNT"
 echo "Max concurrent (from GitHub accounts): $MAX_CONCURRENT"
 echo "Effective concurrency: $EFFECTIVE_CONCURRENCY"
 
+notify_subtask() {
+    local action="$1"
+    local shot_index="$2"
+    local status="$3"
+    local output_path="$4"
+    local error_msg="$5"
+    
+    if [ -z "$CALLBACK_URL" ]; then
+        return
+    fi
+    
+    local first_frame_url="https://aivideobucket.ldragon.xyz/${TASK_ID}/ai_shot_frames/shot_${shot_index}_first.jpg"
+    if [ "$shot_index" -gt 0 ]; then
+        first_frame_url="https://aivideobucket.ldragon.xyz/${TASK_ID}/ai_shot_frames/shot_$((shot_index - 1))_last.jpg"
+    fi
+    local last_frame_url="https://aivideobucket.ldragon.xyz/${TASK_ID}/ai_shot_frames/shot_${shot_index}_last.jpg"
+    
+    local payload="{\"task_id\":\"$TASK_ID\",\"phase\":\"GENERATE_SHOTS\",\"subtask_index\":$shot_index"
+    
+    if [ "$action" = "create" ]; then
+        payload="$payload,\"subtask_type\":\"shot\",\"input_path\":\"$first_frame_url|$last_frame_url\",\"metadata\":\"{\\\"shot_index\\\":$shot_index}\"}"
+        curl -s --connect-timeout 10 --max-time 30 -X POST "$CALLBACK_URL/subtask/create" \
+            -H "Content-Type: application/json" \
+            -H "X-Callback-Signature: $CALLBACK_SECRET" \
+            -d "$payload" > /dev/null 2>&1 || true
+    elif [ "$action" = "update" ]; then
+        payload="$payload,\"status\":\"$status\""
+        if [ -n "$output_path" ]; then
+            payload="$payload,\"output_path\":\"$output_path\""
+        fi
+        if [ -n "$error_msg" ]; then
+            payload="$payload,\"error_msg\":\"$(echo "$error_msg" | sed 's/"/\\"/g')\""
+        fi
+        payload="$payload}"
+        curl -s --connect-timeout 10 --max-time 30 -X POST "$CALLBACK_URL/subtask/update" \
+            -H "Content-Type: application/json" \
+            -H "X-Callback-Signature: $CALLBACK_SECRET" \
+            -d "$payload" > /dev/null 2>&1 || true
+    fi
+}
+
+export -f notify_subtask
+
 MAX_ROUNDS=3
 PENDING_FILE="/tmp/pending_indices.txt"
 MISSING_FILE="/tmp/missing_indices.txt"
@@ -332,6 +375,21 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
     print(f"  Shot {shot_index}: All accounts exhausted")
     return None
 
+def notify_subtask_python(action, shot_index, status='', output_path='', error_msg=''):
+    import subprocess
+    callback_url = os.environ.get('CALLBACK_URL', '')
+    callback_secret = os.environ.get('CALLBACK_SECRET', '')
+    task_id_env = os.environ.get('TASK_ID', '')
+    
+    if not callback_url:
+        return
+    
+    cmd = ['bash', '-c', f'notify_subtask "{action}" "{shot_index}" "{status}" "{output_path}" "{error_msg}"']
+    try:
+        subprocess.run(cmd, check=False, capture_output=True)
+    except Exception as e:
+        print(f"  Shot {shot_index}: Failed to notify subtask: {str(e)}")
+
 def process_shot(shot_index):
     shot = storyboards[shot_index]
     start_time = shot.get('start_time', '00:00:00.000')
@@ -341,6 +399,7 @@ def process_shot(shot_index):
     duration = end_sec - start_sec
 
     print(f"Processing shot {shot_index}: {start_time} - {end_time} (duration={duration:.3f}s)")
+    notify_subtask_python("create", shot_index)
 
     if shot_index == 0:
         first_frame_url = f"https://aivideobucket.ldragon.xyz/{task_id}/ai_shot_frames/shot_0_first.jpg"
@@ -368,6 +427,8 @@ def process_shot(shot_index):
     print(f"Shot {shot_index}: Starting with AI account index {account_index}")
     print(f"Shot {shot_index}: Duration: {duration:.3f}s, Target frames: {int(duration * output_fps)}")
 
+    notify_subtask_python("update", shot_index, "PROCESSING")
+    
     video_url = generate_video(accounts if accounts else None, account_index, [first_frame_url, last_frame_url], main_prompt, shot_index, duration, output_fps)
 
     if video_url:
@@ -375,12 +436,16 @@ def process_shot(shot_index):
         try:
             urllib.request.urlretrieve(video_url, f'./generated_shots/shot_{shot_index}.mp4')
             print(f"Successfully generated shot {shot_index}")
+            output_path = f"{task_id}/generated_shots/shot_{shot_index}.mp4"
+            notify_subtask_python("update", shot_index, "COMPLETED", output_path)
             return (shot_index, True)
         except Exception as e:
             print(f"Error downloading video for shot {shot_index}: {str(e)}")
+            notify_subtask_python("update", shot_index, "FAILED", "", str(e))
             return (shot_index, False)
     else:
         print(f"Error: Failed to generate shot {shot_index}")
+        notify_subtask_python("update", shot_index, "FAILED", "", "Failed to generate video")
         return (shot_index, False)
 
 effective_concurrency = int(os.environ.get('EFFECTIVE_CONCURRENCY', '2'))
