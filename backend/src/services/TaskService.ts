@@ -1152,7 +1152,7 @@ export class TaskService {
         )
         ${ghAccountId ? 'AND EXISTS (SELECT 1 FROM github_ai_bindings gab2 WHERE gab2.ai_account_id = ai_accounts.id AND gab2.github_account_id = ? AND gab2.is_active = TRUE)' : ''}
       ORDER BY 
-        priority_weight DESC, total_usage ASC
+        last_used_at ASC NULLS FIRST, total_usage ASC
       LIMIT ?
     `;
     
