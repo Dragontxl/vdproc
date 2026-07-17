@@ -1085,6 +1085,7 @@ export class TaskService {
       subtask_type: subtask.subtask_type,
       input_path: subtask.input_path,
       metadata: subtask.metadata,
+      gh_account_id: task.github_account_id,
       config: JSON.stringify({
         video_path: task.video_path,
         fps: task.fps,
