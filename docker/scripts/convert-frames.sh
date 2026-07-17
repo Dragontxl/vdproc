@@ -385,7 +385,7 @@ get_missing_frames() {
 }
 
 if [ -n "$SUBTASK_INDEX" ] && [ -n "$SUBTASK_TYPE" ]; then
-    local FRAME_TYPE="${SUBTASK_TYPE#frame_}"
+    FRAME_TYPE="${SUBTASK_TYPE#frame_}"
     echo "=== Running as subtask: Shot $SUBTASK_INDEX, $FRAME_TYPE frame ==="
     
     rm -f "./frame_results.txt"
