@@ -300,49 +300,70 @@ get_missing_indices() {
     echo "${missing%,}"
 }
 
-for round in $(seq 1 $MAX_ROUNDS); do
-    PENDING_INDICES=$(get_missing_indices)
-
-    if [ -z "$PENDING_INDICES" ]; then
-        echo "All characters completed at round $((round - 1))"
-        break
-    fi
-
-    echo "=== Round $round/$MAX_ROUNDS: Processing characters [$PENDING_INDICES] ==="
-
+if [ -n "$SUBTASK_INDEX" ]; then
+    echo "=== Running as subtask: Character index $SUBTASK_INDEX ==="
+    
     rm -f "./character_results.txt"
-
-    echo "$PENDING_INDICES" | tr ',' '\n' | \
-        xargs -P "$EFFECTIVE_CONCURRENCY" -I {} bash -c 'process_character "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS" || true
-
+    
+    process_character "$SUBTASK_INDEX" "$WORK_DIR" "$AI_ACCOUNTS"
+    
     echo "Uploading character images..."
     aws s3 sync "./characters" "s3://$R2_BUCKET_NAME/${TASK_ID}/characters" \
         --endpoint-url "$R2_ENDPOINT_URL"
-
-    SUCCESS_COUNT=$(grep -c ':SUCCESS' "./character_results.txt" 2>/dev/null || echo 0)
-    FAILED_COUNT=$(grep -c ':FAILED' "./character_results.txt" 2>/dev/null || echo 0)
-
-    TOTAL_SUCCESS=0
-    TOTAL_FAILED=0
-    for i in $(seq 0 $((ROLE_COUNT - 1))); do
-        local_role_id=$(echo "$RESULT" | jq -r ".characters[$i].role_id")
-        if [ -f "./characters/${local_role_id}.png" ] && [ -s "./characters/${local_role_id}.png" ]; then
-            TOTAL_SUCCESS=$((TOTAL_SUCCESS + 1))
-        else
-            TOTAL_FAILED=$((TOTAL_FAILED + 1))
-        fi
-    done
-
-    report_progress "$round" "$TOTAL_SUCCESS" "$TOTAL_FAILED"
-
-    if [ "$TOTAL_FAILED" -eq 0 ]; then
-        echo "=== All characters completed at round $round ==="
-        break
+    
+    ROLE_ID=$(echo "$RESULT" | jq -r ".characters[$SUBTASK_INDEX].role_id")
+    if [ -f "./characters/${ROLE_ID}.png" ] && [ -s "./characters/${ROLE_ID}.png" ]; then
+        echo "Subtask completed successfully"
+        exit 0
+    else
+        echo "Subtask failed"
+        exit 1
     fi
+else
+    for round in $(seq 1 $MAX_ROUNDS); do
+        PENDING_INDICES=$(get_missing_indices)
 
-    echo "Round $round: $TOTAL_FAILED characters still missing, will retry..."
+        if [ -z "$PENDING_INDICES" ]; then
+            echo "All characters completed at round $((round - 1))"
+            break
+        fi
 
-done
+        echo "=== Round $round/$MAX_ROUNDS: Processing characters [$PENDING_INDICES] ==="
+
+        rm -f "./character_results.txt"
+
+        echo "$PENDING_INDICES" | tr ',' '\n' | \
+            xargs -P "$EFFECTIVE_CONCURRENCY" -I {} bash -c 'process_character "$@"' _ {} "$WORK_DIR" "$AI_ACCOUNTS" || true
+
+        echo "Uploading character images..."
+        aws s3 sync "./characters" "s3://$R2_BUCKET_NAME/${TASK_ID}/characters" \
+            --endpoint-url "$R2_ENDPOINT_URL"
+
+        SUCCESS_COUNT=$(grep -c ':SUCCESS' "./character_results.txt" 2>/dev/null || echo 0)
+        FAILED_COUNT=$(grep -c ':FAILED' "./character_results.txt" 2>/dev/null || echo 0)
+
+        TOTAL_SUCCESS=0
+        TOTAL_FAILED=0
+        for i in $(seq 0 $((ROLE_COUNT - 1))); do
+            local_role_id=$(echo "$RESULT" | jq -r ".characters[$i].role_id")
+            if [ -f "./characters/${local_role_id}.png" ] && [ -s "./characters/${local_role_id}.png" ]; then
+                TOTAL_SUCCESS=$((TOTAL_SUCCESS + 1))
+            else
+                TOTAL_FAILED=$((TOTAL_FAILED + 1))
+            fi
+        done
+
+        report_progress "$round" "$TOTAL_SUCCESS" "$TOTAL_FAILED"
+
+        if [ "$TOTAL_FAILED" -eq 0 ]; then
+            echo "=== All characters completed at round $round ==="
+            break
+        fi
+
+        echo "Round $round: $TOTAL_FAILED characters still missing, will retry..."
+
+    fi
+fi
 
 FINAL_MISSING=$(get_missing_indices)
 if [ -n "$FINAL_MISSING" ]; then
