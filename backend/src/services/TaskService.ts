@@ -364,57 +364,8 @@ export class TaskService {
     const activeGhAccountCount = activeGhAccountsResult ? parseInt((activeGhAccountsResult as { count: string }).count) : 0;
     const maxConcurrent = activeGhAccountCount * 2;
 
-    const lockAIAccounts = async (apiType?: string, limit?: number) => {
-      const accountsToLock = limit || maxConcurrent;
-      const updateTypeCondition = apiType ? ' AND ai_accounts.api_type = ?' : '';
-      const selectTypeCondition = apiType ? ' AND aa.api_type = ?' : '';
-      const params: (string | number)[] = [];
-      
-      const lockTime = new Date(Date.now() + 3600 * 1000);
-      
-      const lockQuery = `
-        UPDATE ai_accounts
-        SET cooldown_until = ?
-        WHERE is_active = TRUE 
-          AND is_healthy = TRUE
-          AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-          ${updateTypeCondition}
-          AND EXISTS (
-            SELECT 1 FROM github_ai_bindings gab 
-            WHERE gab.ai_account_id = ai_accounts.id AND gab.is_active = TRUE
-          )
-        ORDER BY 
-          CASE WHEN EXISTS (
-            SELECT 1 FROM github_ai_bindings gab 
-            WHERE gab.ai_account_id = ai_accounts.id AND gab.github_account_id = ? AND gab.is_active = TRUE
-          ) THEN 0 ELSE 1 END,
-          priority_weight DESC, total_usage ASC
-        LIMIT ?
-      `;
-      
-      params.push(lockTime.toISOString());
-      if (apiType) params.push(apiType);
-      params.push(ghAccountId);
-      params.push(accountsToLock);
-      
-      await this.env.DB.prepare(lockQuery).bind(...params).run();
-      
-      const selectQuery = `
-        SELECT aa.id, aa.api_key_encrypted, aa.base_url, aa.model_name, aa.account_alias, aa.api_type 
-        FROM ai_accounts aa
-        WHERE is_active = TRUE 
-          AND cooldown_until = ?
-          ${selectTypeCondition}
-      `;
-      const selectParams: (string | number)[] = [lockTime.toISOString()];
-      if (apiType) selectParams.push(apiType);
-      
-      const result = await this.env.DB.prepare(selectQuery).bind(...selectParams).all();
-      return result.results || [];
-    };
-
     if (phase === 'CONVERT_FRAMES' || phase === 'GENERATE_CHARACTERS') {
-      const lockedAccounts = await lockAIAccounts('image', maxConcurrent);
+      const lockedAccounts = await this.lockAIAccounts('image', maxConcurrent, ghAccountId);
 
       if (lockedAccounts.length > 0) {
         const decryptedAccounts = await Promise.all(
@@ -440,7 +391,7 @@ export class TaskService {
     }
     
     if (phase === 'GENERATE_SHOTS') {
-      const lockedAccounts = await lockAIAccounts('video', maxConcurrent);
+      const lockedAccounts = await this.lockAIAccounts('video', maxConcurrent, ghAccountId);
 
       if (lockedAccounts.length > 0) {
         const decryptedAccounts = await Promise.all(
@@ -582,55 +533,6 @@ export class TaskService {
     const activeGhAccountCount = activeGhAccountsResult ? parseInt((activeGhAccountsResult as { count: string }).count) : 0;
     const maxConcurrent = activeGhAccountCount * 2;
 
-    const lockAIAccounts = async (apiType?: string, limit?: number) => {
-      const accountsToLock = limit || maxConcurrent;
-      const updateTypeCondition = apiType ? ' AND ai_accounts.api_type = ?' : '';
-      const selectTypeCondition = apiType ? ' AND aa.api_type = ?' : '';
-      const params: (string | number)[] = [];
-      
-      const lockTime = new Date(Date.now() + 3600 * 1000);
-      
-      const lockQuery = `
-        UPDATE ai_accounts
-        SET cooldown_until = ?
-        WHERE is_active = TRUE 
-          AND is_healthy = TRUE
-          AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-          ${updateTypeCondition}
-          AND EXISTS (
-            SELECT 1 FROM github_ai_bindings gab 
-            WHERE gab.ai_account_id = ai_accounts.id AND gab.is_active = TRUE
-          )
-        ORDER BY 
-          CASE WHEN EXISTS (
-            SELECT 1 FROM github_ai_bindings gab 
-            WHERE gab.ai_account_id = ai_accounts.id AND gab.github_account_id = ? AND gab.is_active = TRUE
-          ) THEN 0 ELSE 1 END,
-          priority_weight DESC, total_usage ASC
-        LIMIT ?
-      `;
-      
-      params.push(lockTime.toISOString());
-      if (apiType) params.push(apiType);
-      params.push(ghAccountId);
-      params.push(accountsToLock);
-      
-      await this.env.DB.prepare(lockQuery).bind(...params).run();
-      
-      const selectQuery = `
-        SELECT aa.id, aa.api_key_encrypted, aa.base_url, aa.model_name, aa.account_alias, aa.api_type 
-        FROM ai_accounts aa
-        WHERE is_active = TRUE 
-          AND cooldown_until = ?
-          ${selectTypeCondition}
-      `;
-      const selectParams: (string | number)[] = [lockTime.toISOString()];
-      if (apiType) selectParams.push(apiType);
-      
-      const result = await this.env.DB.prepare(selectQuery).bind(...selectParams).all();
-      return result.results || [];
-    };
-
     let aiAccountsJson = '';
     
     const startIndex = phaseOrder.indexOf(startPhase);
@@ -639,7 +541,7 @@ export class TaskService {
     for (let i = startIndex; i <= endIndex; i++) {
       const currentPhase = phaseOrder[i];
       if (currentPhase === 'ANALYZE') {
-        const lockedAccounts = await lockAIAccounts('text', maxConcurrent);
+        const lockedAccounts = await this.lockAIAccounts('text', maxConcurrent, ghAccountId);
         if (lockedAccounts.length > 0) {
           const decryptedAccounts = await Promise.all(
             (lockedAccounts as any[]).map(async (acc) => {
@@ -665,7 +567,7 @@ export class TaskService {
         }
       }
       if (currentPhase === 'CONVERT_FRAMES' || currentPhase === 'GENERATE_CHARACTERS') {
-        const lockedAccounts = await lockAIAccounts('image', maxConcurrent);
+        const lockedAccounts = await this.lockAIAccounts('image', maxConcurrent, ghAccountId);
         if (lockedAccounts.length > 0) {
           const decryptedAccounts = await Promise.all(
             (lockedAccounts as any[]).map(async (acc) => {
@@ -691,7 +593,7 @@ export class TaskService {
         }
       }
       if (currentPhase === 'GENERATE_SHOTS') {
-        const lockedAccounts = await lockAIAccounts('video', maxConcurrent);
+        const lockedAccounts = await this.lockAIAccounts('video', maxConcurrent, ghAccountId);
         if (lockedAccounts.length > 0) {
           const decryptedAccounts = await Promise.all(
             (lockedAccounts as any[]).map(async (acc) => {
@@ -1197,6 +1099,50 @@ export class TaskService {
     }
     
     return { success: true, message: 'Subtask dispatched successfully' };
+  }
+
+  private async lockAIAccounts(apiType?: string, limit?: number, ghAccountId?: string): Promise<any[]> {
+    const lockTime = new Date(Date.now() + 3600 * 1000);
+    const updateTypeCondition = apiType ? ' AND ai_accounts.api_type = ?' : '';
+    const selectTypeCondition = apiType ? ' AND aa.api_type = ?' : '';
+    const params: (string | number)[] = [];
+    
+    const lockQuery = `
+      UPDATE ai_accounts
+      SET cooldown_until = ?
+      WHERE is_active = TRUE 
+        AND is_healthy = TRUE
+        AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        ${updateTypeCondition}
+        AND EXISTS (
+          SELECT 1 FROM github_ai_bindings gab 
+          WHERE gab.ai_account_id = ai_accounts.id AND gab.is_active = TRUE
+        )
+        ${ghAccountId ? 'AND EXISTS (SELECT 1 FROM github_ai_bindings gab2 WHERE gab2.ai_account_id = ai_accounts.id AND gab2.github_account_id = ? AND gab2.is_active = TRUE)' : ''}
+      ORDER BY 
+        priority_weight DESC, total_usage ASC
+      LIMIT ?
+    `;
+    
+    params.push(lockTime.toISOString());
+    if (apiType) params.push(apiType);
+    if (ghAccountId) params.push(ghAccountId);
+    params.push(limit || 1);
+    
+    await this.env.DB.prepare(lockQuery).bind(...params).run();
+    
+    const selectQuery = `
+      SELECT aa.id, aa.api_key_encrypted, aa.base_url, aa.model_name, aa.account_alias, aa.api_type 
+      FROM ai_accounts aa
+      WHERE is_active = TRUE 
+        AND cooldown_until = ?
+        ${selectTypeCondition}
+    `;
+    const selectParams: (string | number)[] = [lockTime.toISOString()];
+    if (apiType) selectParams.push(apiType);
+    
+    const result = await this.env.DB.prepare(selectQuery).bind(...selectParams).all();
+    return result.results || [];
   }
 
   private generateUUID(): string {
