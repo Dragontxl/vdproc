@@ -49,4 +49,36 @@ callbackRoutes.post('/account-error', async (c) => {
   return c.json({ code: 200, data: result, msg: 'Account error handled' });
 });
 
+callbackRoutes.post('/subtask/create', async (c) => {
+  const service = new TaskService(c.env as Bindings);
+  const body = await c.req.json();
+  
+  await service.createPhaseSubtask(
+    body.task_id,
+    body.phase,
+    body.subtask_index,
+    body.subtask_type,
+    body.input_path,
+    body.metadata
+  );
+  
+  return c.json({ code: 200, msg: 'Subtask created' });
+});
+
+callbackRoutes.post('/subtask/update', async (c) => {
+  const service = new TaskService(c.env as Bindings);
+  const body = await c.req.json();
+  
+  await service.updatePhaseSubtaskStatus(
+    body.task_id,
+    body.phase,
+    body.subtask_index,
+    body.status,
+    body.output_path,
+    body.error_msg
+  );
+  
+  return c.json({ code: 200, msg: 'Subtask updated' });
+});
+
 export { callbackRoutes };

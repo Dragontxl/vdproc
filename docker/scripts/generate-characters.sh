@@ -52,6 +52,44 @@ echo "Available AI accounts: $ACCOUNT_COUNT"
 echo "Max concurrent (from GitHub accounts): $MAX_CONCURRENT"
 echo "Effective concurrency: $EFFECTIVE_CONCURRENCY"
 
+notify_subtask() {
+    local action="$1"
+    local char_index="$2"
+    local status="$3"
+    local output_path="$4"
+    local error_msg="$5"
+    
+    if [ -z "$CALLBACK_URL" ]; then
+        return
+    fi
+    
+    local ROLE_ID=$(echo "$RESULT" | jq -r ".characters[$char_index].role_id")
+    local BEST_FRAME_KEY="${TASK_ID}/character_frames/${ROLE_ID}_best.jpg"
+    
+    local payload="{\"task_id\":\"$TASK_ID\",\"phase\":\"GENERATE_CHARACTERS\",\"subtask_index\":$char_index"
+    
+    if [ "$action" = "create" ]; then
+        payload="$payload,\"subtask_type\":\"character\",\"input_path\":\"$BEST_FRAME_KEY\",\"metadata\":\"{\\\"role_id\\\":\\\"$ROLE_ID\\\"}\"}"
+        curl -s --connect-timeout 10 --max-time 30 -X POST "$CALLBACK_URL/subtask/create" \
+            -H "Content-Type: application/json" \
+            -H "X-Callback-Signature: $CALLBACK_SECRET" \
+            -d "$payload" > /dev/null 2>&1 || true
+    elif [ "$action" = "update" ]; then
+        payload="$payload,\"status\":\"$status\""
+        if [ -n "$output_path" ]; then
+            payload="$payload,\"output_path\":\"$output_path\""
+        fi
+        if [ -n "$error_msg" ]; then
+            payload="$payload,\"error_msg\":\"$(echo "$error_msg" | sed 's/"/\\"/g')\""
+        fi
+        payload="$payload}"
+        curl -s --connect-timeout 10 --max-time 30 -X POST "$CALLBACK_URL/subtask/update" \
+            -H "Content-Type: application/json" \
+            -H "X-Callback-Signature: $CALLBACK_SECRET" \
+            -d "$payload" > /dev/null 2>&1 || true
+    fi
+}
+
 process_character() {
     local char_index="$1"
     local work_dir="$2"
@@ -62,11 +100,16 @@ process_character() {
     ROLE_ID=$(echo "$RESULT" | jq -r ".characters[$char_index].role_id")
     BEST_FRAME_KEY="${TASK_ID}/character_frames/${ROLE_ID}_best.jpg"
 
+    notify_subtask "create" "$char_index" "" "" ""
+
     if [ -f "./characters/${ROLE_ID}.png" ] && [ -s "./characters/${ROLE_ID}.png" ]; then
         echo "Character $ROLE_ID already exists, skipping"
+        notify_subtask "update" "$char_index" "COMPLETED" "${TASK_ID}/characters/${ROLE_ID}.png" ""
         echo "${ROLE_ID}:SUCCESS" >> "./character_results.txt"
         return 0
     fi
+
+    notify_subtask "update" "$char_index" "PROCESSING" "" ""
 
     echo "Processing character $ROLE_ID..."
 
@@ -182,6 +225,7 @@ process_character() {
     if [ $API_SUCCESS -ne 1 ]; then
         echo "Error: Failed to generate character $ROLE_ID after trying all available accounts"
         rm -f "./reference_${char_index}.jpg"
+        notify_subtask "update" "$char_index" "FAILED" "" "Failed to generate character after trying all available accounts"
         echo "${ROLE_ID}:FAILED" >> "./character_results.txt"
         return 1
     fi
@@ -190,6 +234,7 @@ process_character() {
     if [ -z "$RESULT_URL" ]; then
         echo "Error: No result URL for character $ROLE_ID"
         rm -f "./reference_${char_index}.jpg"
+        notify_subtask "update" "$char_index" "FAILED" "" "No result URL returned"
         echo "${ROLE_ID}:FAILED" >> "./character_results.txt"
         return 1
     fi
@@ -200,11 +245,13 @@ process_character() {
     if [ ! -f "./characters/${ROLE_ID}.png" ] || [ ! -s "./characters/${ROLE_ID}.png" ]; then
         echo "Error: Downloaded character image is empty"
         rm -f "./reference_${char_index}.jpg"
+        notify_subtask "update" "$char_index" "FAILED" "" "Downloaded character image is empty"
         echo "${ROLE_ID}:FAILED" >> "./character_results.txt"
         return 1
     fi
 
     rm -f "./reference_${char_index}.jpg"
+    notify_subtask "update" "$char_index" "COMPLETED" "${TASK_ID}/characters/${ROLE_ID}.png" ""
     echo "${ROLE_ID}:SUCCESS" >> "./character_results.txt"
     echo "Successfully generated character $ROLE_ID"
 

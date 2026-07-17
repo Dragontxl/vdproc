@@ -53,6 +53,45 @@ echo "Available AI accounts: $ACCOUNT_COUNT"
 echo "Max concurrent (from GitHub accounts): $MAX_CONCURRENT"
 echo "Effective concurrency: $EFFECTIVE_CONCURRENCY"
 
+notify_subtask() {
+    local action="$1"
+    local shot_index="$2"
+    local frame_type="$3"
+    local status="$4"
+    local output_path="$5"
+    local error_msg="$6"
+    
+    if [ -z "$CALLBACK_URL" ]; then
+        return
+    fi
+    
+    local subtask_index=$((shot_index * 2 + (frame_type == "first" ? 0 : 1)))
+    local input_path="${TASK_ID}/shot_frames/shot_${shot_index}_${frame_type}.jpg"
+    
+    local payload="{\"task_id\":\"$TASK_ID\",\"phase\":\"CONVERT_FRAMES\",\"subtask_index\":$subtask_index"
+    
+    if [ "$action" = "create" ]; then
+        payload="$payload,\"subtask_type\":\"frame_${frame_type}\",\"input_path\":\"$input_path\",\"metadata\":\"{\\\"shot_index\\\":${shot_index},\\\"frame_type\\\":\\\"${frame_type}\\\"}\"}"
+        curl -s --connect-timeout 10 --max-time 30 -X POST "$CALLBACK_URL/subtask/create" \
+            -H "Content-Type: application/json" \
+            -H "X-Callback-Signature: $CALLBACK_SECRET" \
+            -d "$payload" > /dev/null 2>&1 || true
+    elif [ "$action" = "update" ]; then
+        payload="$payload,\"status\":\"$status\""
+        if [ -n "$output_path" ]; then
+            payload="$payload,\"output_path\":\"$output_path\""
+        fi
+        if [ -n "$error_msg" ]; then
+            payload="$payload,\"error_msg\":\"$(echo "$error_msg" | sed 's/"/\\"/g')\""
+        fi
+        payload="$payload}"
+        curl -s --connect-timeout 10 --max-time 30 -X POST "$CALLBACK_URL/subtask/update" \
+            -H "Content-Type: application/json" \
+            -H "X-Callback-Signature: $CALLBACK_SECRET" \
+            -d "$payload" > /dev/null 2>&1 || true
+    fi
+}
+
 ACQUIRE_ACCOUNT_TIMEOUT=300
 ACQUIRE_ACCOUNT_INTERVAL=5
 
@@ -116,11 +155,16 @@ process_frame() {
 
     cd "$work_dir"
 
+    notify_subtask "create" "$shot_index" "$frame_type" "" "" ""
+
     if [ -f "./ai_shot_frames/shot_${shot_index}_${frame_type}.jpg" ] && [ -s "./ai_shot_frames/shot_${shot_index}_${frame_type}.jpg" ]; then
         echo "Frame shot_${shot_index}_${frame_type} already exists, skipping"
+        notify_subtask "update" "$shot_index" "$frame_type" "COMPLETED" "${TASK_ID}/ai_shot_frames/shot_${shot_index}_${frame_type}.jpg" ""
         echo "${shot_index}_${frame_type}:SUCCESS" >> "./frame_results.txt"
         return 0
     fi
+
+    notify_subtask "update" "$shot_index" "$frame_type" "PROCESSING" "" ""
 
     CHARACTERS=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].characters_present")
 
@@ -256,6 +300,7 @@ process_frame() {
     if [ $API_SUCCESS -ne 1 ]; then
         echo "Error: Failed to convert shot $shot_index, ${frame_type} frame"
         rm -f "./input_${shot_index}_${frame_type}.jpg"
+        notify_subtask "update" "$shot_index" "$frame_type" "FAILED" "" "Failed to convert frame after $MAX_RETRIES attempts"
         echo "${shot_index}_${frame_type}:FAILED" >> "./frame_results.txt"
         return 1
     fi
@@ -264,6 +309,7 @@ process_frame() {
     if [ -z "$RESULT_URL" ]; then
         echo "Error: No result URL for shot $shot_index, ${frame_type} frame"
         rm -f "./input_${shot_index}_${frame_type}.jpg"
+        notify_subtask "update" "$shot_index" "$frame_type" "FAILED" "" "No result URL returned"
         echo "${shot_index}_${frame_type}:FAILED" >> "./frame_results.txt"
         return 1
     fi
@@ -274,11 +320,13 @@ process_frame() {
     if [ ! -f "./ai_shot_frames/shot_${shot_index}_${frame_type}.jpg" ] || [ ! -s "./ai_shot_frames/shot_${shot_index}_${frame_type}.jpg" ]; then
         echo "Error: Downloaded frame is empty"
         rm -f "./input_${shot_index}_${frame_type}.jpg"
+        notify_subtask "update" "$shot_index" "$frame_type" "FAILED" "" "Downloaded frame is empty"
         echo "${shot_index}_${frame_type}:FAILED" >> "./frame_results.txt"
         return 1
     fi
 
     rm -f "./input_${shot_index}_${frame_type}.jpg"
+    notify_subtask "update" "$shot_index" "$frame_type" "COMPLETED" "${TASK_ID}/ai_shot_frames/shot_${shot_index}_${frame_type}.jpg" ""
     echo "${shot_index}_${frame_type}:SUCCESS" >> "./frame_results.txt"
     echo "Successfully converted shot $shot_index, ${frame_type} frame"
 
