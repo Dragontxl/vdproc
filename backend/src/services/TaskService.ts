@@ -994,6 +994,14 @@ export class TaskService {
     let aiBaseUrl = '';
     
     if (phase === 'CONVERT_FRAMES' || phase === 'GENERATE_CHARACTERS') {
+      const allBindings = await this.env.DB.prepare(`
+        SELECT aa.id, aa.account_alias, aa.api_type, aa.is_active, aa.is_healthy, aa.cooldown_until
+        FROM ai_accounts aa
+        JOIN github_ai_bindings gab ON aa.id = gab.ai_account_id
+        WHERE gab.github_account_id = ? AND gab.is_active = TRUE
+      `).bind(ghAccountId).all();
+      console.log(`[runSubtask] All AI accounts bound to GitHub ${ghAccountId}:`, JSON.stringify(allBindings.results));
+      
       const lockedAccounts = await this.lockAIAccounts('image', maxConcurrent, ghAccountId);
       console.log(`[runSubtask] Locked ${lockedAccounts.length} image AI accounts for task ${taskId}`);
       lockedAccounts.forEach((acc: any) => {
