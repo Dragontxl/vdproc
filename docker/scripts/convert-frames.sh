@@ -385,18 +385,19 @@ get_missing_frames() {
 }
 
 if [ -n "$SUBTASK_INDEX" ] && [ -n "$SUBTASK_TYPE" ]; then
-    echo "=== Running as subtask: Shot $SUBTASK_INDEX, $SUBTASK_TYPE frame ==="
+    local FRAME_TYPE="${SUBTASK_TYPE#frame_}"
+    echo "=== Running as subtask: Shot $SUBTASK_INDEX, $FRAME_TYPE frame ==="
     
     rm -f "./frame_results.txt"
     rm -f "./bad_accounts.txt"
     
-    process_frame "$SUBTASK_INDEX" "$SUBTASK_TYPE" "$WORK_DIR" "$AI_ACCOUNTS"
+    process_frame "$SUBTASK_INDEX" "$FRAME_TYPE" "$WORK_DIR" "$AI_ACCOUNTS"
     
     echo "Uploading converted frames..."
     aws s3 sync "./ai_shot_frames" "s3://$R2_BUCKET_NAME/${TASK_ID}/ai_shot_frames" \
         --endpoint-url "$R2_ENDPOINT_URL"
     
-    if [ -f "./ai_shot_frames/shot_${SUBTASK_INDEX}_${SUBTASK_TYPE}.jpg" ] && [ -s "./ai_shot_frames/shot_${SUBTASK_INDEX}_${SUBTASK_TYPE}.jpg" ]; then
+    if [ -f "./ai_shot_frames/shot_${SUBTASK_INDEX}_${FRAME_TYPE}.jpg" ] && [ -s "./ai_shot_frames/shot_${SUBTASK_INDEX}_${FRAME_TYPE}.jpg" ]; then
         echo "Subtask completed successfully"
         exit 0
     else
