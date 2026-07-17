@@ -336,6 +336,7 @@ process_frame() {
 export -f process_frame
 export -f acquire_ai_account
 export -f release_ai_account
+export -f notify_subtask
 export RESULT
 export TASK_ID
 export R2_BUCKET_NAME
@@ -345,6 +346,8 @@ export AI_BASE_URL
 export ACCOUNT_COUNT
 export ACQUIRE_ACCOUNT_TIMEOUT
 export ACQUIRE_ACCOUNT_INTERVAL
+export CALLBACK_URL
+export CALLBACK_SECRET
 
 MAX_ROUNDS=10
 

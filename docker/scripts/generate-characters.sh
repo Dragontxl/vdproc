@@ -259,12 +259,15 @@ process_character() {
 }
 
 export -f process_character
+export -f notify_subtask
 export RESULT
 export TASK_ID
 export R2_BUCKET_NAME
 export R2_ENDPOINT_URL
 export AI_API_KEY
 export AI_BASE_URL
+export CALLBACK_URL
+export CALLBACK_SECRET
 
 MAX_ROUNDS=3
 
