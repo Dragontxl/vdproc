@@ -143,11 +143,17 @@ process_character() {
             continue
         fi
 
-        local selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
-        local selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
-        local selected_alias=$(echo "$ai_accounts" | jq -r ".[$account_index].account_alias")
-        if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
-            selected_url="https://apihub.agnes-ai.com/v1/images/generations"
+        local selected_key="$AI_API_KEY"
+        local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/images/generations"
+        local selected_alias=""
+        
+        if [ -n "$ai_accounts" ]; then
+            selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
+            selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
+            selected_alias=$(echo "$ai_accounts" | jq -r ".[$account_index].account_alias")
+            if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
+                selected_url="https://apihub.agnes-ai.com/v1/images/generations"
+            fi
         fi
 
         local lock_file="./locks/account_${account_index}.lock"
