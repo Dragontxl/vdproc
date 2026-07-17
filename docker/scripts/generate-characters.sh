@@ -362,7 +362,7 @@ else
 
         echo "Round $round: $TOTAL_FAILED characters still missing, will retry..."
 
-    fi
+    done
 fi
 
 FINAL_MISSING=$(get_missing_indices)
