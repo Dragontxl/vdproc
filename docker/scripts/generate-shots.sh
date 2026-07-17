@@ -106,6 +106,11 @@ with open('./analysis_result.json', 'r') as f:
 storyboards = result.get('storyboards', [])
 accounts = json.loads(ai_accounts_json)
 
+video_accounts = [acc for acc in accounts if acc.get('api_type', 'video') == 'video']
+if video_accounts:
+    accounts = video_accounts
+    print(f"  Filtered to {len(accounts)} video-type AI accounts")
+
 if pending_indices_str:
     pending_indices = [int(x) for x in pending_indices_str.split(',') if x.strip()]
 else:

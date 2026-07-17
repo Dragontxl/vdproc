@@ -400,7 +400,7 @@ export class TaskService {
       await this.env.DB.prepare(lockQuery).bind(...params).run();
       
       const selectQuery = `
-        SELECT aa.id, aa.api_key_encrypted, aa.base_url, aa.model_name, aa.account_alias 
+        SELECT aa.id, aa.api_key_encrypted, aa.base_url, aa.model_name, aa.account_alias, aa.api_type 
         FROM ai_accounts aa
         WHERE is_active = TRUE 
           AND cooldown_until = ?
@@ -618,7 +618,7 @@ export class TaskService {
       await this.env.DB.prepare(lockQuery).bind(...params).run();
       
       const selectQuery = `
-        SELECT aa.id, aa.api_key_encrypted, aa.base_url, aa.model_name, aa.account_alias 
+        SELECT aa.id, aa.api_key_encrypted, aa.base_url, aa.model_name, aa.account_alias, aa.api_type 
         FROM ai_accounts aa
         WHERE is_active = TRUE 
           AND cooldown_until = ?
