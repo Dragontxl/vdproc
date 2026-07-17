@@ -419,7 +419,9 @@ def process_shot(shot_index):
 
     main_prompt = f"{positive_prompt}, American animation style, anime style, high quality, {scene_desc}"
     if dialogue and dialogue != 'null':
-        main_prompt += f", dialogue: {dialogue}"
+        main_prompt += f", characters speaking: {dialogue}, no subtitle text on screen, no text overlay"
+    else:
+        main_prompt += ", no dialogue, no speech, characters with neutral expression"
 
     account_index = shot_index % len(accounts) if accounts else 0
     output_fps = int(os.environ.get('OUTPUT_FPS', 24))
