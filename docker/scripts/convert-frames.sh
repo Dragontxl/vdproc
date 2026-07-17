@@ -84,7 +84,7 @@ acquire_ai_account() {
                 fi
             fi
             
-            echo "Shot $shot_index ${frame_type}: Acquired AI account index $target_index"
+            echo "Shot $shot_index ${frame_type}: Acquired AI account index $target_index" >&2
             echo "$target_index"
             return 0
         fi
@@ -93,7 +93,7 @@ acquire_ai_account() {
         sleep $ACQUIRE_ACCOUNT_INTERVAL
     done
     
-    echo "Shot $shot_index ${frame_type}: Failed to acquire AI account after $ACQUIRE_ACCOUNT_TIMEOUT seconds"
+    echo "Shot $shot_index ${frame_type}: Failed to acquire AI account after $ACQUIRE_ACCOUNT_TIMEOUT seconds" >&2
     echo "-1"
     return 1
 }

@@ -8,6 +8,16 @@ WORK_DIR="/tmp/$TASK_ID"
 mkdir -p "$WORK_DIR"
 cd "$WORK_DIR"
 
+echo "=== Range Execution Environment ==="
+echo "TASK_ID: $TASK_ID"
+echo "START_PHASE: $START_PHASE"
+echo "END_PHASE: $END_PHASE"
+echo "AI_API_KEY: ${AI_API_KEY:0:20}..."
+echo "AI_BASE_URL: $AI_BASE_URL"
+echo "AI_ACCOUNTS length: ${#AI_ACCOUNTS}"
+echo "PROMPT: ${PROMPT:0:50}..."
+echo "MAX_CONCURRENT: $MAX_CONCURRENT"
+
 PHASES=("DETECT" "ANALYZE" "SELECT_FACES" "GENERATE_CHARACTERS" "CROP_SHOTS" "CONVERT_FRAMES" "GENERATE_SHOTS" "COMPOSE")
 PHASE_SCRIPTS=(
   "/scripts/detect-shots.sh"
