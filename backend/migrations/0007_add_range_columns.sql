@@ -1,0 +1,2 @@
+ALTER TABLE tasks ADD COLUMN start_phase TEXT;
+ALTER TABLE tasks ADD COLUMN end_phase TEXT;
