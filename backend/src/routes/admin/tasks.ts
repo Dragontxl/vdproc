@@ -112,4 +112,62 @@ taskRoutes.get('/phase-order', async (c) => {
   });
 });
 
+taskRoutes.get('/:id/subtasks', async (c) => {
+  const { id } = c.req.param();
+  const phase = c.req.query('phase') as string;
+  
+  const taskService = new TaskService(c.env as Bindings);
+  const subtasks = await taskService.getPhaseSubtasks(id, phase);
+  
+  return c.json({
+    code: 200,
+    data: subtasks,
+    msg: 'success',
+  });
+});
+
+taskRoutes.post('/:id/subtasks/:phase/:index/run', async (c) => {
+  const { id, phase, index } = c.req.param();
+  
+  const taskService = new TaskService(c.env as Bindings);
+  
+  try {
+    const result = await taskService.runSubtask(id, phase, parseInt(index));
+    return c.json({
+      code: 200,
+      data: result,
+      msg: '子任务启动成功',
+    });
+  } catch (error) {
+    return c.json({
+      code: 500,
+      data: null,
+      msg: (error as Error).message,
+    }, 500);
+  }
+});
+
+taskRoutes.post('/:id/subtasks', async (c) => {
+  const { id } = c.req.param();
+  const body = await c.req.json().catch(() => ({}));
+  const { phase, subtask_index, subtask_type, input_path, metadata } = body;
+  
+  const taskService = new TaskService(c.env as Bindings);
+  
+  try {
+    await taskService.createPhaseSubtask(id, phase, subtask_index, subtask_type, input_path, metadata);
+    return c.json({
+      code: 201,
+      data: null,
+      msg: '子任务创建成功',
+    }, 201);
+  } catch (error) {
+    return c.json({
+      code: 500,
+      data: null,
+      msg: (error as Error).message,
+    }, 500);
+  }
+});
+
 export { taskRoutes };

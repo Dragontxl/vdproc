@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider, Alert, Progress, Select } from 'antd';
+import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider, Alert, Progress, Select, Table, Popconfirm } from 'antd';
 import {
   PlayCircleOutlined,
   StopOutlined,
@@ -10,6 +10,8 @@ import {
   PauseCircleOutlined,
   CheckCircleOutlined,
   RocketOutlined,
+  ReloadOutlined,
+  EyeOutlined,
 } from '@ant-design/icons';
 import { taskApi } from '../api';
 import dayjs from 'dayjs';
@@ -59,6 +61,9 @@ export default function TaskDetail() {
   const [phaseStatus, setPhaseStatus] = useState<Record<string, { ready: boolean; missing: string[]; available: string[] }>>({});
   const [startPhaseValue, setStartPhaseValue] = useState<TaskPhase>('DETECT');
   const [endPhaseValue, setEndPhaseValue] = useState<TaskPhase>('COMPOSE');
+  const [subtasks, setSubtasks] = useState<any[]>([]);
+  const [selectedSubtaskPhase, setSelectedSubtaskPhase] = useState<TaskPhase | ''>('');
+  const [subtaskLoading, setSubtaskLoading] = useState(false);
   
   const phases: TaskPhase[] = ['DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
 
@@ -97,6 +102,32 @@ export default function TaskDetail() {
       setLogs(result.data || []);
     } catch (error) {
       console.error('Failed to load logs:', error);
+    }
+  };
+
+  const loadSubtasks = async (phase?: TaskPhase) => {
+    setSubtaskLoading(true);
+    try {
+      const result = await taskApi.getSubtasks(id!, phase);
+      setSubtasks(result.data || []);
+      if (phase) {
+        setSelectedSubtaskPhase(phase);
+      }
+    } catch (error) {
+      message.error('加载子任务失败');
+    } finally {
+      setSubtaskLoading(false);
+    }
+  };
+
+  const handleRunSubtask = async (phase: string, index: number) => {
+    try {
+      await taskApi.runSubtask(id!, phase, index);
+      message.success('子任务已启动');
+      loadSubtasks(selectedSubtaskPhase as TaskPhase);
+    } catch (error: any) {
+      const msg = error.response?.data?.msg || '启动子任务失败';
+      message.error(msg);
     }
   };
 
@@ -412,6 +443,121 @@ export default function TaskDetail() {
               </Timeline.Item>
             ))}
           </Timeline>
+        )}
+      </Card>
+
+      <Card title="子任务管理" style={{ marginTop: 24 }}>
+        <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
+          <span style={{ fontWeight: 'bold' }}>选择阶段查看子任务：</span>
+          <Select
+            value={selectedSubtaskPhase || undefined}
+            onChange={(value) => {
+              setSelectedSubtaskPhase(value as TaskPhase);
+              if (value) {
+                loadSubtasks(value as TaskPhase);
+              } else {
+                setSubtasks([]);
+              }
+            }}
+            style={{ width: 160 }}
+            placeholder="全部阶段"
+          >
+            {phases.map((p) => (
+              <Option key={p} value={p}>{phaseConfig[p].label}</Option>
+            ))}
+          </Select>
+          <Button type="primary" onClick={() => loadSubtasks(selectedSubtaskPhase as TaskPhase)} disabled={!selectedSubtaskPhase}>
+            刷新
+          </Button>
+        </div>
+
+        {subtasks.length === 0 ? (
+          <p>{selectedSubtaskPhase ? '该阶段暂无子任务' : '请选择阶段查看子任务'}</p>
+        ) : (
+          <Table
+            dataSource={subtasks}
+            rowKey={(record) => `${record.phase}-${record.subtask_index}`}
+            loading={subtaskLoading}
+            pagination={{ pageSize: 10 }}
+          >
+            <Table.Column
+              title="阶段"
+              dataIndex="phase"
+              key="phase"
+              render={(phase) => <Tag color="blue">{phaseConfig[phase as TaskPhase]?.label || phase}</Tag>}
+            />
+            <Table.Column
+              title="子任务索引"
+              dataIndex="subtask_index"
+              key="subtask_index"
+            />
+            <Table.Column
+              title="类型"
+              dataIndex="subtask_type"
+              key="subtask_type"
+              render={(type) => <Tag>{type}</Tag>}
+            />
+            <Table.Column
+              title="状态"
+              dataIndex="status"
+              key="status"
+              render={(status) => (
+                <Tag color={
+                  status === 'COMPLETED' ? 'green' :
+                  status === 'PROCESSING' ? 'blue' :
+                  status === 'FAILED' ? 'red' : 'default'
+                }>
+                  {status === 'COMPLETED' ? '已完成' :
+                   status === 'PROCESSING' ? '处理中' :
+                   status === 'FAILED' ? '失败' : '等待中'}
+                </Tag>
+              )}
+            />
+            <Table.Column
+              title="输入路径"
+              dataIndex="input_path"
+              key="input_path"
+              ellipsis
+              width={300}
+            />
+            <Table.Column
+              title="输出路径"
+              dataIndex="output_path"
+              key="output_path"
+              ellipsis
+              width={300}
+            />
+            <Table.Column
+              title="重试次数"
+              dataIndex="retry_count"
+              key="retry_count"
+              render={(retry, record) => `${retry}/${record.max_retries || 3}`}
+            />
+            <Table.Column
+              title="错误信息"
+              dataIndex="error_msg"
+              key="error_msg"
+              ellipsis
+              width={200}
+            />
+            <Table.Column
+              title="操作"
+              key="actions"
+              render={(_, record) => (
+                <Space>
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<ReloadOutlined />}
+                    onClick={() => handleRunSubtask(record.phase, record.subtask_index)}
+                    disabled={record.status === 'PROCESSING'}
+                  >
+                    {record.status === 'PROCESSING' ? '处理中' : '运行'}
+                  </Button>
+                </Space>
+              )}
+            />
+          </Table>
         )}
       </Card>
     </div>

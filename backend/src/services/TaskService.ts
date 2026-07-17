@@ -1028,6 +1028,122 @@ export class TaskService {
     `).bind(progress, processedCount, totalCount, taskId).run();
   }
 
+  async getPhaseSubtasks(taskId: string, phase?: string) {
+    let query = 'SELECT * FROM phase_subtasks WHERE task_id = ?';
+    const params: (string | number)[] = [taskId];
+    
+    if (phase) {
+      query += ' AND phase = ?';
+      params.push(phase);
+    }
+    
+    query += ' ORDER BY phase, subtask_index';
+    
+    const result = await this.env.DB.prepare(query).bind(...params).all();
+    return result.results || [];
+  }
+
+  async createPhaseSubtask(taskId: string, phase: string, subtaskIndex: number, subtaskType: string, inputPath?: string, metadata?: string) {
+    await this.env.DB.prepare(`
+      INSERT OR IGNORE INTO phase_subtasks (task_id, phase, subtask_index, subtask_type, input_path, metadata)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(taskId, phase, subtaskIndex, subtaskType, inputPath || '', metadata || '').run();
+  }
+
+  async updatePhaseSubtaskStatus(taskId: string, phase: string, subtaskIndex: number, status: string, outputPath?: string, errorMsg?: string) {
+    await this.env.DB.prepare(`
+      UPDATE phase_subtasks SET status = ?, output_path = ?, error_msg = ?, 
+        completed_at = CASE WHEN status = 'COMPLETED' THEN STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') ELSE completed_at END,
+        started_at = CASE WHEN status = 'PROCESSING' THEN STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') ELSE started_at END,
+        retry_count = CASE WHEN status = 'FAILED' THEN retry_count + 1 ELSE retry_count END
+      WHERE task_id = ? AND phase = ? AND subtask_index = ?
+    `).bind(status, outputPath || '', errorMsg || '', taskId, phase, subtaskIndex).run();
+  }
+
+  async runSubtask(taskId: string, phase: string, subtaskIndex: number) {
+    const subtaskResult = await this.env.DB.prepare(`
+      SELECT * FROM phase_subtasks WHERE task_id = ? AND phase = ? AND subtask_index = ?
+    `).bind(taskId, phase, subtaskIndex).first();
+    
+    if (!subtaskResult) {
+      throw new Error('Subtask not found');
+    }
+    
+    const subtask = subtaskResult as any;
+    
+    await this.updatePhaseSubtaskStatus(taskId, phase, subtaskIndex, 'PROCESSING');
+    
+    const task = await this.getTask(taskId);
+    if (!task || !task.github_account_id) {
+      throw new Error('Task or GitHub account not found');
+    }
+    
+    const subtaskData = {
+      task_id: taskId,
+      phase: phase,
+      subtask_index: subtaskIndex,
+      subtask_type: subtask.subtask_type,
+      input_path: subtask.input_path,
+      metadata: subtask.metadata,
+      config: JSON.stringify({
+        video_path: task.video_path,
+        fps: task.fps,
+        prompt: task.prompt,
+        output_fps: task.output_fps,
+      }),
+    };
+    
+    const owner = this.env.GITHUB_REPO_OWNER;
+    const repo = this.env.GITHUB_REPO_NAME;
+    
+    const ghAccountResult = await this.env.DB.prepare(`
+      SELECT token_encrypted FROM github_accounts WHERE id = ?
+    `).bind(task.github_account_id).first();
+    
+    if (!ghAccountResult) {
+      throw new Error('GitHub account not found');
+    }
+    
+    const storedToken = (ghAccountResult as { token_encrypted: string }).token_encrypted;
+    let ghApiKey = storedToken;
+    if (!storedToken.startsWith('ghp_') && !storedToken.startsWith('github_pat_')) {
+      try {
+        ghApiKey = await this.cryptoService.decrypt(storedToken);
+      } catch {
+        ghApiKey = storedToken;
+      }
+    }
+    
+    const authHeader = ghApiKey.startsWith('ghp_')
+      ? `token ${ghApiKey}`
+      : `Bearer ${ghApiKey}`;
+    
+    const payload = {
+      event_type: `video-processing-subtask-${phase.toLowerCase().replace(/_/g, '-')}`,
+      client_payload: subtaskData,
+    };
+    
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/dispatches`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader,
+        'User-Agent': 'AI-Video-Processor',
+        'Accept': 'application/vnd.github.v3+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+      body: JSON.stringify(payload),
+      redirect: 'follow',
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to dispatch subtask workflow: ${response.status} ${errorText}`);
+    }
+    
+    return { success: true, message: 'Subtask dispatched successfully' };
+  }
+
   private generateUUID(): string {
     const array = new Uint8Array(16);
     crypto.getRandomValues(array);
