@@ -149,7 +149,7 @@ export class TaskService {
       return null;
     }
 
-    await this.triggerPhase(id, 'DETECT');
+    await this.triggerPhase(id, 'DETECT', undefined, undefined, 'DETECT', 'COMPOSE');
     return this.getTask(id);
   }
 
