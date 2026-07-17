@@ -638,6 +638,32 @@ export class TaskService {
     
     for (let i = startIndex; i <= endIndex; i++) {
       const currentPhase = phaseOrder[i];
+      if (currentPhase === 'ANALYZE') {
+        const lockedAccounts = await lockAIAccounts('text', maxConcurrent);
+        if (lockedAccounts.length > 0) {
+          const decryptedAccounts = await Promise.all(
+            (lockedAccounts as any[]).map(async (acc) => {
+              let decryptedKey = '';
+              if (acc.api_key_encrypted) {
+                try {
+                  decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
+                } catch {
+                  decryptedKey = acc.api_key_encrypted;
+                }
+              }
+              return {
+                ...acc,
+                api_key_encrypted: decryptedKey,
+                base_url: (acc.base_url || '').trim(),
+                model_name: (acc.model_name || '').trim()
+              };
+            })
+          );
+          const existingAccounts = aiAccountsJson ? JSON.parse(aiAccountsJson) : [];
+          existingAccounts.push(...decryptedAccounts);
+          aiAccountsJson = JSON.stringify(existingAccounts);
+        }
+      }
       if (currentPhase === 'CONVERT_FRAMES' || currentPhase === 'GENERATE_CHARACTERS') {
         const lockedAccounts = await lockAIAccounts('image', maxConcurrent);
         if (lockedAccounts.length > 0) {
@@ -692,6 +718,17 @@ export class TaskService {
       }
     }
 
+    let primaryAiApiKey = '';
+    let primaryAiBaseUrl = '';
+    
+    if (aiAccountsJson) {
+      const allAccounts = JSON.parse(aiAccountsJson);
+      if (allAccounts.length > 0) {
+        primaryAiApiKey = allAccounts[0].api_key_encrypted;
+        primaryAiBaseUrl = allAccounts[0].base_url || '';
+      }
+    }
+
     const payload = {
       event_type: 'video-processing-range',
       client_payload: {
@@ -700,6 +737,8 @@ export class TaskService {
         end_phase: endPhase,
         gh_account_id: ghAccountId,
         ai_accounts: aiAccountsJson,
+        ai_api_key: primaryAiApiKey,
+        ai_base_url: primaryAiBaseUrl,
         config: JSON.stringify({
           video_path: task.video_path,
           fps: task.fps,
