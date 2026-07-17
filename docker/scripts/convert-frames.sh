@@ -39,7 +39,10 @@ fi
 TOTAL_FRAMES=$((SHOT_COUNT + 1))
 
 mkdir -p ./ai_shot_frames
+rm -rf ./locks
 mkdir -p ./locks
+rm -f ./bad_accounts.txt
+rm -f ./frame_results.txt
 
 ACCOUNT_COUNT=1
 if [ -n "$AI_ACCOUNTS" ]; then
@@ -187,6 +190,19 @@ process_frame() {
             CHAR_FRAME_KEY="${TASK_ID}/character_frames/${FIRST_CHARACTER}_best.jpg"
             CHARACTER_IMAGE_URL="${R2_PUBLIC_URL}/${CHAR_FRAME_KEY}"
             echo "  Character reference URL: $CHARACTER_IMAGE_URL"
+            CHAR_FILE_LOCAL="./character_frames/${FIRST_CHARACTER}_best.jpg"
+            if [ ! -f "$CHAR_FILE_LOCAL" ] || [ ! -s "$CHAR_FILE_LOCAL" ]; then
+                mkdir -p ./character_frames
+                echo "  Downloading character reference image from R2..."
+                aws s3 cp "s3://$R2_BUCKET_NAME/$CHAR_FRAME_KEY" "$CHAR_FILE_LOCAL" \
+                    --endpoint-url "$R2_ENDPOINT_URL" 2>/dev/null || true
+            fi
+            if [ -f "$CHAR_FILE_LOCAL" ] && [ -s "$CHAR_FILE_LOCAL" ]; then
+                echo "  Character reference image available: $CHAR_FILE_LOCAL"
+            else
+                echo "  Warning: Character reference image not found, proceeding without reference"
+                CHARACTER_IMAGE_URL=""
+            fi
         fi
     fi
 

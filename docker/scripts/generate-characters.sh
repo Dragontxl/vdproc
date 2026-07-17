@@ -32,7 +32,10 @@ ROLE_COUNT=$(echo "$RESULT" | jq -r '.characters | length')
 echo "Found $ROLE_COUNT characters"
 
 mkdir -p ./characters
+rm -rf ./locks
 mkdir -p ./locks
+rm -f ./bad_accounts.txt
+rm -f ./character_results.txt
 
 ACCOUNT_COUNT=1
 if [ -n "$AI_ACCOUNTS" ]; then
