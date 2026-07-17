@@ -97,12 +97,19 @@ def call_gemini_api(video_file, prompt_text, model_name=PRIMARY_MODEL, attempt=1
         
         if response.parts and len(response.parts) > 0:
             text = response.text
-            log(f"API response text length: {len(text)} chars")
-            return text
+            if text:
+                text = text.strip()
+            log(f"API response text length: {len(text) if text else 0} chars")
+            if text and len(text) > 0:
+                return text
+            else:
+                log("API response is empty or whitespace only")
         
         log(f"No valid response found")
         if response.candidates:
             log(f"Candidates: {json.dumps(response.candidates[:1], default=str)[:2000]}")
+        if hasattr(response, 'usage_metadata'):
+            log(f"Usage metadata: {json.dumps(response.usage_metadata, default=str)}")
         
         return None
     except Exception as e:
