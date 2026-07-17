@@ -982,7 +982,13 @@ export class TaskService {
     
     let aiAccountsJson = '';
     const ghAccountId = task.github_account_id;
-    const maxConcurrent = 1;
+    
+    const activeGhAccountsResult = await this.env.DB.prepare(`
+      SELECT COUNT(*) as count FROM github_accounts 
+      WHERE is_active = TRUE AND (is_limited IS NULL OR is_limited = FALSE)
+    `).first();
+    const activeGhAccountCount = activeGhAccountsResult ? parseInt((activeGhAccountsResult as { count: string }).count) : 0;
+    const maxConcurrent = activeGhAccountCount * 2;
     
     if (phase === 'CONVERT_FRAMES' || phase === 'GENERATE_CHARACTERS') {
       const lockedAccounts = await this.lockAIAccounts('image', maxConcurrent, ghAccountId);
