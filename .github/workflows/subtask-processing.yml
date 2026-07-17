@@ -88,9 +88,9 @@ jobs:
           CALLBACK_URL: ${{ secrets.CALLBACK_URL }}
           CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
           BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
-          AI_ACCOUNTS: ${{ secrets.AI_ACCOUNTS }}
+          AI_API_KEY: ${{ inputs.ai_api_key || github.event.client_payload.ai_api_key || secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ inputs.ai_base_url || github.event.client_payload.ai_base_url || secrets.AI_BASE_URL }}
+          AI_ACCOUNTS: ${{ inputs.ai_accounts || github.event.client_payload.ai_accounts || secrets.AI_ACCOUNTS }}
         run: |
           docker run --rm \
             -e TASK_ID="$TASK_ID" \
@@ -133,9 +133,9 @@ jobs:
           CALLBACK_URL: ${{ secrets.CALLBACK_URL }}
           CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
           BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
-          AI_ACCOUNTS: ${{ secrets.AI_ACCOUNTS }}
+          AI_API_KEY: ${{ inputs.ai_api_key || github.event.client_payload.ai_api_key || secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ inputs.ai_base_url || github.event.client_payload.ai_base_url || secrets.AI_BASE_URL }}
+          AI_ACCOUNTS: ${{ inputs.ai_accounts || github.event.client_payload.ai_accounts || secrets.AI_ACCOUNTS }}
         run: |
           docker run --rm \
             -e TASK_ID="$TASK_ID" \
@@ -178,9 +178,9 @@ jobs:
           CALLBACK_URL: ${{ secrets.CALLBACK_URL }}
           CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
           BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
-          AI_ACCOUNTS: ${{ secrets.AI_ACCOUNTS }}
+          AI_API_KEY: ${{ inputs.ai_api_key || github.event.client_payload.ai_api_key || secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ inputs.ai_base_url || github.event.client_payload.ai_base_url || secrets.AI_BASE_URL }}
+          AI_ACCOUNTS: ${{ inputs.ai_accounts || github.event.client_payload.ai_accounts || secrets.AI_ACCOUNTS }}
         run: |
           docker run --rm \
             -e TASK_ID="$TASK_ID" \

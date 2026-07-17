@@ -1078,6 +1078,58 @@ export class TaskService {
       throw new Error('Task or GitHub account not found');
     }
     
+    let aiAccountsJson = '';
+    const ghAccountId = task.github_account_id;
+    const maxConcurrent = 1;
+    
+    if (phase === 'CONVERT_FRAMES' || phase === 'GENERATE_CHARACTERS') {
+      const lockedAccounts = await this.lockAIAccounts('image', maxConcurrent, ghAccountId);
+      if (lockedAccounts.length > 0) {
+        const decryptedAccounts = await Promise.all(
+          (lockedAccounts as any[]).map(async (acc) => {
+            let decryptedKey = '';
+            if (acc.api_key_encrypted) {
+              try {
+                decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
+              } catch {
+                decryptedKey = acc.api_key_encrypted;
+              }
+            }
+            return {
+              ...acc,
+              api_key_encrypted: decryptedKey,
+              base_url: (acc.base_url || '').trim(),
+              model_name: (acc.model_name || '').trim()
+            };
+          })
+        );
+        aiAccountsJson = JSON.stringify(decryptedAccounts);
+      }
+    } else if (phase === 'GENERATE_SHOTS') {
+      const lockedAccounts = await this.lockAIAccounts('video', maxConcurrent, ghAccountId);
+      if (lockedAccounts.length > 0) {
+        const decryptedAccounts = await Promise.all(
+          (lockedAccounts as any[]).map(async (acc) => {
+            let decryptedKey = '';
+            if (acc.api_key_encrypted) {
+              try {
+                decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
+              } catch {
+                decryptedKey = acc.api_key_encrypted;
+              }
+            }
+            return {
+              ...acc,
+              api_key_encrypted: decryptedKey,
+              base_url: (acc.base_url || '').trim(),
+              model_name: (acc.model_name || '').trim()
+            };
+          })
+        );
+        aiAccountsJson = JSON.stringify(decryptedAccounts);
+      }
+    }
+    
     const subtaskData = {
       task_id: taskId,
       phase: phase,
@@ -1085,12 +1137,14 @@ export class TaskService {
       subtask_type: subtask.subtask_type,
       input_path: subtask.input_path,
       metadata: subtask.metadata,
-      gh_account_id: task.github_account_id,
+      gh_account_id: ghAccountId,
+      ai_accounts: aiAccountsJson,
       config: JSON.stringify({
         video_path: task.video_path,
         fps: task.fps,
         prompt: task.prompt,
         output_fps: task.output_fps,
+        max_concurrent: maxConcurrent,
       }),
     };
     
@@ -1099,7 +1153,7 @@ export class TaskService {
     
     const ghAccountResult = await this.env.DB.prepare(`
       SELECT token_encrypted FROM github_accounts WHERE id = ?
-    `).bind(task.github_account_id).first();
+    `).bind(ghAccountId).first();
     
     if (!ghAccountResult) {
       throw new Error('GitHub account not found');
