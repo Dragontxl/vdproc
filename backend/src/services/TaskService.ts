@@ -990,6 +990,9 @@ export class TaskService {
     const activeGhAccountCount = activeGhAccountsResult ? parseInt((activeGhAccountsResult as { count: string }).count) : 0;
     const maxConcurrent = activeGhAccountCount * 2;
     
+    let aiApiKey = '';
+    let aiBaseUrl = '';
+    
     if (phase === 'CONVERT_FRAMES' || phase === 'GENERATE_CHARACTERS') {
       const lockedAccounts = await this.lockAIAccounts('image', maxConcurrent, ghAccountId);
       console.log(`[runSubtask] Locked ${lockedAccounts.length} image AI accounts for task ${taskId}`);
@@ -1020,7 +1023,9 @@ export class TaskService {
           })
         );
         aiAccountsJson = JSON.stringify(decryptedAccounts);
-        console.log(`[runSubtask] aiAccountsJson length: ${aiAccountsJson.length}`);
+        aiApiKey = decryptedAccounts[0].api_key_encrypted;
+        aiBaseUrl = decryptedAccounts[0].base_url || '';
+        console.log(`[runSubtask] aiAccountsJson length: ${aiAccountsJson.length}, aiApiKey length: ${aiApiKey.length}`);
       }
     } else if (phase === 'GENERATE_SHOTS') {
       const lockedAccounts = await this.lockAIAccounts('video', maxConcurrent, ghAccountId);
@@ -1044,6 +1049,8 @@ export class TaskService {
           })
         );
         aiAccountsJson = JSON.stringify(decryptedAccounts);
+        aiApiKey = decryptedAccounts[0].api_key_encrypted;
+        aiBaseUrl = decryptedAccounts[0].base_url || '';
       }
     }
     
@@ -1055,6 +1062,8 @@ export class TaskService {
       input_path: subtask.input_path,
       metadata: subtask.metadata,
       gh_account_id: ghAccountId,
+      ai_api_key: aiApiKey,
+      ai_base_url: aiBaseUrl,
       ai_accounts: aiAccountsJson,
       config: JSON.stringify({
         video_path: task.video_path,
