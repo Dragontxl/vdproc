@@ -206,8 +206,8 @@ export default function FileBrowser() {
     {
       title: (
         <Checkbox
-          checked={allSelected && files.length > 0}
-          indeterminate={selectedKeys.length > 0 && !allSelected}
+          checked={selectedKeys.length === files.length && files.length > 0}
+          indeterminate={selectedKeys.length > 0 && selectedKeys.length < files.length}
           onChange={toggleSelectAll}
           disabled={files.length === 0}
         />
