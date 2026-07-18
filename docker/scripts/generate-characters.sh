@@ -39,6 +39,7 @@ rm -f ./character_results.txt
 
 ACCOUNT_COUNT=1
 if [ -n "$AI_ACCOUNTS" ]; then
+    AI_ACCOUNTS=$(echo "$AI_ACCOUNTS" | jq -c '[.[] | select(.api_type == "image")]')
     ACCOUNT_COUNT=$(echo "$AI_ACCOUNTS" | jq -r '. | length')
     if [ -z "$ACCOUNT_COUNT" ] || [ "$ACCOUNT_COUNT" = "null" ] || ! [[ "$ACCOUNT_COUNT" =~ ^[0-9]+$ ]]; then
         ACCOUNT_COUNT=1

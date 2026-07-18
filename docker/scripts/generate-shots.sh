@@ -36,6 +36,7 @@ mkdir -p ./generated_shots
 
 ACCOUNT_COUNT=1
 if [ -n "$AI_ACCOUNTS" ]; then
+    AI_ACCOUNTS=$(echo "$AI_ACCOUNTS" | jq -c '[.[] | select(.api_type == "video")]')
     ACCOUNT_COUNT=$(echo "$AI_ACCOUNTS" | jq -r '. | length')
 fi
 

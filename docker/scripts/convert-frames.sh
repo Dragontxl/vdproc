@@ -46,6 +46,7 @@ rm -f ./frame_results.txt
 
 ACCOUNT_COUNT=1
 if [ -n "$AI_ACCOUNTS" ]; then
+    AI_ACCOUNTS=$(echo "$AI_ACCOUNTS" | jq -c '[.[] | select(.api_type == "image")]')
     ACCOUNT_COUNT=$(echo "$AI_ACCOUNTS" | jq -r '. | length')
 fi
 
