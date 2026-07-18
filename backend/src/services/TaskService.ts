@@ -350,7 +350,6 @@ export class TaskService {
           } catch (decryptErr) {
             console.error('dispatchGitHubWorkflow: AI API key decryption failed:', (decryptErr as Error).message);
             console.log('dispatchGitHubWorkflow: Stored key length:', storedKey.length, 'starts with:', storedKey.substring(0, 4));
-            aiApiKey = storedKey;
           }
         }
         aiBaseUrl = (aiAccountResult as { base_url: string }).base_url || '';
@@ -488,6 +487,8 @@ export class TaskService {
     const maxConcurrent = activeGhAccountCount * 2;
 
     let aiAccountsJson = '';
+    let primaryAiApiKey = '';
+    let primaryAiBaseUrl = '';
     
     const startIndex = phaseOrder.indexOf(startPhase);
     const endIndex = phaseOrder.indexOf(endPhase);
@@ -505,17 +506,10 @@ export class TaskService {
           existingAccounts.push(...newAccounts);
           aiAccountsJson = JSON.stringify(existingAccounts);
         }
-      }
-    }
-
-    let primaryAiApiKey = '';
-    let primaryAiBaseUrl = '';
-    
-    if (aiAccountsJson) {
-      const allAccounts = JSON.parse(aiAccountsJson);
-      if (allAccounts.length > 0) {
-        primaryAiApiKey = allAccounts[0].api_key_encrypted;
-        primaryAiBaseUrl = allAccounts[0].base_url || '';
+        if (!primaryAiApiKey && result.aiApiKey) {
+          primaryAiApiKey = result.aiApiKey;
+          primaryAiBaseUrl = result.aiBaseUrl || '';
+        }
       }
     }
 
@@ -1019,8 +1013,8 @@ export class TaskService {
         if (acc.api_key_encrypted) {
           try {
             decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
-          } catch {
-            decryptedKey = acc.api_key_encrypted;
+          } catch (decryptErr) {
+            console.error('getDecryptedAIAccounts: Failed to decrypt API key for account', acc.id || acc.account_alias, ':', (decryptErr as Error).message);
           }
         }
         return {
