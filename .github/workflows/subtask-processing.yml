@@ -22,6 +22,9 @@ on:
       gh_account_id:
         description: 'GitHub Account ID'
         required: true
+      config:
+        description: 'Config JSON containing video_path, fps, prompt, output_fps, max_concurrent, subtask_type, input_path, metadata'
+        required: false
 
 jobs:
   process:
@@ -48,29 +51,29 @@ jobs:
           TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
           PHASE: ${{ inputs.phase || github.event.client_payload.phase }}
           SUBTASK_INDEX: ${{ inputs.subtask_index || github.event.client_payload.subtask_index }}
-          SUBTASK_TYPE: ${{ inputs.subtask_type || github.event.client_payload.subtask_type }}
-          INPUT_PATH: ${{ inputs.input_path || github.event.client_payload.input_path }}
-          METADATA: ${{ inputs.metadata || github.event.client_payload.metadata }}
           CONFIG_JSON: ${{ inputs.config || github.event.client_payload.config || '{}' }}
         run: |
           echo "TASK_ID=$TASK_ID" >> $GITHUB_OUTPUT
           echo "PHASE=$PHASE" >> $GITHUB_OUTPUT
           echo "SUBTASK_INDEX=$SUBTASK_INDEX" >> $GITHUB_OUTPUT
-          echo "SUBTASK_TYPE=$SUBTASK_TYPE" >> $GITHUB_OUTPUT
-          echo "INPUT_PATH=$INPUT_PATH" >> $GITHUB_OUTPUT
-          echo "METADATA=$METADATA" >> $GITHUB_OUTPUT
           
           VIDEO_PATH=$(echo "$CONFIG_JSON" | jq -r '.video_path // ""')
           FPS=$(echo "$CONFIG_JSON" | jq -r '.fps // 30')
           PROMPT=$(echo "$CONFIG_JSON" | jq -r '.prompt // ""')
           OUTPUT_FPS=$(echo "$CONFIG_JSON" | jq -r '.output_fps // 24')
           MAX_CONCURRENT=$(echo "$CONFIG_JSON" | jq -r '.max_concurrent // 2')
+          SUBTASK_TYPE=$(echo "$CONFIG_JSON" | jq -r '.subtask_type // ""')
+          INPUT_PATH=$(echo "$CONFIG_JSON" | jq -r '.input_path // ""')
+          METADATA=$(echo "$CONFIG_JSON" | jq -r '.metadata // ""')
           
           echo "VIDEO_PATH=$VIDEO_PATH" >> $GITHUB_OUTPUT
           echo "FPS=$FPS" >> $GITHUB_OUTPUT
           echo "PROMPT=$PROMPT" >> $GITHUB_OUTPUT
           echo "OUTPUT_FPS=$OUTPUT_FPS" >> $GITHUB_OUTPUT
           echo "MAX_CONCURRENT=$MAX_CONCURRENT" >> $GITHUB_OUTPUT
+          echo "SUBTASK_TYPE=$SUBTASK_TYPE" >> $GITHUB_OUTPUT
+          echo "INPUT_PATH=$INPUT_PATH" >> $GITHUB_OUTPUT
+          echo "METADATA=$METADATA" >> $GITHUB_OUTPUT
 
       - name: Run character generation subtask
         if: ${{ steps.parse_subtask.outputs.PHASE == 'GENERATE_CHARACTERS' }}

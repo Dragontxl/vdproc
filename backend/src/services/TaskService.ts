@@ -887,9 +887,6 @@ export class TaskService {
       task_id: taskId,
       phase: phase,
       subtask_index: subtaskIndex,
-      subtask_type: subtask.subtask_type,
-      input_path: subtask.input_path,
-      metadata: subtask.metadata,
       gh_account_id: ghAccountId,
       ai_api_key: aiApiKey,
       ai_base_url: aiBaseUrl,
@@ -900,6 +897,9 @@ export class TaskService {
         prompt: task.prompt,
         output_fps: task.output_fps,
         max_concurrent: maxConcurrent,
+        subtask_type: subtask.subtask_type,
+        input_path: subtask.input_path,
+        metadata: subtask.metadata,
       }),
     };
     
