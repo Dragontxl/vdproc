@@ -21,7 +21,7 @@ ADMIN_URL = "${ADMIN_URL}"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "ai-video-db"
-database_id = "${D1_DATABASE_ID}"
+database_id = "e85ca381-6d56-4971-ae3e-bf91d82cf508"
 
 [[env.production.r2_buckets]]
 binding = "R2"
@@ -29,7 +29,7 @@ bucket_name = "ai-video-bucket"
 
 [[env.production.kv_namespaces]]
 binding = "KV"
-id = "${KV_NAMESPACE_ID}"
+id = "f657d34c477947e4b9ca003332b75073"
 
 [vars]
 ADMIN_API_KEY = "${ADMIN_API_KEY}"
@@ -45,7 +45,7 @@ ADMIN_URL = "${ADMIN_URL}"
 [[d1_databases]]
 binding = "DB"
 database_name = "ai-video-db"
-database_id = "${D1_DATABASE_ID}"
+database_id = "e85ca381-6d56-4971-ae3e-bf91d82cf508"
 
 [[r2_buckets]]
 binding = "R2"
@@ -53,4 +53,4 @@ bucket_name = "ai-video-bucket"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "${KV_NAMESPACE_ID}"
+id = "f657d34c477947e4b9ca003332b75073"
