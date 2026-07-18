@@ -15,10 +15,12 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 app.use('*', cors({
   origin: (origin) => {
+    const frontendUrl = env.FRONTEND_URL || 'https://ai-video.ldragon.xyz';
+    const adminUrl = env.ADMIN_URL || 'https://ai-video-admin.ldragon.xyz';
     const allowedOrigins = [
       'http://localhost:3000',
-      'https://ai-video.ldragon.xyz',
-      'https://ai-video-admin.ldragon.xyz',
+      frontendUrl,
+      adminUrl,
       'https://b4272ef7.ai-video-frontend-c9p.pages.dev',
       'https://main.ai-video-frontend-c9p.pages.dev',
     ];

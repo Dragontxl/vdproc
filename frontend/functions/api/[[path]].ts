@@ -1,10 +1,12 @@
-export async function onRequest(context: { request: Request }) {
-  const { request } = context;
+export async function onRequest(context: { request: Request; env: { API_URL?: string } }) {
+  const { request, env } = context;
   const url = new URL(request.url);
-  const apiUrl = `https://ai-video.ldragon.xyz${url.pathname}${url.search}`;
+  const apiBaseUrl = env.API_URL || 'https://ai-video.ldragon.xyz';
+  const apiUrl = `${apiBaseUrl}${url.pathname}${url.search}`;
   
   const headers = new Headers(request.headers);
-  headers.set('Host', 'ai-video.ldragon.xyz');
+  const apiHost = new URL(apiBaseUrl).hostname;
+  headers.set('Host', apiHost);
   
   const newRequest = new Request(apiUrl, {
     method: request.method,

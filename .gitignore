@@ -30,10 +30,12 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+error_log.txt
 
 # Cloudflare
 .wrangler/
 .dev.vars
+backend/wrangler.toml
 
 # Secrets configuration
 scripts/secrets-config.json

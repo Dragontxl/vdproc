@@ -57,11 +57,12 @@ notify_subtask() {
         return
     fi
     
-    local first_frame_url="https://aivideobucket.ldragon.xyz/${TASK_ID}/ai_shot_frames/shot_${shot_index}_first.jpg"
+    local r2_public_url="${R2_PUBLIC_URL:-https://aivideobucket.ldragon.xyz}"
+    local first_frame_url="${r2_public_url}/${TASK_ID}/ai_shot_frames/shot_${shot_index}_first.jpg"
     if [ "$shot_index" -gt 0 ]; then
-        first_frame_url="https://aivideobucket.ldragon.xyz/${TASK_ID}/ai_shot_frames/shot_$((shot_index - 1))_last.jpg"
+        first_frame_url="${r2_public_url}/${TASK_ID}/ai_shot_frames/shot_$((shot_index - 1))_last.jpg"
     fi
-    local last_frame_url="https://aivideobucket.ldragon.xyz/${TASK_ID}/ai_shot_frames/shot_${shot_index}_last.jpg"
+    local last_frame_url="${r2_public_url}/${TASK_ID}/ai_shot_frames/shot_${shot_index}_last.jpg"
     
     local payload="{\"task_id\":\"$TASK_ID\",\"phase\":\"GENERATE_SHOTS\",\"subtask_index\":$shot_index"
     
@@ -401,11 +402,13 @@ def process_shot(shot_index):
     print(f"Processing shot {shot_index}: {start_time} - {end_time} (duration={duration:.3f}s)")
     notify_subtask_python("create", shot_index)
 
+    r2_public_url = os.environ.get('R2_PUBLIC_URL', 'https://aivideobucket.ldragon.xyz')
+    
     if shot_index == 0:
-        first_frame_url = f"https://aivideobucket.ldragon.xyz/{task_id}/ai_shot_frames/shot_0_first.jpg"
+        first_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_0_first.jpg"
     else:
-        first_frame_url = f"https://aivideobucket.ldragon.xyz/{task_id}/ai_shot_frames/shot_{shot_index - 1}_last.jpg"
-    last_frame_url = f"https://aivideobucket.ldragon.xyz/{task_id}/ai_shot_frames/shot_{shot_index}_last.jpg"
+        first_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_{shot_index - 1}_last.jpg"
+    last_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_{shot_index}_last.jpg"
 
     print(f"First frame URL: {first_frame_url}")
     print(f"Last frame URL: {last_frame_url}")

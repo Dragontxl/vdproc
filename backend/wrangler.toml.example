@@ -1,0 +1,56 @@
+name = "ai-video-worker"
+main = "src/index.ts"
+compatibility_date = "2024-05-29"
+compatibility_flags = ["nodejs_compat"]
+
+[env.production]
+name = "ai-video-worker"
+main = "src/index.ts"
+
+[env.production.vars]
+ADMIN_API_KEY = "your-admin-api-key"
+CALLBACK_SECRET = "your-callback-secret"
+ENCRYPTION_KEY = "your-encryption-key-32-bytes-minimum"
+JWT_SECRET = "your-jwt-secret"
+ENVIRONMENT = "production"
+GITHUB_REPO_OWNER = "your-github-username"
+GITHUB_REPO_NAME = "your-repo-name"
+FRONTEND_URL = "https://your-frontend-url"
+ADMIN_URL = "https://your-admin-url"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "your-d1-database-name"
+database_id = "your-d1-database-id"
+
+[[env.production.r2_buckets]]
+binding = "R2"
+bucket_name = "your-r2-bucket-name"
+
+[[env.production.kv_namespaces]]
+binding = "KV"
+id = "your-kv-namespace-id"
+
+[vars]
+ADMIN_API_KEY = "your-admin-api-key"
+CALLBACK_SECRET = "your-callback-secret"
+ENCRYPTION_KEY = "your-encryption-key-32-bytes-minimum"
+JWT_SECRET = "your-jwt-secret"
+ENVIRONMENT = "production"
+GITHUB_REPO_OWNER = "your-github-username"
+GITHUB_REPO_NAME = "your-repo-name"
+FRONTEND_URL = "https://your-frontend-url"
+ADMIN_URL = "https://your-admin-url"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "your-d1-database-name"
+database_id = "your-d1-database-id"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "your-r2-bucket-name"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "your-kv-namespace-id"

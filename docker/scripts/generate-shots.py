@@ -146,8 +146,9 @@ def main():
         
         print(f"Processing shot {shot_index}: {start_time} - {end_time} (duration={duration:.3f}s)")
         
-        first_frame_url = f"https://aivideobucket.ldragon.xyz/{task_id}/ai_shot_frames/shot_{shot_index}_first.jpg"
-        last_frame_url = f"https://aivideobucket.ldragon.xyz/{task_id}/ai_shot_frames/shot_{shot_index}_last.jpg"
+        r2_public_url = os.environ.get('R2_PUBLIC_URL', 'https://aivideobucket.ldragon.xyz')
+        first_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_{shot_index}_first.jpg"
+        last_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_{shot_index}_last.jpg"
         
         print(f"First frame URL: {first_frame_url}")
         print(f"Last frame URL: {last_frame_url}")
