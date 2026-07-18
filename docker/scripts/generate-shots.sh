@@ -91,6 +91,9 @@ notify_subtask() {
 export -f notify_subtask
 
 MAX_ROUNDS=3
+if [ -n "$SUBTASK_INDEX" ]; then
+    MAX_ROUNDS=1
+fi
 PENDING_FILE="/tmp/pending_indices.txt"
 MISSING_FILE="/tmp/missing_indices.txt"
 
