@@ -956,7 +956,7 @@ export class TaskService {
 
   private async lockAIAccounts(apiType?: string, limit?: number, ghAccountId?: string): Promise<any[]> {
     const lockTime = new Date(Date.now() + 3600 * 1000);
-    const updateTypeCondition = apiType ? ' AND ai_accounts.api_type = ?' : '';
+    const typeCondition = apiType ? ' AND ai_accounts.api_type = ?' : '';
     const selectTypeCondition = apiType ? ' AND aa.api_type = ?' : '';
     const params: (string | number)[] = [];
     
@@ -966,14 +966,15 @@ export class TaskService {
       WHERE is_active = TRUE 
         AND is_healthy = TRUE
         AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-        ${updateTypeCondition}
+        ${typeCondition}
         AND EXISTS (
           SELECT 1 FROM github_ai_bindings gab 
           WHERE gab.ai_account_id = ai_accounts.id AND gab.is_active = TRUE
         )
-        ${ghAccountId ? 'AND EXISTS (SELECT 1 FROM github_ai_bindings gab2 WHERE gab2.ai_account_id = ai_accounts.id AND gab2.github_account_id = ? AND gab2.is_active = TRUE)' : ''}
       ORDER BY 
-        last_used_at ASC NULLS FIRST, total_usage ASC
+        CASE WHEN ${ghAccountId ? 'EXISTS (SELECT 1 FROM github_ai_bindings gab2 WHERE gab2.ai_account_id = ai_accounts.id AND gab2.github_account_id = ? AND gab2.is_active = TRUE)' : 'FALSE'} THEN 0 ELSE 1 END,
+        last_used_at ASC NULLS FIRST,
+        total_usage ASC
       LIMIT ?
     `;
     
