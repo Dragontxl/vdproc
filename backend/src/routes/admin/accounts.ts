@@ -106,6 +106,8 @@ accountRoutes.get('/ai/:id/debug', async (c) => {
     return c.json({ code: 404, data: null, msg: 'Not found' }, 404);
   }
 
+  const env = c.env as Bindings;
+  const encryptionKey = env.ENCRYPTION_KEY;
   const storedKey = (result as any).api_key_encrypted;
   let decryptedKey = '';
   let decryptError = '';
@@ -116,7 +118,13 @@ accountRoutes.get('/ai/:id/debug', async (c) => {
     decryptError = (e as Error).message;
   }
 
-  const testEncrypt = await cryptoService.encrypt('test-key-123');
+  let testEncrypt = '';
+  let testEncryptError = '';
+  try {
+    testEncrypt = await cryptoService.encrypt('test-key-123');
+  } catch (e) {
+    testEncryptError = (e as Error).message;
+  }
   let testDecrypt = '';
   let testDecryptError = '';
   try {
@@ -129,12 +137,15 @@ accountRoutes.get('/ai/:id/debug', async (c) => {
     code: 200,
     data: {
       id: (result as any).id,
+      encryptionKeyLength: encryptionKey?.length || 0,
+      encryptionKeyIsSet: !!encryptionKey,
       storedKeyLength: storedKey?.length,
       storedKeyPrefix: storedKey?.substring(0, 10),
       decryptedKeyLength: decryptedKey.length,
       decryptedKeyPrefix: decryptedKey.substring(0, 4),
       decryptError,
       testEncryptLength: testEncrypt.length,
+      testEncryptError,
       testDecryptResult: testDecrypt,
       testDecryptError,
     },
