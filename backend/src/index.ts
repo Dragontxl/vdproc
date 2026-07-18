@@ -14,9 +14,9 @@ import { Bindings } from './types/env';
 const app = new Hono<{ Bindings: Bindings }>();
 
 app.use('*', cors({
-  origin: (origin) => {
-    const frontendUrl = env.FRONTEND_URL || 'https://ai-video.ldragon.xyz';
-    const adminUrl = env.ADMIN_URL || 'https://ai-video-admin.ldragon.xyz';
+  origin: (origin, c) => {
+    const frontendUrl = c.env.FRONTEND_URL || 'https://ai-video.ldragon.xyz';
+    const adminUrl = c.env.ADMIN_URL || 'https://ai-video-admin.ldragon.xyz';
     const allowedOrigins = [
       'http://localhost:3000',
       frontendUrl,

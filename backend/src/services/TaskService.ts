@@ -994,34 +994,18 @@ export class TaskService {
     let aiBaseUrl = '';
     
     if (phase === 'CONVERT_FRAMES' || phase === 'GENERATE_CHARACTERS') {
-      const allBindings = await this.env.DB.prepare(`
-        SELECT aa.id, aa.account_alias, aa.api_type, aa.is_active, aa.is_healthy, aa.cooldown_until
-        FROM ai_accounts aa
-        JOIN github_ai_bindings gab ON aa.id = gab.ai_account_id
-        WHERE gab.github_account_id = ? AND gab.is_active = TRUE
-      `).bind(ghAccountId).all();
-      console.log(`[runSubtask] All AI accounts bound to GitHub ${ghAccountId}:`, JSON.stringify(allBindings.results));
-      
       const lockedAccounts = await this.lockAIAccounts('image', maxConcurrent, ghAccountId);
-      console.log(`[runSubtask] Locked ${lockedAccounts.length} image AI accounts for task ${taskId}`);
-      lockedAccounts.forEach((acc: any) => {
-        console.log(`[runSubtask] Account: id=${acc.id}, alias=${acc.account_alias}, api_type=${acc.api_type}`);
-      });
       if (lockedAccounts.length > 0) {
         const decryptedAccounts = await Promise.all(
           (lockedAccounts as any[]).map(async (acc) => {
             let decryptedKey = '';
-            let decryptSuccess = false;
             if (acc.api_key_encrypted) {
               try {
                 decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
-                decryptSuccess = true;
-              } catch (e) {
+              } catch {
                 decryptedKey = acc.api_key_encrypted;
-                console.log(`[runSubtask] Failed to decrypt account ${acc.id}, using encrypted key`);
               }
             }
-            console.log(`[runSubtask] Account ${acc.id} (${acc.account_alias}): decryptSuccess=${decryptSuccess}, keyLength=${decryptedKey.length}`);
             return {
               ...acc,
               api_key_encrypted: decryptedKey,
@@ -1033,7 +1017,6 @@ export class TaskService {
         aiAccountsJson = JSON.stringify(decryptedAccounts);
         aiApiKey = decryptedAccounts[0].api_key_encrypted;
         aiBaseUrl = decryptedAccounts[0].base_url || '';
-        console.log(`[runSubtask] aiAccountsJson length: ${aiAccountsJson.length}, aiApiKey length: ${aiApiKey.length}`);
       }
     } else if (phase === 'GENERATE_SHOTS') {
       const lockedAccounts = await this.lockAIAccounts('video', maxConcurrent, ghAccountId);

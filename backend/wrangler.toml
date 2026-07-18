@@ -54,3 +54,8 @@ bucket_name = "ai-video-bucket"
 [[kv_namespaces]]
 binding = "KV"
 id = "f657d34c477947e4b9ca003332b75073"
+
+[[routes]]
+pattern = "ai-video.ldragon.xyz"
+zone_name = "ldragon.xyz"
+custom_domain = true
