@@ -95,12 +95,28 @@ export default function FileBrowser() {
 
   const handleBatchDelete = async () => {
     if (selectedKeys.length === 0) {
-      message.warning('请选择要删除的文件');
+      message.warning('请选择要删除的文件或文件夹');
       return;
     }
     try {
-      await fileApi.batchDelete(selectedKeys);
-      message.success(`成功删除 ${selectedKeys.length} 个文件`);
+      const filesToDelete = selectedKeys.filter(k => !k.endsWith('/'));
+      const foldersToDelete = selectedKeys.filter(k => k.endsWith('/'));
+
+      let deletedCount = 0;
+
+      if (filesToDelete.length > 0) {
+        await fileApi.batchDelete(filesToDelete);
+        deletedCount += filesToDelete.length;
+      }
+
+      for (const folderKey of foldersToDelete) {
+        const folderName = folderKey.replace(/\/$/, '').split('/').pop() || folderKey;
+        const prefix = folderKey.replace(folderName + '/', '');
+        await fileApi.delete(folderName, prefix, true);
+        deletedCount += 1;
+      }
+
+      message.success(`成功删除 ${deletedCount} 个项目`);
       loadFiles(currentPath);
     } catch (error) {
       message.error('批量删除失败');
@@ -143,7 +159,7 @@ export default function FileBrowser() {
     if (allSelected) {
       setSelectedKeys([]);
     } else {
-      setSelectedKeys(files.filter(f => f.type === 'file').map(f => f.key));
+      setSelectedKeys(files.map(f => f.key));
     }
     setAllSelected(!allSelected);
   };
@@ -190,23 +206,20 @@ export default function FileBrowser() {
     {
       title: (
         <Checkbox
-          checked={allSelected && files.filter(f => f.type === 'file').length > 0}
+          checked={allSelected && files.length > 0}
           indeterminate={selectedKeys.length > 0 && !allSelected}
           onChange={toggleSelectAll}
-          disabled={files.filter(f => f.type === 'file').length === 0}
+          disabled={files.length === 0}
         />
       ),
       key: 'checkbox',
       width: 50,
-      render: (_: any, record: FileItem) => {
-        if (record.type === 'directory') return null;
-        return (
-          <Checkbox
-            checked={selectedKeys.includes(record.key)}
-            onChange={() => toggleSelect(record.key)}
-          />
-        );
-      },
+      render: (_: any, record: FileItem) => (
+        <Checkbox
+          checked={selectedKeys.includes(record.key)}
+          onChange={() => toggleSelect(record.key)}
+        />
+      ),
     },
     {
       title: '名称',
