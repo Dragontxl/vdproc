@@ -479,7 +479,12 @@ with ThreadPoolExecutor(max_workers=max_workers) as executor:
             round_failed += 1
 
 missing = []
-for i in range(len(storyboards)):
+subtask_index_str = os.environ.get('SUBTASK_INDEX', '')
+if subtask_index_str:
+    check_indices = [int(subtask_index_str)]
+else:
+    check_indices = list(range(len(storyboards)))
+for i in check_indices:
     filepath = f'./generated_shots/shot_{i}.mp4'
     if not (os.path.exists(filepath) and os.path.getsize(filepath) > 0):
         missing.append(str(i))
@@ -523,11 +528,20 @@ PYTHON_SCRIPT
 done
 
 FINAL_MISSING=$(cat "$MISSING_FILE" 2>/dev/null || echo "")
-if [ -n "$FINAL_MISSING" ]; then
-    MISSING_COUNT=$(echo "$FINAL_MISSING" | tr ',' '\n' | grep -c .)
-    echo "ERROR: $MISSING_COUNT shots failed after $MAX_ROUNDS rounds: [$FINAL_MISSING]"
-    echo "Shots that could not be generated: $FINAL_MISSING"
-    exit 1
+if [ -n "$SUBTASK_INDEX" ]; then
+    SUBTASK_FILE="./generated_shots/shot_${SUBTASK_INDEX}.mp4"
+    if [ -f "$SUBTASK_FILE" ] && [ -s "$SUBTASK_FILE" ]; then
+        echo "Shot generation subtask completed successfully. Shot ${SUBTASK_INDEX} generated."
+    else
+        echo "ERROR: Shot ${SUBTASK_INDEX} generation failed"
+        exit 1
+    fi
+else
+    if [ -n "$FINAL_MISSING" ]; then
+        MISSING_COUNT=$(echo "$FINAL_MISSING" | tr ',' '\n' | grep -c .)
+        echo "ERROR: $MISSING_COUNT shots failed after $MAX_ROUNDS rounds: [$FINAL_MISSING]"
+        echo "Shots that could not be generated: $FINAL_MISSING"
+        exit 1
+    fi
+    echo "Shot generation phase completed. All $SHOT_COUNT shots generated successfully."
 fi
-
-echo "Shot generation phase completed. All $SHOT_COUNT shots generated successfully."
