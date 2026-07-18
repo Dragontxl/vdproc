@@ -29,7 +29,9 @@ export default function FileBrowser() {
   const [allSelected, setAllSelected] = useState(false);
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
 
   const loadFiles = async (prefix: string = '') => {
     setLoading(true);
@@ -145,6 +147,101 @@ export default function FileBrowser() {
       handleBatchUpload(Array.from(files));
     }
     e.target.value = '';
+  };
+
+  const collectFilesFromDrop = async (items: DataTransferItemList): Promise<{ file: File; relativePath: string }[]> => {
+    const results: { file: File; relativePath: string }[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file') {
+        const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+        if (entry) {
+          const collectEntry = async (entry: FileSystemEntry, basePath: string = '') => {
+            if (entry.isFile) {
+              const fileEntry = entry as FileSystemFileEntry;
+              await new Promise<void>((resolve) => {
+                fileEntry.file((file) => {
+                  const relativePath = basePath ? `${basePath}/${file.name}` : file.name;
+                  results.push({ file, relativePath });
+                  resolve();
+                });
+              });
+            } else if (entry.isDirectory) {
+              const dirEntry = entry as FileSystemDirectoryEntry;
+              await new Promise<void>((resolve) => {
+                const reader = dirEntry.createReader();
+                reader.readEntries(async (entries) => {
+                  for (const subEntry of entries) {
+                    const newBasePath = basePath ? `${basePath}/${dirEntry.name}` : dirEntry.name;
+                    await collectEntry(subEntry, newBasePath);
+                  }
+                  resolve();
+                });
+              });
+            }
+          };
+          await collectEntry(entry);
+        } else {
+          const file = item.getAsFile();
+          if (file) {
+            results.push({ file, relativePath: file.name });
+          }
+        }
+      }
+    }
+
+    return results;
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const { items } = e.dataTransfer;
+    if (!items || items.length === 0) return;
+
+    try {
+      const filesToUpload = await collectFilesFromDrop(items);
+      if (filesToUpload.length === 0) {
+        message.warning('没有找到可上传的文件');
+        return;
+      }
+
+      message.info(`开始上传 ${filesToUpload.length} 个文件...`);
+      let successCount = 0;
+
+      for (const { file, relativePath } of filesToUpload) {
+        try {
+          const folderPath = relativePath.substring(0, relativePath.lastIndexOf('/'));
+          const uploadPrefix = folderPath ? `${currentPath}${folderPath}/` : currentPath;
+          await fileApi.upload(file, uploadPrefix);
+          successCount++;
+        } catch (error) {
+          message.error(`上传 ${relativePath} 失败`);
+        }
+      }
+
+      if (successCount > 0) {
+        message.success(`成功上传 ${successCount} 个文件`);
+        loadFiles(currentPath);
+      }
+    } catch (error) {
+      message.error('拖放上传失败');
+    }
   };
 
   const toggleSelect = (key: string) => {
@@ -351,19 +448,48 @@ export default function FileBrowser() {
         </Space>
       </div>
 
-      <Card>
-        {files.length === 0 ? (
-          <Empty description="暂无文件" />
-        ) : (
-          <Table
-            dataSource={files}
-            columns={columns}
-            loading={loading}
-            rowKey="key"
-            pagination={{ pageSize: 20 }}
-          />
-        )}
-      </Card>
+      <div
+        ref={dropZoneRef}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <Card
+          style={{
+            border: isDragOver ? '2px dashed #1890ff' : undefined,
+            backgroundColor: isDragOver ? '#e6f7ff' : undefined,
+            transition: 'all 0.3s ease',
+          }}
+        >
+          {isDragOver && (
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '40px',
+                marginBottom: '16px',
+                border: '2px dashed #1890ff',
+                borderRadius: '8px',
+                backgroundColor: '#fff',
+              }}
+            >
+              <UploadOutlined style={{ fontSize: '48px', color: '#1890ff', marginBottom: '16px' }} />
+              <p style={{ fontSize: '18px', color: '#1890ff' }}>松开鼠标上传文件</p>
+            </div>
+          )}
+          {files.length === 0 && !isDragOver && (
+            <Empty description="暂无文件，可拖拽文件或文件夹到此处上传" />
+          )}
+          {files.length > 0 && (
+            <Table
+              dataSource={files}
+              columns={columns}
+              loading={loading}
+              rowKey="key"
+              pagination={{ pageSize: 20 }}
+            />
+          )}
+        </Card>
+      </div>
 
       <Modal
         title="新建文件夹"
