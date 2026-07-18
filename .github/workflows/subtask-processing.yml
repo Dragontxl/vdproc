@@ -40,7 +40,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t ai-video-processor ./docker
+          docker build --no-cache -t ai-video-processor ./docker
 
       - name: Parse subtask data
         id: parse_subtask

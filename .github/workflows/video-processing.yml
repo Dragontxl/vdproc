@@ -58,7 +58,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t ai-video-processor ./docker
+          docker build --no-cache -t ai-video-processor ./docker
 
       - name: Set phase order variables
         id: get_phase_order
