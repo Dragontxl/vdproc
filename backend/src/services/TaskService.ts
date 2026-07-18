@@ -361,12 +361,10 @@ export class TaskService {
       }
     }
 
-    const activeGhAccountsResult = await this.env.DB.prepare(`
-      SELECT COUNT(*) as count FROM github_accounts 
-      WHERE is_active = TRUE AND (is_limited IS NULL OR is_limited = FALSE)
+    const maxConcurrentConfigResult = await this.env.DB.prepare(`
+      SELECT value FROM system_config WHERE key = 'max_concurrent_jobs_per_github_account'
     `).first();
-    const activeGhAccountCount = activeGhAccountsResult ? parseInt((activeGhAccountsResult as { count: string }).count) : 0;
-    const maxConcurrent = activeGhAccountCount * 2;
+    const maxConcurrent = maxConcurrentConfigResult ? parseInt((maxConcurrentConfigResult as { value: string }).value) : 2;
 
     const requiredApiType = phasesRequiringAI[phase];
     if (requiredApiType) {
@@ -484,12 +482,10 @@ export class TaskService {
       throw new Error('Task not found');
     }
 
-    const activeGhAccountsResult = await this.env.DB.prepare(`
-      SELECT COUNT(*) as count FROM github_accounts 
-      WHERE is_active = TRUE AND (is_limited IS NULL OR is_limited = FALSE)
+    const maxConcurrentConfigResult = await this.env.DB.prepare(`
+      SELECT value FROM system_config WHERE key = 'max_concurrent_jobs_per_github_account'
     `).first();
-    const activeGhAccountCount = activeGhAccountsResult ? parseInt((activeGhAccountsResult as { count: string }).count) : 0;
-    const maxConcurrent = activeGhAccountCount * 2;
+    const maxConcurrent = maxConcurrentConfigResult ? parseInt((maxConcurrentConfigResult as { value: string }).value) : 2;
 
     let aiAccountsJson = '';
     let primaryAiApiKey = '';
@@ -870,12 +866,10 @@ export class TaskService {
     let aiAccountsJson = '';
     const ghAccountId = task.github_account_id;
     
-    const activeGhAccountsResult = await this.env.DB.prepare(`
-      SELECT COUNT(*) as count FROM github_accounts 
-      WHERE is_active = TRUE AND (is_limited IS NULL OR is_limited = FALSE)
+    const maxConcurrentConfigResult = await this.env.DB.prepare(`
+      SELECT value FROM system_config WHERE key = 'max_concurrent_jobs_per_github_account'
     `).first();
-    const activeGhAccountCount = activeGhAccountsResult ? parseInt((activeGhAccountsResult as { count: string }).count) : 0;
-    const maxConcurrent = activeGhAccountCount * 2;
+    const maxConcurrent = maxConcurrentConfigResult ? parseInt((maxConcurrentConfigResult as { value: string }).value) : 2;
     
     let aiApiKey = '';
     let aiBaseUrl = '';
