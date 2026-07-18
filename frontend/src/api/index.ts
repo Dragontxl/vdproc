@@ -87,11 +87,9 @@ export const fileApi = {
     const fullUrl = prefix ? `${url}?prefix=${encodeURIComponent(prefix)}` : url;
     return fullUrl;
   },
-  delete: (filename: string, prefix?: string) => {
+  delete: (filename: string, prefix?: string, isDirectory?: boolean) => {
     const url = `/admin/files/${filename}`;
-    return prefix 
-      ? api.delete(url, { params: { prefix } })
-      : api.delete(url);
+    return api.delete(url, { params: { prefix, is_directory: isDirectory } });
   },
   batchDelete: (keys: string[]) =>
     api.post('/admin/files/batch-delete', { keys }),
@@ -115,6 +113,8 @@ export const fileApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  createFolder: (name: string, prefix?: string) =>
+    api.post('/admin/files/create-folder', { name, prefix }),
 };
 
 export default api;

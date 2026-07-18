@@ -114,23 +114,118 @@ fileRoutes.delete('/:filename', async (c) => {
   const { R2 } = c.env as Bindings;
   const filename = c.req.param('filename');
   const prefix = c.req.query('prefix') || '';
+  const isDirectory = c.req.query('is_directory') === 'true';
   
   const key = prefix ? `${prefix}${filename}` : filename;
 
   try {
-    await R2.delete(key);
-    
-    return c.json({
-      code: 200,
-      data: null,
-      msg: '文件删除成功',
-    });
+    if (isDirectory) {
+      const folderPrefix = key.endsWith('/') ? key : `${key}/`;
+      let deletedCount = 0;
+      let truncated = true;
+      let cursor: string | undefined;
+
+      while (truncated) {
+        const objects = await R2.list({
+          prefix: folderPrefix,
+          cursor,
+          limit: 1000,
+        });
+
+        truncated = objects.truncated;
+        cursor = objects.cursor;
+
+        if (objects.objects) {
+          for (const obj of objects.objects) {
+            await R2.delete(obj.key);
+            deletedCount++;
+          }
+        }
+
+        if (objects.delimitedPrefixes) {
+          for (const subPrefix of objects.delimitedPrefixes) {
+            let subTruncated = true;
+            let subCursor: string | undefined;
+            while (subTruncated) {
+              const subObjects = await R2.list({
+                prefix: subPrefix,
+                cursor: subCursor,
+                limit: 1000,
+              });
+              subTruncated = subObjects.truncated;
+              subCursor = subObjects.cursor;
+              if (subObjects.objects) {
+                for (const obj of subObjects.objects) {
+                  await R2.delete(obj.key);
+                  deletedCount++;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      return c.json({
+        code: 200,
+        data: { deletedCount },
+        msg: `文件夹删除成功，共删除 ${deletedCount} 个文件`,
+      });
+    } else {
+      await R2.delete(key);
+      
+      return c.json({
+        code: 200,
+        data: null,
+        msg: '文件删除成功',
+      });
+    }
   } catch (error) {
     console.error('R2 delete error:', error);
     return c.json({
       code: 500,
       data: null,
-      msg: '删除文件失败',
+      msg: '删除失败',
+    }, 500);
+  }
+});
+
+fileRoutes.post('/create-folder', async (c) => {
+  const { R2 } = c.env as Bindings;
+  
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const { name, prefix } = body;
+    
+    if (!name) {
+      return c.json({
+        code: 400,
+        data: null,
+        msg: '请提供文件夹名称',
+      }, 400);
+    }
+
+    const folderKey = (prefix || '') + name.replace(/\/$/, '') + '/';
+    
+    await R2.put(folderKey, new ArrayBuffer(0), {
+      httpMetadata: {
+        contentType: 'application/x-directory',
+      },
+    });
+
+    return c.json({
+      code: 200,
+      data: {
+        key: folderKey,
+        name: name.replace(/\/$/, ''),
+      },
+      msg: '文件夹创建成功',
+    });
+  } catch (error) {
+    console.error('R2 create folder error:', error);
+    return c.json({
+      code: 500,
+      data: null,
+      msg: '创建文件夹失败',
     }, 500);
   }
 });

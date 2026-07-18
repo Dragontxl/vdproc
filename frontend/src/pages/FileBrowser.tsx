@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Card, Table, Tag, Button, Modal, message, Upload, Popconfirm, Space, Breadcrumb, Empty, Checkbox } from 'antd';
+import { Card, Table, Tag, Button, Modal, message, Upload, Popconfirm, Space, Breadcrumb, Empty, Checkbox, Input } from 'antd';
 import { 
   FolderOutlined, 
   FileOutlined, 
@@ -7,6 +7,7 @@ import {
   DeleteOutlined, 
   UploadOutlined, 
   ArrowLeftOutlined,
+  PlusOutlined,
 } from '@ant-design/icons';
 import { fileApi } from '../api';
 import dayjs from 'dayjs';
@@ -26,6 +27,8 @@ export default function FileBrowser() {
   const [currentPath, setCurrentPath] = useState('');
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [allSelected, setAllSelected] = useState(false);
+  const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFiles = async (prefix: string = '') => {
@@ -64,13 +67,29 @@ export default function FileBrowser() {
     window.open(url, '_blank');
   };
 
-  const handleDelete = async (filename: string, key: string) => {
+  const handleDelete = async (filename: string, key: string, isDirectory: boolean = false) => {
     try {
-      await fileApi.delete(filename, currentPath);
-      message.success('删除成功');
+      await fileApi.delete(filename, currentPath, isDirectory);
+      message.success(isDirectory ? '文件夹删除成功' : '删除成功');
       loadFiles(currentPath);
     } catch (error) {
       message.error('删除失败');
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) {
+      message.warning('请输入文件夹名称');
+      return;
+    }
+    try {
+      await fileApi.createFolder(newFolderName.trim(), currentPath);
+      message.success(`文件夹 ${newFolderName} 创建成功`);
+      setIsCreateFolderModalOpen(false);
+      setNewFolderName('');
+      loadFiles(currentPath);
+    } catch (error) {
+      message.error(`创建失败: ${(error as any)?.response?.data?.msg || '未知错误'}`);
     }
   };
 
@@ -253,7 +272,17 @@ export default function FileBrowser() {
             </>
           )}
           {record.type === 'directory' && (
-            <Button size="small" onClick={() => handleNavigate(record.key)}>进入</Button>
+            <Space>
+              <Button size="small" onClick={() => handleNavigate(record.key)}>进入</Button>
+              <Popconfirm
+                title={`确定要删除文件夹 ${record.name} 及其所有内容吗？`}
+                onConfirm={() => handleDelete(record.name, record.key, true)}
+                okText="确定"
+                cancelText="取消"
+              >
+                <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
+              </Popconfirm>
+            </Space>
           )}
         </Space>
       ),
@@ -293,6 +322,12 @@ export default function FileBrowser() {
           >
             批量上传
           </Button>
+          <Button
+            icon={<PlusOutlined />}
+            onClick={() => setIsCreateFolderModalOpen(true)}
+          >
+            新建文件夹
+          </Button>
           <input
             ref={fileInputRef}
             type="file"
@@ -316,6 +351,23 @@ export default function FileBrowser() {
           />
         )}
       </Card>
+
+      <Modal
+        title="新建文件夹"
+        open={isCreateFolderModalOpen}
+        onOk={handleCreateFolder}
+        onCancel={() => {
+          setIsCreateFolderModalOpen(false);
+          setNewFolderName('');
+        }}
+      >
+        <Input
+          placeholder="请输入文件夹名称"
+          value={newFolderName}
+          onChange={(e) => setNewFolderName(e.target.value)}
+          style={{ width: '100%' }}
+        />
+      </Modal>
     </div>
   );
 }
