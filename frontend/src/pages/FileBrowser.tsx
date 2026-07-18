@@ -448,38 +448,41 @@ export default function FileBrowser() {
         </Space>
       </div>
 
-      <div
-        ref={dropZoneRef}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+      <Card
+        style={{
+          border: isDragOver ? '2px dashed #1890ff' : undefined,
+          backgroundColor: isDragOver ? '#e6f7ff' : undefined,
+          transition: 'all 0.3s ease',
+        }}
       >
-        <Card
+        <div
+          ref={dropZoneRef}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
           style={{
-            border: isDragOver ? '2px dashed #1890ff' : undefined,
-            backgroundColor: isDragOver ? '#e6f7ff' : undefined,
+            minHeight: '200px',
+            padding: '20px',
+            border: isDragOver ? '2px dashed #1890ff' : '2px dashed #d9d9d9',
+            borderRadius: '8px',
+            backgroundColor: isDragOver ? '#e6f7ff' : '#fafafa',
             transition: 'all 0.3s ease',
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
-          {isDragOver && (
-            <div
-              style={{
-                textAlign: 'center',
-                padding: '40px',
-                marginBottom: '16px',
-                border: '2px dashed #1890ff',
-                borderRadius: '8px',
-                backgroundColor: '#fff',
-              }}
-            >
-              <UploadOutlined style={{ fontSize: '48px', color: '#1890ff', marginBottom: '16px' }} />
-              <p style={{ fontSize: '18px', color: '#1890ff' }}>松开鼠标上传文件</p>
-            </div>
-          )}
-          {files.length === 0 && !isDragOver && (
-            <Empty description="暂无文件，可拖拽文件或文件夹到此处上传" />
-          )}
-          {files.length > 0 && (
+          <UploadOutlined style={{ fontSize: isDragOver ? '64px' : '48px', color: isDragOver ? '#1890ff' : '#999', marginBottom: '16px' }} />
+          <p style={{ fontSize: isDragOver ? '20px' : '16px', color: isDragOver ? '#1890ff' : '#666', marginBottom: '8px' }}>
+            {isDragOver ? '松开鼠标上传文件' : '拖拽文件或文件夹到此处上传'}
+          </p>
+          <p style={{ fontSize: '14px', color: '#999' }}>支持单个文件、多个文件或整个文件夹</p>
+        </div>
+
+        {files.length > 0 && (
+          <div style={{ marginTop: '16px' }}>
             <Table
               dataSource={files}
               columns={columns}
@@ -487,9 +490,9 @@ export default function FileBrowser() {
               rowKey="key"
               pagination={{ pageSize: 20 }}
             />
-          )}
-        </Card>
-      </div>
+          </div>
+        )}
+      </Card>
 
       <Modal
         title="新建文件夹"
