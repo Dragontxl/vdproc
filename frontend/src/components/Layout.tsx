@@ -7,6 +7,7 @@ import {
   SettingOutlined,
   BarChartOutlined,
   LogoutOutlined,
+  FolderOpenOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
@@ -25,6 +26,11 @@ const menuItems: MenuItem[] = [
     key: '/tasks',
     icon: <VideoCameraOutlined />,
     label: '任务管理',
+  },
+  {
+    key: '/files',
+    icon: <FolderOpenOutlined />,
+    label: '文件管理',
   },
   {
     key: '/accounts',

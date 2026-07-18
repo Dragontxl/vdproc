@@ -10,6 +10,7 @@ import TaskDetail from './pages/TaskDetail';
 import Accounts from './pages/Accounts';
 import Config from './pages/Config';
 import Metrics from './pages/Metrics';
+import FileBrowser from './pages/FileBrowser';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
             <Route path="tasks" element={<Tasks />} />
             <Route path="tasks/:id" element={<TaskDetail />} />
             <Route path="accounts" element={<Accounts />} />
+            <Route path="files" element={<FileBrowser />} />
             <Route path="config" element={<Config />} />
             <Route path="metrics" element={<Metrics />} />
           </Route>

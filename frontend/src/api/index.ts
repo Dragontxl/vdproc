@@ -79,4 +79,42 @@ export const metricsApi = {
   getAll: () => api.get('/admin/metrics'),
 };
 
+export const fileApi = {
+  list: (params?: { prefix?: string; delimiter?: string }) =>
+    api.get('/admin/files', { params }),
+  download: (filename: string, prefix?: string) => {
+    const url = `/api/v1/admin/files/download/${filename}`;
+    const fullUrl = prefix ? `${url}?prefix=${encodeURIComponent(prefix)}` : url;
+    return fullUrl;
+  },
+  delete: (filename: string, prefix?: string) => {
+    const url = `/admin/files/${filename}`;
+    return prefix 
+      ? api.delete(url, { params: { prefix } })
+      : api.delete(url);
+  },
+  batchDelete: (keys: string[]) =>
+    api.post('/admin/files/batch-delete', { keys }),
+  upload: (file: File, prefix?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (prefix) {
+      formData.append('prefix', prefix);
+    }
+    return api.post('/admin/files/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  batchUpload: (files: File[], prefix?: string) => {
+    const formData = new FormData();
+    files.forEach(file => formData.append('files', file));
+    if (prefix) {
+      formData.append('prefix', prefix);
+    }
+    return api.post('/admin/files/batch-upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+};
+
 export default api;
