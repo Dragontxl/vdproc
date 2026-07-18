@@ -7,8 +7,6 @@ import {
   DeleteOutlined, 
   UploadOutlined, 
   ArrowLeftOutlined,
-  CheckSquareOutlined,
-  SquareOutlined,
 } from '@ant-design/icons';
 import { fileApi } from '../api';
 import dayjs from 'dayjs';
@@ -315,7 +313,6 @@ export default function FileBrowser() {
             loading={loading}
             rowKey="key"
             pagination={{ pageSize: 20 }}
-            rowSelection={false}
           />
         )}
       </Card>
