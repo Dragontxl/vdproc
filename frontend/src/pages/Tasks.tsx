@@ -274,7 +274,7 @@ export default function Tasks() {
           <Form.Item name="prompt" label="提示词" initialValue="修改为美式动画风格，保留原始图片的元素和内容, 只改变风格。">
             <Input.TextArea placeholder="AI生成提示词" rows={3} />
           </Form.Item>
-          <Form.Item name="fps" label="抽帧帧率" initialValue={30}>
+          <Form.Item name="fps" label="抽帧帧率" initialValue={24}>
             <InputNumber min={1} max={120} />
           </Form.Item>
           <Form.Item name="outputFps" label="输出帧率" initialValue={30}>

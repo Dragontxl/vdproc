@@ -157,6 +157,8 @@ process_character() {
             selected_alias=$(echo "$ai_accounts" | jq -r ".[$account_index].account_alias")
             if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
                 selected_url="https://apihub.agnes-ai.com/v1/images/generations"
+            elif [[ "$selected_url" != */v1/images/generations ]]; then
+                selected_url="${selected_url%/}/v1/images/generations"
             fi
         fi
 
@@ -166,6 +168,7 @@ process_character() {
         flock -x 200
 
         echo "Character $ROLE_ID: Using AI account index $account_index (alias: $selected_alias)"
+        echo "  Character $ROLE_ID: API URL: $selected_url"
 
         for attempt in $(seq 1 $MAX_RETRIES_PER_ACCOUNT); do
             echo "  Character $ROLE_ID: Attempt $attempt/$MAX_RETRIES_PER_ACCOUNT..."

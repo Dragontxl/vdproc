@@ -225,10 +225,13 @@ process_frame() {
         selected_alias=$(echo "$ai_accounts" | jq -r ".[$account_index].account_alias")
         if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
             selected_url="https://apihub.agnes-ai.com/v1/images/generations"
+        elif [[ "$selected_url" != */v1/images/generations ]]; then
+            selected_url="${selected_url%/}/v1/images/generations"
         fi
     fi
 
     echo "Shot $shot_index ${frame_type}: Using AI account index $account_index (alias: $selected_alias)"
+    echo "  Shot $shot_index ${frame_type}: API URL: $selected_url"
 
     MAX_RETRIES=5
     RETRY_DELAY=10

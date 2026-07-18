@@ -225,14 +225,24 @@ def main():
         if not scene_content:
             log("Warning: No scene content found")
         
+        has_srt = len(srt_content.strip()) > 0
+        
+        if has_srt:
+            subtitle_section = f"字幕内容：\n{srt_content}"
+            subtitle_instruction = "字幕内容已提供，请严格使用提供的字幕内容，不要自己从视频中提取或推测任何对话。"
+        else:
+            subtitle_section = "字幕内容：无（请从视频中识别对话）"
+            subtitle_instruction = "未提供字幕文件，请从视频中分析识别对话内容。"
+        
         prompt_text = f"""你是一个专业的视频分析助手。请分析以下视频的剧情和分镜结构。
 
 视频信息：
 - 镜头切分结果：
 {scene_content}
 
-字幕内容：
-{srt_content}
+{subtitle_section}
+
+{subtitle_instruction}
 
 分析要求：
 1. 合并细碎镜头为完整剧情分镜，每个分镜时长不超过15秒
@@ -248,7 +258,7 @@ def main():
    - 精确起止时间（修改后的）
    - 本段所有出场人物role_id
    - 本段发言人role_id
-   - 完整台词字幕（必须严格使用提供的字幕内容，不要自己从视频中提取或推测任何对话）
+   - 完整台词字幕（遵循上方字幕规则）
    - 场景描述
    - 光影描述
    - 运镜描述

@@ -133,6 +133,11 @@ export class TaskService {
   }
 
   async deleteTask(id: string): Promise<boolean> {
+    await this.env.DB.prepare(`DELETE FROM phase_subtasks WHERE task_id = ?`).bind(id).run();
+    await this.env.DB.prepare(`DELETE FROM operation_logs WHERE task_id = ?`).bind(id).run();
+    await this.env.DB.prepare(`DELETE FROM task_queue WHERE task_id = ?`).bind(id).run();
+    await this.env.DB.prepare(`DELETE FROM frame_tasks WHERE task_id = ?`).bind(id).run();
+
     const result = await this.env.DB.prepare(
       `DELETE FROM tasks WHERE id = ?`
     ).bind(id).run();
