@@ -364,56 +364,10 @@ export class TaskService {
     const activeGhAccountCount = activeGhAccountsResult ? parseInt((activeGhAccountsResult as { count: string }).count) : 0;
     const maxConcurrent = activeGhAccountCount * 2;
 
-    if (phase === 'CONVERT_FRAMES' || phase === 'GENERATE_CHARACTERS') {
-      const lockedAccounts = await this.lockAIAccounts('image', maxConcurrent, ghAccountId);
-
-      if (lockedAccounts.length > 0) {
-        const decryptedAccounts = await Promise.all(
-          (lockedAccounts as any[]).map(async (acc) => {
-            let decryptedKey = '';
-            if (acc.api_key_encrypted) {
-              try {
-                decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
-              } catch {
-                decryptedKey = acc.api_key_encrypted;
-              }
-            }
-            return {
-              ...acc,
-              api_key_encrypted: decryptedKey,
-              base_url: (acc.base_url || '').trim(),
-              model_name: (acc.model_name || '').trim()
-            };
-          })
-        );
-        aiAccountsJson = JSON.stringify(decryptedAccounts);
-      }
-    }
-    
-    if (phase === 'GENERATE_SHOTS') {
-      const lockedAccounts = await this.lockAIAccounts('video', maxConcurrent, ghAccountId);
-
-      if (lockedAccounts.length > 0) {
-        const decryptedAccounts = await Promise.all(
-          (lockedAccounts as any[]).map(async (acc) => {
-            let decryptedKey = '';
-            if (acc.api_key_encrypted) {
-              try {
-                decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
-              } catch {
-                decryptedKey = acc.api_key_encrypted;
-              }
-            }
-            return {
-              ...acc,
-              api_key_encrypted: decryptedKey,
-              base_url: (acc.base_url || '').trim(),
-              model_name: (acc.model_name || '').trim()
-            };
-          })
-        );
-        aiAccountsJson = JSON.stringify(decryptedAccounts);
-      }
+    const requiredApiType = phasesRequiringAI[phase];
+    if (requiredApiType) {
+      const result = await this.getDecryptedAIAccounts(requiredApiType, maxConcurrent, ghAccountId);
+      aiAccountsJson = result.aiAccountsJson;
     }
 
     const eventType = phase.toLowerCase().replace(/_/g, '-');
@@ -538,83 +492,17 @@ export class TaskService {
     const startIndex = phaseOrder.indexOf(startPhase);
     const endIndex = phaseOrder.indexOf(endPhase);
     
+    const seenApiTypes = new Set<string>();
     for (let i = startIndex; i <= endIndex; i++) {
       const currentPhase = phaseOrder[i];
-      if (currentPhase === 'ANALYZE') {
-        const lockedAccounts = await this.lockAIAccounts('text', maxConcurrent, ghAccountId);
-        if (lockedAccounts.length > 0) {
-          const decryptedAccounts = await Promise.all(
-            (lockedAccounts as any[]).map(async (acc) => {
-              let decryptedKey = '';
-              if (acc.api_key_encrypted) {
-                try {
-                  decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
-                } catch {
-                  decryptedKey = acc.api_key_encrypted;
-                }
-              }
-              return {
-                ...acc,
-                api_key_encrypted: decryptedKey,
-                base_url: (acc.base_url || '').trim(),
-                model_name: (acc.model_name || '').trim()
-              };
-            })
-          );
+      const requiredApiType = phasesRequiringAI[currentPhase];
+      if (requiredApiType && !seenApiTypes.has(requiredApiType)) {
+        seenApiTypes.add(requiredApiType);
+        const result = await this.getDecryptedAIAccounts(requiredApiType, maxConcurrent, ghAccountId);
+        if (result.aiAccountsJson) {
+          const newAccounts = JSON.parse(result.aiAccountsJson);
           const existingAccounts = aiAccountsJson ? JSON.parse(aiAccountsJson) : [];
-          existingAccounts.push(...decryptedAccounts);
-          aiAccountsJson = JSON.stringify(existingAccounts);
-        }
-      }
-      if (currentPhase === 'CONVERT_FRAMES' || currentPhase === 'GENERATE_CHARACTERS') {
-        const lockedAccounts = await this.lockAIAccounts('image', maxConcurrent, ghAccountId);
-        if (lockedAccounts.length > 0) {
-          const decryptedAccounts = await Promise.all(
-            (lockedAccounts as any[]).map(async (acc) => {
-              let decryptedKey = '';
-              if (acc.api_key_encrypted) {
-                try {
-                  decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
-                } catch {
-                  decryptedKey = acc.api_key_encrypted;
-                }
-              }
-              return {
-                ...acc,
-                api_key_encrypted: decryptedKey,
-                base_url: (acc.base_url || '').trim(),
-                model_name: (acc.model_name || '').trim()
-              };
-            })
-          );
-          const existingAccounts = aiAccountsJson ? JSON.parse(aiAccountsJson) : [];
-          existingAccounts.push(...decryptedAccounts);
-          aiAccountsJson = JSON.stringify(existingAccounts);
-        }
-      }
-      if (currentPhase === 'GENERATE_SHOTS') {
-        const lockedAccounts = await this.lockAIAccounts('video', maxConcurrent, ghAccountId);
-        if (lockedAccounts.length > 0) {
-          const decryptedAccounts = await Promise.all(
-            (lockedAccounts as any[]).map(async (acc) => {
-              let decryptedKey = '';
-              if (acc.api_key_encrypted) {
-                try {
-                  decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
-                } catch {
-                  decryptedKey = acc.api_key_encrypted;
-                }
-              }
-              return {
-                ...acc,
-                api_key_encrypted: decryptedKey,
-                base_url: (acc.base_url || '').trim(),
-                model_name: (acc.model_name || '').trim()
-              };
-            })
-          );
-          const existingAccounts = aiAccountsJson ? JSON.parse(aiAccountsJson) : [];
-          existingAccounts.push(...decryptedAccounts);
+          existingAccounts.push(...newAccounts);
           aiAccountsJson = JSON.stringify(existingAccounts);
         }
       }
@@ -993,56 +881,12 @@ export class TaskService {
     let aiApiKey = '';
     let aiBaseUrl = '';
     
-    if (phase === 'CONVERT_FRAMES' || phase === 'GENERATE_CHARACTERS') {
-      const lockedAccounts = await this.lockAIAccounts('image', maxConcurrent, ghAccountId);
-      if (lockedAccounts.length > 0) {
-        const decryptedAccounts = await Promise.all(
-          (lockedAccounts as any[]).map(async (acc) => {
-            let decryptedKey = '';
-            if (acc.api_key_encrypted) {
-              try {
-                decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
-              } catch {
-                decryptedKey = acc.api_key_encrypted;
-              }
-            }
-            return {
-              ...acc,
-              api_key_encrypted: decryptedKey,
-              base_url: (acc.base_url || '').trim(),
-              model_name: (acc.model_name || '').trim()
-            };
-          })
-        );
-        aiAccountsJson = JSON.stringify(decryptedAccounts);
-        aiApiKey = decryptedAccounts[0].api_key_encrypted;
-        aiBaseUrl = decryptedAccounts[0].base_url || '';
-      }
-    } else if (phase === 'GENERATE_SHOTS') {
-      const lockedAccounts = await this.lockAIAccounts('video', maxConcurrent, ghAccountId);
-      if (lockedAccounts.length > 0) {
-        const decryptedAccounts = await Promise.all(
-          (lockedAccounts as any[]).map(async (acc) => {
-            let decryptedKey = '';
-            if (acc.api_key_encrypted) {
-              try {
-                decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
-              } catch {
-                decryptedKey = acc.api_key_encrypted;
-              }
-            }
-            return {
-              ...acc,
-              api_key_encrypted: decryptedKey,
-              base_url: (acc.base_url || '').trim(),
-              model_name: (acc.model_name || '').trim()
-            };
-          })
-        );
-        aiAccountsJson = JSON.stringify(decryptedAccounts);
-        aiApiKey = decryptedAccounts[0].api_key_encrypted;
-        aiBaseUrl = decryptedAccounts[0].base_url || '';
-      }
+    const requiredApiType = phasesRequiringAI[phase as TaskPhase];
+    if (requiredApiType) {
+      const result = await this.getDecryptedAIAccounts(requiredApiType, maxConcurrent, ghAccountId);
+      aiAccountsJson = result.aiAccountsJson;
+      aiApiKey = result.aiApiKey;
+      aiBaseUrl = result.aiBaseUrl;
     }
     
     const subtaskData = {
@@ -1158,6 +1002,40 @@ export class TaskService {
     
     const result = await this.env.DB.prepare(selectQuery).bind(...selectParams).all();
     return result.results || [];
+  }
+
+  private async getDecryptedAIAccounts(apiType: string, maxConcurrent: number, ghAccountId: number): Promise<{
+    aiAccountsJson: string;
+    aiApiKey: string;
+    aiBaseUrl: string;
+  }> {
+    const lockedAccounts = await this.lockAIAccounts(apiType, maxConcurrent, ghAccountId);
+    if (lockedAccounts.length === 0) {
+      return { aiAccountsJson: '', aiApiKey: '', aiBaseUrl: '' };
+    }
+    const decryptedAccounts = await Promise.all(
+      (lockedAccounts as any[]).map(async (acc) => {
+        let decryptedKey = '';
+        if (acc.api_key_encrypted) {
+          try {
+            decryptedKey = await this.cryptoService.decrypt(acc.api_key_encrypted);
+          } catch {
+            decryptedKey = acc.api_key_encrypted;
+          }
+        }
+        return {
+          ...acc,
+          api_key_encrypted: decryptedKey,
+          base_url: (acc.base_url || '').trim(),
+          model_name: (acc.model_name || '').trim()
+        };
+      })
+    );
+    return {
+      aiAccountsJson: JSON.stringify(decryptedAccounts),
+      aiApiKey: decryptedAccounts[0].api_key_encrypted,
+      aiBaseUrl: decryptedAccounts[0].base_url || ''
+    };
   }
 
   private generateUUID(): string {
