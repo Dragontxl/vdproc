@@ -94,7 +94,12 @@ MAX_ROUNDS=3
 PENDING_FILE="/tmp/pending_indices.txt"
 MISSING_FILE="/tmp/missing_indices.txt"
 
-seq -s, 0 $((SHOT_COUNT - 1)) > "$PENDING_FILE"
+if [ -n "$SUBTASK_INDEX" ]; then
+    echo "Running as subtask: Shot index $SUBTASK_INDEX"
+    echo "$SUBTASK_INDEX" > "$PENDING_FILE"
+else
+    seq -s, 0 $((SHOT_COUNT - 1)) > "$PENDING_FILE"
+fi
 
 report_progress() {
     local round=$1
