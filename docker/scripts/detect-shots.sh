@@ -27,8 +27,8 @@ echo "Downloading video from R2..."
 aws s3 cp "s3://$R2_BUCKET_NAME/$VIDEO_PATH" "./input_video.mp4" \
     --endpoint-url "$R2_ENDPOINT_URL"
 
-echo "Running PySceneDetect..."
-scenedetect -i "./input_video.mp4" detect-content list-scenes -o "./scenes"
+echo "Running PySceneDetect with PyAV backend..."
+scenedetect -i "./input_video.mp4" -b av detect-content list-scenes -o "./scenes"
 
 echo "Parsing scene detection results..."
 ls -la ./scenes/

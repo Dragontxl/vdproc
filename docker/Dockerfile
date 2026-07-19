@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip3 install --no-cache-dir \
     scenedetect \
+    av \
     opencv-python-headless \
     numpy \
     torch \
