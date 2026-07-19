@@ -228,54 +228,56 @@ def main():
         has_srt = len(srt_content.strip()) > 0
         
         if has_srt:
-            subtitle_section = f"字幕内容：\n{srt_content}"
-            subtitle_instruction = "字幕内容已提供，请严格使用提供的字幕内容，不要自己从视频中提取或推测任何对话。"
+            subtitle_section = f"Subtitle content:\n{srt_content}"
+            subtitle_instruction = "Subtitles are provided. Please strictly use the provided subtitle content. Do not extract or infer any dialogue from the video yourself."
         else:
-            subtitle_section = "字幕内容：无（请从视频中识别对话）"
-            subtitle_instruction = "未提供字幕文件，请从视频中分析识别对话内容。"
+            subtitle_section = "Subtitle content: None (please identify dialogue from video)"
+            subtitle_instruction = "No subtitle file provided. Please analyze and identify dialogue content from the video."
         
-        prompt_text = f"""你是一个专业的视频分析助手。请分析以下视频的剧情和分镜结构。
+        prompt_text = f"""You are a professional video analysis assistant. Please analyze the plot and shot structure of the following video.
 
-视频信息：
-- 镜头切分结果：
+Video Information:
+- Scene detection results:
 {scene_content}
 
 {subtitle_section}
 
 {subtitle_instruction}
 
-分析要求：
-1. 合并细碎镜头为完整剧情分镜，每个分镜时长不超过15秒
-2. 输出全局角色档案，包括：
-   - role_id（R1, R2, R3...）
-   - 性别、体型、身高特征
-   - 永久固定特征（跨画风有效识别特征，如发型、面部特征）
-   - 人物差异化标签（不记录临时服装、光线、镜头角度）
-   - best_face_time（该人物最佳人脸帧的时间戳，格式为HH:MM:SS.mmm，选择人物面部最清晰、正面、完整的帧）
-   - face_position_x（人脸在画面中的水平位置，归一化0-1，0为最左侧，1为最右侧）
-   - face_position_y（人脸在画面中的垂直位置，归一化0-1，0为最顶部，1为最底部）
-3. 每段分镜输出：
-   - 精确起止时间（修改后的）
-   - 本段所有出场人物role_id
-   - 本段发言人role_id
-   - 完整台词字幕（遵循上方字幕规则）
-   - 场景描述
-   - 光影描述
-   - 运镜描述
-   - 正向prompt（用于AI生成）
-   - 反向prompt（用于排除不想要的元素）
+Analysis Requirements:
+1. Merge fragmented shots into complete story shots, each shot duration should not exceed 15 seconds
+2. Output global character profiles including:
+   - role_id (R1, R2, R3...)
+   - gender, body type, height characteristics
+   - permanent features (cross-style effective identification features such as hairstyle, facial features)
+   - differentiation labels (do not record temporary clothing, lighting, camera angles)
+   - best_face_time (timestamp of the best face frame for this character, format HH:MM:SS.mmm, select the clearest, front-facing, and complete facial frame)
+   - face_position_x (horizontal position of face in frame, normalized 0-1, 0 is leftmost, 1 is rightmost)
+   - face_position_y (vertical position of face in frame, normalized 0-1, 0 is topmost, 1 is bottommost)
+3. For each shot, output:
+   - Precise start and end times (modified)
+   - All character role_ids present in this shot
+   - Speaker role_id for this shot
+   - Complete dialogue subtitles (follow subtitle rules above)
+   - Scene description
+   - Lighting description
+   - Camera movement description
+   - Positive prompt (for AI generation)
+   - Negative prompt (for excluding unwanted elements)
 
-请严格按照以下JSON格式输出，必须包含 characters 和 storyboards 两个顶层键：
+IMPORTANT: Output ALL content in ENGLISH ONLY. Translate any Chinese text from subtitles or video content to English. If content is duplicated in both Chinese and English, keep only the English version.
+
+Please output strictly in the following JSON format, must contain both 'characters' and 'storyboards' top-level keys:
 
 {{
   "characters": [
     {{
       "role_id": "R1",
-      "gender": "男",
-      "body_type": "中等身形",
-      "height": "中等偏高",
-      "permanent_features": "描述",
-      "differentiation_labels": ["标签1", "标签2"],
+      "gender": "male",
+      "body_type": "medium build",
+      "height": "medium to tall",
+      "permanent_features": "description",
+      "differentiation_labels": ["label1", "label2"],
       "best_face_time": "00:00:02.500",
       "face_position_x": 0.5,
       "face_position_y": 0.3
@@ -287,23 +289,23 @@ def main():
       "end_time": "00:00:05.000",
       "characters_present": ["R1"],
       "speaker": "R1",
-      "subtitles": "台词内容",
-      "scene_description": "场景描述",
-      "lighting_description": "光影描述",
-      "camera_movement": "运镜描述",
-      "positive_prompt": "AI生成正向prompt",
-      "negative_prompt": "AI生成反向prompt"
+      "subtitles": "dialogue content",
+      "scene_description": "scene description",
+      "lighting_description": "lighting description",
+      "camera_movement": "camera movement description",
+      "positive_prompt": "AI generation positive prompt",
+      "negative_prompt": "AI generation negative prompt"
     }}
   ]
 }}
 
-注意：
-- start_time、end_time 和 best_face_time 必须使用 HH:MM:SS.mmm 格式
-- storyboards 数组不能为空，必须至少包含一个分镜
-- characters_present 和 differentiation_labels 必须是数组
-- speaker 可以为 null
-- best_face_time 必须选择该人物面部最清晰、正面、完整的帧，确保后续可以准确提取人脸
-- 不要添加任何额外的顶层键"""
+Notes:
+- start_time, end_time, and best_face_time must use HH:MM:SS.mmm format
+- storyboards array cannot be empty, must contain at least one shot
+- characters_present and differentiation_labels must be arrays
+- speaker can be null
+- best_face_time must select the clearest, front-facing, and complete facial frame for accurate face extraction
+- Do not add any additional top-level keys"""
         
         video_file = upload_video_to_gemini(video_local_path)
         
