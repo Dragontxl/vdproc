@@ -17,7 +17,12 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    if (response.config.responseType === 'blob') {
+      return response;
+    }
+    return response.data;
+  },
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
@@ -86,7 +91,7 @@ export const fileApi = {
     const response = await api.get(`/admin/files/download/${filename}`, {
       params: { prefix },
       responseType: 'blob',
-    }) as unknown as { data: Blob };
+    });
     
     const url = window.URL.createObjectURL(new Blob([response.data]));
     const link = document.createElement('a');
