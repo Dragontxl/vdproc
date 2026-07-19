@@ -150,19 +150,36 @@ def parse_json_response(text):
     
     text = text.strip()
     log(f"Raw response (first 500 chars): {text[:500]}")
+    log(f"Raw response (last 500 chars): {text[-500:]}")
     
     if text.startswith('```json'):
         text = text[7:]
         log("Stripped ```json prefix")
+    if text.startswith('```'):
+        text = text[3:]
+        log("Stripped ``` prefix")
     if text.endswith('```'):
         text = text[:-3]
         log("Stripped ``` suffix")
+    
+    text = text.strip()
+    
+    first_brace = text.find('{')
+    last_brace = text.rfind('}')
+    
+    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+        text = text[first_brace:last_brace+1]
+        log(f"Extracted JSON from {first_brace} to {last_brace}, length: {len(text)}")
+    else:
+        log(f"Warning: Could not find matching braces, first_brace={first_brace}, last_brace={last_brace}")
     
     try:
         return json.loads(text)
     except json.JSONDecodeError as e:
         log(f"JSON parse error: {e}")
-        log(f"Full response text: {text}")
+        log(f"Error location: line {e.lineno}, column {e.colno}, char {e.pos}")
+        log(f"Text around error ({e.pos-50} to {e.pos+50}): {text[max(0,e.pos-50):e.pos+50]}")
+        log(f"Full response text (first 2000 chars): {text[:2000]}")
         raise
 
 def main():
