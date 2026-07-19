@@ -843,6 +843,14 @@ export class TaskService {
         retry_count = CASE WHEN status = 'FAILED' THEN retry_count + 1 ELSE retry_count END
       WHERE task_id = ? AND phase = ? AND subtask_index = ?
     `).bind(status, outputPath || '', errorMsg || '', taskId, phase, subtaskIndex).run();
+
+    if (status === 'COMPLETED' || status === 'FAILED') {
+      await this.env.DB.prepare(`
+        UPDATE ai_accounts SET cooldown_until = NULL 
+        WHERE cooldown_until IS NOT NULL
+      `).run();
+      console.log('updatePhaseSubtaskStatus: Released all locked AI accounts');
+    }
   }
 
   async runSubtask(taskId: string, phase: string, subtaskIndex: number) {
