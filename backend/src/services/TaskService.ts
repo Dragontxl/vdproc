@@ -958,6 +958,11 @@ export class TaskService {
     const typeCondition = apiType ? ' AND ai_accounts.api_type = ?' : '';
     const selectTypeCondition = apiType ? ' AND aa.api_type = ?' : '';
     const params: (string | number)[] = [];
+
+    await this.env.DB.prepare(`
+      UPDATE ai_accounts SET cooldown_until = NULL
+      WHERE cooldown_until IS NOT NULL AND cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+    `).run();
     
     const lockQuery = `
       UPDATE ai_accounts
