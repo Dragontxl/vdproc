@@ -191,47 +191,12 @@ if accounts:
 else:
     account_locks = [threading.Lock()]
 
-chinese_to_english = {
-    "蜘蛛侠": "Spider-Man",
-    "平稳降落": "landing safely",
-    "降落": "landing",
-    "超人": "Superman",
-    "蝙蝠侠": "Batman",
-    "钢铁侠": "Iron Man",
-    "美国队长": "Captain America",
-    "绿巨人": "Hulk",
-    "雷神": "Thor",
-    "黑寡妇": "Black Widow",
-    "鹰眼": "Hawkeye",
-    "奇异博士": "Doctor Strange",
-    "幻视": "Vision",
-    "绯红女巫": "Scarlet Witch",
-    "黑豹": "Black Panther",
-    "蚁人": "Ant-Man",
-    "黄蜂女": "Wasp",
-    "惊奇队长": "Captain Marvel",
-    "银河护卫队": "Guardians of the Galaxy",
-    "死侍": "Deadpool",
-    "金刚狼": "Wolverine",
-    "X战警": "X-Men",
-    "神奇女侠": "Wonder Woman",
-    "闪电侠": "Flash",
-    "绿灯侠": "Green Lantern",
-    "海王": "Aquaman",
-    "蝙蝠侠": "Batman",
-    "超人": "Superman",
-    "正义联盟": "Justice League",
-}
-
 def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, duration_seconds, output_fps):
     has_dialogue = "dialogue:" in prompt
     if has_dialogue:
-        full_prompt = "Create a smooth transition scene between the two reference images, maintaining character identity consistency and natural movements. Strictly follow the provided prompt and dialogue content to generate the scene. Characters can have mouth movements matching the dialogue, but do not generate any text subtitles or additional dialogue plots in the scene." + prompt
+        full_prompt = "在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。严格按照提供的提示词和对话内容生成画面，角色可以有与对话匹配的口型动作，但不要在画面中生成任何文字字幕或额外的对话情节。" + prompt
     else:
-        full_prompt = "Create a smooth transition scene between the two reference images, maintaining character identity consistency and natural movements. Strictly follow the provided prompt to generate the scene, without any text content, dialogue subtitles, mouth movements, or dialogue plots." + prompt
-
-    for cn, en in chinese_to_english.items():
-        full_prompt = full_prompt.replace(cn, en)
+        full_prompt = "在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。严格按照提供的提示词生成画面，不要在画面中生成任何文字内容、对话字幕、口型动作或对话情节。" + prompt
 
     target_frames = int(duration_seconds * output_fps)
     if target_frames < 9:
@@ -262,10 +227,6 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
 
     print(f"  Shot {shot_index}: Duration: {duration_seconds:.3f}s, FPS: {output_fps}, Target frames: {num_frames}")
     print(f"  Shot {shot_index}: Request body num_frames: {num_frames}, frame_rate: {output_fps}, expected duration: {num_frames/output_fps:.2f}s")
-    print(f"  Shot {shot_index}: Prompt length: {len(full_prompt)} chars")
-    print(f"  Shot {shot_index}: Prompt preview: {full_prompt[:300]}...")
-    print(f"  Shot {shot_index}: First frame: {image_urls[0]}")
-    print(f"  Shot {shot_index}: Last frame: {image_urls[1]}")
 
     max_retries = 3
     retry_delay = 10
