@@ -82,10 +82,20 @@ export const metricsApi = {
 export const fileApi = {
   list: (params?: { prefix?: string; delimiter?: string }) =>
     api.get('/admin/files', { params }),
-  download: (filename: string, prefix?: string) => {
-    const url = `/api/v1/admin/files/download/${filename}`;
-    const fullUrl = prefix ? `${url}?prefix=${encodeURIComponent(prefix)}` : url;
-    return fullUrl;
+  download: async (filename: string, prefix?: string) => {
+    const response = await api.get(`/admin/files/download/${filename}`, {
+      params: { prefix },
+      responseType: 'blob',
+    }) as unknown as { data: Blob };
+    
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
   },
   delete: (filename: string, prefix?: string, isDirectory?: boolean) => {
     const url = `/admin/files/${filename}`;

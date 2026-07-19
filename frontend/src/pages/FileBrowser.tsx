@@ -64,9 +64,12 @@ export default function FileBrowser() {
     loadFiles(newPath);
   };
 
-  const handleDownload = (filename: string, key: string) => {
-    const url = fileApi.download(filename, currentPath);
-    window.open(url, '_blank');
+  const handleDownload = async (filename: string, key: string) => {
+    try {
+      await fileApi.download(filename, currentPath);
+    } catch (error) {
+      message.error('下载失败');
+    }
   };
 
   const handleDelete = async (filename: string, key: string, isDirectory: boolean = false) => {
