@@ -66,7 +66,8 @@ export default function TaskDetail() {
   const [subtaskLoading, setSubtaskLoading] = useState(false);
   const [customPrompts, setCustomPrompts] = useState<Record<string, string>>({});
   
-  const phases: TaskPhase[] = ['GENERATE_CHARACTERS', 'CONVERT_FRAMES', 'GENERATE_SHOTS'];
+  const subtaskPhases: TaskPhase[] = ['GENERATE_CHARACTERS', 'CONVERT_FRAMES', 'GENERATE_SHOTS'];
+  const allPhases: TaskPhase[] = ['DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
 
   useEffect(() => {
     if (id) {
@@ -332,7 +333,7 @@ export default function TaskDetail() {
               style={{ width: 160 }}
               disabled={isPhaseRunning()}
             >
-              {phases.map((p) => (
+              {allPhases.map((p) => (
                 <Option key={p} value={p}>{phaseConfig[p].label}</Option>
               ))}
             </Select>
@@ -343,7 +344,7 @@ export default function TaskDetail() {
               style={{ width: 160 }}
               disabled={isPhaseRunning()}
             >
-              {phases.map((p) => (
+              {allPhases.map((p) => (
                 <Option key={p} value={p}>{phaseConfig[p].label}</Option>
               ))}
             </Select>
@@ -351,11 +352,11 @@ export default function TaskDetail() {
               type="primary"
               icon={<PlayCircleOutlined />}
               onClick={() => startPhase(startPhaseValue, true)}
-              disabled={isPhaseRunning() || phases.indexOf(startPhaseValue) > phases.indexOf(endPhaseValue)}
+              disabled={isPhaseRunning() || allPhases.indexOf(startPhaseValue) > allPhases.indexOf(endPhaseValue)}
             >
               执行范围
             </Button>
-            {phases.indexOf(startPhaseValue) > phases.indexOf(endPhaseValue) && (
+            {allPhases.indexOf(startPhaseValue) > allPhases.indexOf(endPhaseValue) && (
               <span style={{ color: '#ff4d4f', fontSize: '12px' }}>起始阶段不能晚于结束阶段</span>
             )}
           </div>
@@ -466,7 +467,7 @@ export default function TaskDetail() {
             style={{ width: 160 }}
             placeholder="全部阶段"
           >
-            {phases.map((p) => (
+            {subtaskPhases.map((p) => (
               <Option key={p} value={p}>{phaseConfig[p].label}</Option>
             ))}
           </Select>
