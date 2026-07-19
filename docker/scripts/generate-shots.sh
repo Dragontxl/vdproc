@@ -227,6 +227,10 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
 
     print(f"  Shot {shot_index}: Duration: {duration_seconds:.3f}s, FPS: {output_fps}, Target frames: {num_frames}")
     print(f"  Shot {shot_index}: Request body num_frames: {num_frames}, frame_rate: {output_fps}, expected duration: {num_frames/output_fps:.2f}s")
+    print(f"  Shot {shot_index}: Prompt length: {len(full_prompt)} chars")
+    print(f"  Shot {shot_index}: Prompt preview: {full_prompt[:300]}...")
+    print(f"  Shot {shot_index}: First frame: {image_urls[0]}")
+    print(f"  Shot {shot_index}: Last frame: {image_urls[1]}")
 
     max_retries = 3
     retry_delay = 10
