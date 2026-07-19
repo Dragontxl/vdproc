@@ -154,8 +154,8 @@ release_ai_account() {
 process_frame() {
     local shot_index="$1"
     local frame_type="$2"
-    local work_dir="$3"
-    local ai_accounts="$4"
+    local work_dir="${3:-.}"
+    local ai_accounts="${4:-$AI_ACCOUNTS}"
 
     cd "$work_dir"
 
