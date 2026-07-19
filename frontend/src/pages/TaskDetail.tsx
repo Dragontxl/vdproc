@@ -65,7 +65,7 @@ export default function TaskDetail() {
   const [selectedSubtaskPhase, setSelectedSubtaskPhase] = useState<TaskPhase | ''>('');
   const [subtaskLoading, setSubtaskLoading] = useState(false);
   
-  const phases: TaskPhase[] = ['DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
+  const phases: TaskPhase[] = ['GENERATE_CHARACTERS', 'CONVERT_FRAMES', 'GENERATE_SHOTS'];
 
   useEffect(() => {
     if (id) {
@@ -224,7 +224,7 @@ export default function TaskDetail() {
   };
 
   const isPhaseCompleted = (currentPhase: string): boolean => {
-    const phases: TaskPhase[] = ['DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
+    const phases: TaskPhase[] = ['GENERATE_CHARACTERS', 'CONVERT_FRAMES', 'GENERATE_SHOTS'];
     const currentIndex = phases.indexOf(currentPhase as TaskPhase);
     return currentIndex > -1;
   };

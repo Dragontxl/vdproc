@@ -43,7 +43,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build --no-cache -t ai-video-processor ./docker
+          docker build --no-cache -t ai-video-processor-subtask -f docker/Dockerfile.subtask ./docker
 
       - name: Parse subtask data
         id: parse_subtask
@@ -117,7 +117,7 @@ jobs:
             -e AI_BASE_URL="$AI_BASE_URL" \
             -e AI_ACCOUNTS="$AI_ACCOUNTS" \
             -e MAX_CONCURRENT="$MAX_CONCURRENT" \
-            ai-video-processor \
+            ai-video-processor-subtask \
             bash /scripts/generate-characters.sh
 
       - name: Run frame conversion subtask
@@ -162,7 +162,7 @@ jobs:
             -e AI_BASE_URL="$AI_BASE_URL" \
             -e AI_ACCOUNTS="$AI_ACCOUNTS" \
             -e MAX_CONCURRENT="$MAX_CONCURRENT" \
-            ai-video-processor \
+            ai-video-processor-subtask \
             bash /scripts/convert-frames.sh
 
       - name: Run shot generation subtask
@@ -207,7 +207,7 @@ jobs:
             -e AI_BASE_URL="$AI_BASE_URL" \
             -e AI_ACCOUNTS="$AI_ACCOUNTS" \
             -e MAX_CONCURRENT="$MAX_CONCURRENT" \
-            ai-video-processor \
+            ai-video-processor-subtask \
             bash /scripts/generate-shots.sh
 
       - name: Notify subtask completion

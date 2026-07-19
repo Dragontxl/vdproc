@@ -1,0 +1,29 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    jq \
+    parallel \
+    awscli \
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --no-cache-dir \
+    requests \
+    httpx \
+    pydantic \
+    google-generativeai
+
+WORKDIR /scripts
+
+COPY scripts/convert-frames.sh /scripts/
+COPY scripts/generate-characters.sh /scripts/
+COPY scripts/generate-shots.sh /scripts/
+COPY scripts/img2img.sh /scripts/
+
+RUN chmod +x /scripts/*.sh
+
+CMD ["bash", "-c", "echo 'AI Video Subtask Processor Ready' && sleep infinity"]
