@@ -34,10 +34,15 @@ echo "Found $SHOT_COUNT shots to generate"
 
 mkdir -p ./generated_shots
 
-ACCOUNT_COUNT=1
+ACCOUNT_COUNT=0
 if [ -n "$AI_ACCOUNTS" ]; then
     AI_ACCOUNTS=$(echo "$AI_ACCOUNTS" | jq -c '[.[] | select(.api_type == "video")]')
     ACCOUNT_COUNT=$(echo "$AI_ACCOUNTS" | jq -r '. | length')
+fi
+
+if [ "$ACCOUNT_COUNT" -eq 0 ]; then
+    echo "Error: No video-type AI accounts available"
+    exit 1
 fi
 
 MAX_CONCURRENT=${MAX_CONCURRENT:-2}
@@ -251,12 +256,8 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
                 
                 print(f"  Shot {shot_index}: Using AI account index {cand_idx} (alias: {account_alias})")
             else:
-                api_key = os.environ.get('AI_API_KEY', '').strip()
-                ai_base_env = os.environ.get('AI_BASE_URL', 'https://apihub.agnes-ai.com').strip()
-                parsed = urlparse(ai_base_env)
-                base_url = f"{parsed.scheme}://{parsed.netloc}/v1/videos"
-                model_name = 'agnes-video-v2.0'
-                print(f"  Shot {shot_index}: Using AI account index {cand_idx} (env default)")
+                print(f"  Shot {shot_index}: Error: No AI accounts available")
+                return None
 
             if not base_url.startswith('http'):
                 base_url = 'https://' + base_url
