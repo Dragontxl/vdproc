@@ -52,6 +52,23 @@ accountRoutes.get('/ai', async (c) => {
   return c.json({ code: 200, data: accounts, msg: 'success' });
 });
 
+accountRoutes.post('/ai/release-all', async (c) => {
+  const service = new AccountService(c.env as Bindings);
+  await service.env.DB.prepare(`
+    UPDATE ai_accounts SET cooldown_until = NULL, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+    WHERE cooldown_until IS NOT NULL
+  `).run();
+  
+  const accounts = await service.listAIAccounts();
+  const lockedCount = accounts.filter((acc: any) => acc.cooldown_until !== null).length;
+  
+  return c.json({ 
+    code: 200, 
+    data: { releasedCount: accounts.length - lockedCount, remainingLocked: lockedCount }, 
+    msg: 'All AI accounts released successfully' 
+  });
+});
+
 accountRoutes.post('/ai', async (c) => {
   try {
     const service = new AccountService(c.env as Bindings);
