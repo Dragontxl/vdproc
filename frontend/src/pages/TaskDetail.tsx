@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider, Alert, Progress, Select, Table, Popconfirm } from 'antd';
+import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider, Alert, Progress, Select, Table, Popconfirm, Input } from 'antd';
 import {
   PlayCircleOutlined,
   StopOutlined,
@@ -555,7 +555,7 @@ export default function TaskDetail() {
                   <Input.TextArea
                     placeholder="输入自定义提示词，留空使用默认"
                     value={customPrompts[key] || ''}
-                    onChange={(e) => setCustomPrompts(prev => ({ ...prev, [key]: e.target.value }))}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCustomPrompts(prev => ({ ...prev, [key]: e.target.value }))}
                     autoSize={{ minRows: 2, maxRows: 4 }}
                   />
                 );
