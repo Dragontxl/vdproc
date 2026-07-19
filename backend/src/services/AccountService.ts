@@ -92,6 +92,9 @@ export class AccountService {
   }
 
   async deleteGitHubAccount(id: number): Promise<boolean> {
+    await this.env.DB.prepare(`DELETE FROM github_ai_bindings WHERE github_account_id = ?`).bind(id).run();
+    await this.env.DB.prepare(`DELETE FROM task_queue WHERE github_account_id = ?`).bind(id).run();
+    
     const result = await this.env.DB.prepare(`
       DELETE FROM github_accounts WHERE id = ?
     `).bind(id).run() as D1ResultType;
