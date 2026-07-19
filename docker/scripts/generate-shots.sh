@@ -210,15 +210,19 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
     request_body = {
         'model': 'agnes-video-v2.0',
         'prompt': full_prompt,
-        'extra_body': {
-            'image': image_urls,
-            'mode': 'keyframes'
-        },
+        'image': image_urls,
+        'image_list': image_urls,
+        'mode': 'keyframes',
+        'negative_prompt': 'pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable text, incorrect lettering, incorrect slogan',
         'num_frames': num_frames,
         'frame_rate': output_fps,
-        'width': 854,
-        'height': 480,
-        'seed': 42
+        'width': 832,
+        'height': 448,
+        'seed': 42,
+        'global_prompt': '',
+        'local_prompts': '',
+        'max_length': 256,
+        'background_image': None
     }
 
     print(f"  Shot {shot_index}: Duration: {duration_seconds:.3f}s, FPS: {output_fps}, Target frames: {num_frames}")
