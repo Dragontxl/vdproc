@@ -111,10 +111,22 @@ export default function TaskDetail() {
     setSubtaskLoading(true);
     try {
       const result = await taskApi.getSubtasks(id!, phase);
-      setSubtasks(result.data || []);
+      const list = result.data || [];
+      setSubtasks(list);
       if (phase) {
         setSelectedSubtaskPhase(phase);
       }
+      // 以每个子任务的 original_prompt 作为自定义提示词框的默认值（仅在用户未编辑过该 key 时填充）
+      setCustomPrompts((prev) => {
+        const next = { ...prev };
+        for (const item of list as any[]) {
+          const key = `${item.phase}-${item.subtask_index}`;
+          if (next[key] === undefined && item.original_prompt) {
+            next[key] = item.original_prompt;
+          }
+        }
+        return next;
+      });
     } catch (error) {
       message.error('加载子任务失败');
     } finally {
