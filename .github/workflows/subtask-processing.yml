@@ -60,6 +60,7 @@ jobs:
           VIDEO_PATH=$(echo "$CONFIG_JSON" | jq -r '.video_path // ""')
           FPS=$(echo "$CONFIG_JSON" | jq -r '.fps // 30')
           PROMPT=$(echo "$CONFIG_JSON" | jq -r '.prompt // ""')
+          CUSTOM_PROMPT=$(echo "$CONFIG_JSON" | jq -r '.custom_prompt // ""')
           OUTPUT_FPS=$(echo "$CONFIG_JSON" | jq -r '.output_fps // 24')
           MAX_CONCURRENT=$(echo "$CONFIG_JSON" | jq -r '.max_concurrent // 3')
           SUBTASK_TYPE=$(echo "$CONFIG_JSON" | jq -r '.subtask_type // ""')
@@ -69,6 +70,7 @@ jobs:
           echo "VIDEO_PATH=$VIDEO_PATH" >> $GITHUB_OUTPUT
           echo "FPS=$FPS" >> $GITHUB_OUTPUT
           echo "PROMPT=$PROMPT" >> $GITHUB_OUTPUT
+          echo "CUSTOM_PROMPT=$CUSTOM_PROMPT" >> $GITHUB_OUTPUT
           echo "OUTPUT_FPS=$OUTPUT_FPS" >> $GITHUB_OUTPUT
           echo "MAX_CONCURRENT=$MAX_CONCURRENT" >> $GITHUB_OUTPUT
           echo "SUBTASK_TYPE=$SUBTASK_TYPE" >> $GITHUB_OUTPUT
@@ -85,6 +87,7 @@ jobs:
           METADATA: ${{ steps.parse_subtask.outputs.METADATA }}
           VIDEO_PATH: ${{ steps.parse_subtask.outputs.VIDEO_PATH }}
           PROMPT: ${{ steps.parse_subtask.outputs.PROMPT }}
+          CUSTOM_PROMPT: ${{ steps.parse_subtask.outputs.CUSTOM_PROMPT }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -106,6 +109,7 @@ jobs:
             -e METADATA="$METADATA" \
             -e VIDEO_PATH="$VIDEO_PATH" \
             -e PROMPT="$PROMPT" \
+            -e CUSTOM_PROMPT="$CUSTOM_PROMPT" \
             -e GH_ACCOUNT_ID="$GH_ACCOUNT_ID" \
             -e R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
             -e R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
@@ -131,6 +135,7 @@ jobs:
           METADATA: ${{ steps.parse_subtask.outputs.METADATA }}
           VIDEO_PATH: ${{ steps.parse_subtask.outputs.VIDEO_PATH }}
           PROMPT: ${{ steps.parse_subtask.outputs.PROMPT }}
+          CUSTOM_PROMPT: ${{ steps.parse_subtask.outputs.CUSTOM_PROMPT }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -152,6 +157,7 @@ jobs:
             -e METADATA="$METADATA" \
             -e VIDEO_PATH="$VIDEO_PATH" \
             -e PROMPT="$PROMPT" \
+            -e CUSTOM_PROMPT="$CUSTOM_PROMPT" \
             -e GH_ACCOUNT_ID="$GH_ACCOUNT_ID" \
             -e R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
             -e R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
@@ -177,6 +183,7 @@ jobs:
           METADATA: ${{ steps.parse_subtask.outputs.METADATA }}
           VIDEO_PATH: ${{ steps.parse_subtask.outputs.VIDEO_PATH }}
           OUTPUT_FPS: ${{ steps.parse_subtask.outputs.OUTPUT_FPS }}
+          CUSTOM_PROMPT: ${{ steps.parse_subtask.outputs.CUSTOM_PROMPT }}
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -198,6 +205,7 @@ jobs:
             -e METADATA="$METADATA" \
             -e VIDEO_PATH="$VIDEO_PATH" \
             -e OUTPUT_FPS="$OUTPUT_FPS" \
+            -e CUSTOM_PROMPT="$CUSTOM_PROMPT" \
             -e GH_ACCOUNT_ID="$GH_ACCOUNT_ID" \
             -e R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
             -e R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \

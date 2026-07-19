@@ -853,7 +853,7 @@ export class TaskService {
     }
   }
 
-  async runSubtask(taskId: string, phase: string, subtaskIndex: number) {
+  async runSubtask(taskId: string, phase: string, subtaskIndex: number, customPrompt?: string) {
     const subtaskResult = await this.env.DB.prepare(`
       SELECT * FROM phase_subtasks WHERE task_id = ? AND phase = ? AND subtask_index = ?
     `).bind(taskId, phase, subtaskIndex).first();
@@ -902,6 +902,7 @@ export class TaskService {
         video_path: task.video_path,
         fps: task.fps,
         prompt: task.prompt,
+        custom_prompt: customPrompt,
         output_fps: task.output_fps,
         max_concurrent: maxConcurrent,
         subtask_type: subtask.subtask_type,

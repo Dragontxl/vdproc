@@ -128,11 +128,13 @@ taskRoutes.get('/:id/subtasks', async (c) => {
 
 taskRoutes.post('/:id/subtasks/:phase/:index/run', async (c) => {
   const { id, phase, index } = c.req.param();
+  const body = await c.req.json().catch(() => ({}));
+  const { custom_prompt } = body;
   
   const taskService = new TaskService(c.env as Bindings);
   
   try {
-    const result = await taskService.runSubtask(id, phase, parseInt(index));
+    const result = await taskService.runSubtask(id, phase, parseInt(index), custom_prompt);
     return c.json({
       code: 200,
       data: result,

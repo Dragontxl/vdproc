@@ -173,7 +173,10 @@ process_frame() {
     CHARACTERS=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].characters_present")
 
     DEFAULT_PROMPT="修改为美式动画风格，保留原始图片的元素和内容, 只改变风格。"
-    MAIN_PROMPT="${PROMPT:-$DEFAULT_PROMPT}"
+    MAIN_PROMPT="${CUSTOM_PROMPT:-${PROMPT:-$DEFAULT_PROMPT}}"
+    if [ -n "$CUSTOM_PROMPT" ]; then
+        echo "  Frame $FRAME_INDEX: Using custom prompt"
+    fi
 
     FRAME_KEY="${TASK_ID}/shot_frames/shot_${shot_index}_${frame_type}.jpg"
 

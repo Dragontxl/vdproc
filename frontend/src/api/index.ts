@@ -45,7 +45,7 @@ export const taskApi = {
   startPhase: (id: string, phase: string, options?: { start_phase?: string; end_phase?: string }) => api.post(`/admin/tasks/${id}/start-phase/${phase}`, options),
   getPhaseOrder: () => api.get('/admin/tasks/phase-order'),
   getSubtasks: (id: string, phase?: string) => api.get(`/admin/tasks/${id}/subtasks`, { params: phase ? { phase } : {} }),
-  runSubtask: (id: string, phase: string, index: number) => api.post(`/admin/tasks/${id}/subtasks/${phase}/${index}/run`),
+  runSubtask: (id: string, phase: string, index: number, data?: { custom_prompt?: string }) => api.post(`/admin/tasks/${id}/subtasks/${phase}/${index}/run`, data),
   createSubtask: (id: string, data: { phase: string; subtask_index: number; subtask_type: string; input_path?: string; metadata?: string }) => api.post(`/admin/tasks/${id}/subtasks`, data),
 };
 

@@ -123,7 +123,12 @@ process_character() {
 
     INPUT_IMAGE_BASE64=$(base64 -w0 "./reference_${char_index}.jpg")
 
-    PROMPT="American animation style character design, white background, full body portrait, professional character sheet, clean line art, vibrant colors, high quality, anime style, based on the provided reference image"
+    if [ -n "$CUSTOM_PROMPT" ]; then
+        PROMPT="$CUSTOM_PROMPT"
+        echo "Character $ROLE_ID: Using custom prompt"
+    else
+        PROMPT="American animation style character design, white background, full body portrait, professional character sheet, clean line art, vibrant colors, high quality, anime style, based on the provided reference image"
+    fi
 
     local ACCOUNT_COUNT=$(echo "$ai_accounts" | jq -r '. | length')
     if [ -z "$ACCOUNT_COUNT" ] || [ "$ACCOUNT_COUNT" = "null" ] || ! [[ "$ACCOUNT_COUNT" =~ ^[0-9]+$ ]]; then

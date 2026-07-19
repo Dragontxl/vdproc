@@ -64,6 +64,7 @@ export default function TaskDetail() {
   const [subtasks, setSubtasks] = useState<any[]>([]);
   const [selectedSubtaskPhase, setSelectedSubtaskPhase] = useState<TaskPhase | ''>('');
   const [subtaskLoading, setSubtaskLoading] = useState(false);
+  const [customPrompts, setCustomPrompts] = useState<Record<string, string>>({});
   
   const phases: TaskPhase[] = ['GENERATE_CHARACTERS', 'CONVERT_FRAMES', 'GENERATE_SHOTS'];
 
@@ -122,7 +123,10 @@ export default function TaskDetail() {
 
   const handleRunSubtask = async (phase: string, index: number) => {
     try {
-      await taskApi.runSubtask(id!, phase, index);
+      const key = `${phase}-${index}`;
+      const customPrompt = customPrompts[key]?.trim();
+      const body = customPrompt ? { custom_prompt: customPrompt } : undefined;
+      await taskApi.runSubtask(id!, phase, index, body);
       message.success('子任务已启动');
       loadSubtasks(selectedSubtaskPhase as TaskPhase);
     } catch (error: any) {
@@ -539,6 +543,23 @@ export default function TaskDetail() {
               key="error_msg"
               ellipsis
               width={200}
+            />
+            <Table.Column
+              title="自定义提示词"
+              dataIndex="custom_prompt"
+              key="custom_prompt"
+              width={250}
+              render={(_, record) => {
+                const key = `${record.phase}-${record.subtask_index}`;
+                return (
+                  <Input.TextArea
+                    placeholder="输入自定义提示词，留空使用默认"
+                    value={customPrompts[key] || ''}
+                    onChange={(e) => setCustomPrompts(prev => ({ ...prev, [key]: e.target.value }))}
+                    autoSize={{ minRows: 2, maxRows: 4 }}
+                  />
+                );
+              }}
             />
             <Table.Column
               title="操作"
