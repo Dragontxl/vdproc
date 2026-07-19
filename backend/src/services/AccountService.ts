@@ -282,7 +282,7 @@ export class AccountService {
       SELECT aa.*
       FROM ai_accounts aa
       WHERE is_active = TRUE 
-        AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        AND (cooldown_until IS NULL OR cooldown_until < DATETIME('now'))
     `;
     const params: (string | number)[] = [];
 
@@ -321,7 +321,7 @@ export class AccountService {
     const result = await this.env.DB.prepare(`
       UPDATE ai_accounts
       SET cooldown_until = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-      WHERE id = ? AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      WHERE id = ? AND (cooldown_until IS NULL OR cooldown_until < DATETIME('now'))
     `).bind(reservationExpiry.toISOString(), selectedAccount.id).run() as D1ResultType;
 
     if (!result.success || (result.meta?.changes ?? 0) === 0) {
@@ -419,7 +419,7 @@ export class AccountService {
         AND aa.is_active = TRUE
         AND aa.is_healthy = TRUE
         AND aa.daily_usage < aa.daily_limit
-        AND (aa.cooldown_until IS NULL OR aa.cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        AND (aa.cooldown_until IS NULL OR aa.cooldown_until < DATETIME('now'))
         ${typeCondition}
       ORDER BY aa.last_used_at ASC NULLS FIRST, aa.total_usage ASC, gab.priority ASC
       LIMIT 1
@@ -431,7 +431,7 @@ export class AccountService {
       const result = await this.env.DB.prepare(`
         UPDATE ai_accounts
         SET cooldown_until = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ? AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        WHERE id = ? AND (cooldown_until IS NULL OR cooldown_until < DATETIME('now'))
       `).bind(reservationExpiry.toISOString(), (boundAccounts as any).id).run() as D1ResultType;
 
       if (result.success && (result.meta?.changes ?? 0) > 0) {
@@ -455,7 +455,7 @@ export class AccountService {
         AND aa.is_active = TRUE
         AND aa.is_healthy = TRUE
         AND aa.daily_usage < aa.daily_limit
-        AND (aa.cooldown_until IS NULL OR aa.cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        AND (aa.cooldown_until IS NULL OR aa.cooldown_until < DATETIME('now'))
         ${typeCondition}
       ORDER BY aa.last_used_at ASC NULLS FIRST, aa.total_usage ASC
       LIMIT 1
@@ -467,7 +467,7 @@ export class AccountService {
       const result = await this.env.DB.prepare(`
         UPDATE ai_accounts
         SET cooldown_until = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ? AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        WHERE id = ? AND (cooldown_until IS NULL OR cooldown_until < DATETIME('now'))
       `).bind(reservationExpiry.toISOString(), (otherAccounts as any).id).run() as D1ResultType;
 
       if (result.success && (result.meta?.changes ?? 0) > 0) {

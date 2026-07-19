@@ -961,7 +961,7 @@ export class TaskService {
 
     await this.env.DB.prepare(`
       UPDATE ai_accounts SET cooldown_until = NULL
-      WHERE cooldown_until IS NOT NULL AND cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE cooldown_until IS NOT NULL AND cooldown_until < DATETIME('now')
     `).run();
     
     const lockQuery = `
@@ -969,7 +969,7 @@ export class TaskService {
       SET cooldown_until = ?
       WHERE is_active = TRUE 
         AND is_healthy = TRUE
-        AND (cooldown_until IS NULL OR cooldown_until < STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        AND (cooldown_until IS NULL OR cooldown_until < DATETIME('now'))
         ${typeCondition}
         AND EXISTS (
           SELECT 1 FROM github_ai_bindings gab 
