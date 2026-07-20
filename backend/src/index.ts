@@ -21,11 +21,10 @@ app.use('*', cors({
       'http://localhost:3000',
       frontendUrl,
       adminUrl,
+      'https://b4272ef7.ai-video-frontend-c9p.pages.dev',
+      'https://main.ai-video-frontend-c9p.pages.dev',
     ];
     if (allowedOrigins.includes(origin)) {
-      return origin;
-    }
-    if (origin && origin.endsWith('.pages.dev')) {
       return origin;
     }
     return null;

@@ -38,7 +38,6 @@ export default function Tasks() {
       setTasks(result.data || []);
     } catch (error) {
       message.error('加载任务失败');
-      return;
     } finally {
       setLoading(false);
     }
@@ -107,13 +106,10 @@ export default function Tasks() {
 
   const handleDelete = async (id: string) => {
     try {
-      const result = await taskApi.delete(id);
-      console.log('Delete result:', result);
+      await taskApi.delete(id);
       message.success('任务已删除');
       loadTasks();
-    } catch (error: any) {
-      console.error('Delete error:', error);
-      console.error('Error response:', error.response);
+    } catch (error) {
       message.error('删除任务失败');
     }
   };
