@@ -28,10 +28,29 @@ fileRoutes.get('/', async (c) => {
 
     if (objects.delimitedPrefixes) {
       for (const prefix of objects.delimitedPrefixes) {
+        let folderSize = 0;
+        let folderCursor: string | undefined;
+        let folderTruncated = true;
+        
+        while (folderTruncated) {
+          const folderObjects = await R2.list({
+            prefix: prefix,
+            cursor: folderCursor,
+            limit: 1000,
+          });
+          
+          for (const obj of folderObjects.objects || []) {
+            folderSize += obj.size;
+          }
+          
+          folderTruncated = folderObjects.truncated;
+          folderCursor = folderObjects.cursor;
+        }
+        
         files.push({
           name: prefix.replace(/\/$/, '').split('/').pop() || prefix,
           key: prefix,
-          size: 0,
+          size: folderSize,
           type: 'directory',
           lastModified: '',
         });
