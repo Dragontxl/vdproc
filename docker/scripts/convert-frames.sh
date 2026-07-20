@@ -170,8 +170,6 @@ process_frame() {
 
     notify_subtask "update" "$shot_index" "$frame_type" "PROCESSING" "" ""
 
-    CHARACTERS=$(echo "$RESULT" | jq -r ".storyboards[$shot_index].characters_present")
-
     DEFAULT_PROMPT="修改为美式动画风格，保留原始图片的元素和内容, 只改变风格。"
     MAIN_PROMPT="${CUSTOM_PROMPT:-${PROMPT:-$DEFAULT_PROMPT}}"
     if [ -n "$CUSTOM_PROMPT" ]; then
@@ -186,29 +184,6 @@ process_frame() {
     INPUT_IMAGE_URL="${R2_PUBLIC_URL}/${FRAME_KEY}"
 
     echo "  Input image URL: $INPUT_IMAGE_URL"
-
-    CHARACTER_IMAGE_URL=""
-    if [ -n "$CHARACTERS" ] && [ "$CHARACTERS" != "null" ] && [ "$CHARACTERS" != "[]" ]; then
-        FIRST_CHARACTER=$(echo "$CHARACTERS" | jq -r '.[0] // ""')
-        if [ -n "$FIRST_CHARACTER" ]; then
-            CHAR_FRAME_KEY="${TASK_ID}/character_frames/${FIRST_CHARACTER}_best.jpg"
-            CHARACTER_IMAGE_URL="${R2_PUBLIC_URL}/${CHAR_FRAME_KEY}"
-            echo "  Character reference URL: $CHARACTER_IMAGE_URL"
-            CHAR_FILE_LOCAL="./character_frames/${FIRST_CHARACTER}_best.jpg"
-            if [ ! -f "$CHAR_FILE_LOCAL" ] || [ ! -s "$CHAR_FILE_LOCAL" ]; then
-                mkdir -p ./character_frames
-                echo "  Downloading character reference image from R2..."
-                aws s3 cp "s3://$R2_BUCKET_NAME/$CHAR_FRAME_KEY" "$CHAR_FILE_LOCAL" \
-                    --endpoint-url "$R2_ENDPOINT_URL" 2>/dev/null || true
-            fi
-            if [ -f "$CHAR_FILE_LOCAL" ] && [ -s "$CHAR_FILE_LOCAL" ]; then
-                echo "  Character reference image available: $CHAR_FILE_LOCAL"
-            else
-                echo "  Warning: Character reference image not found, proceeding without reference"
-                CHARACTER_IMAGE_URL=""
-            fi
-        fi
-    fi
 
     local account_index=$(acquire_ai_account "$ai_accounts" "$work_dir" "$shot_index" "$frame_type")
     
@@ -247,12 +222,6 @@ process_frame() {
         echo "  Shot $shot_index ${frame_type}: Attempt $attempt/$MAX_RETRIES..."
 
         IMAGE_ARRAY="[\"$INPUT_IMAGE_URL\"]"
-        if [ -n "$CHARACTER_IMAGE_URL" ]; then
-            IMAGE_ARRAY="[\"$INPUT_IMAGE_URL\", \"$CHARACTER_IMAGE_URL\"]"
-            echo "  Shot $shot_index ${frame_type}: Using character reference image"
-        else
-            echo "  Shot $shot_index ${frame_type}: No character reference available"
-        fi
 
         RESPONSE=$(curl -s -X POST \
             --connect-timeout 30 \
