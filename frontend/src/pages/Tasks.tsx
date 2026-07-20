@@ -107,10 +107,13 @@ export default function Tasks() {
 
   const handleDelete = async (id: string) => {
     try {
-      await taskApi.delete(id);
+      const result = await taskApi.delete(id);
+      console.log('Delete result:', result);
       message.success('任务已删除');
       loadTasks();
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      console.error('Error response:', error.response);
       message.error('删除任务失败');
     }
   };
