@@ -230,25 +230,19 @@ export default function FileBrowser() {
     }
 
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    const parts: { partNumber: number; etag: string }[] = [];
     
     for (let i = 0; i < totalChunks; i++) {
       const start = i * CHUNK_SIZE;
       const end = Math.min(start + CHUNK_SIZE, file.size);
       const chunk = file.slice(start, end);
       
-      const uploadResult = await fileApi.multipartUpload(uploadId, i + 1, r2Key, chunk);
-      
-      parts.push({
-        partNumber: i + 1,
-        etag: uploadResult.data?.etag || '',
-      });
+      await fileApi.multipartUpload(uploadId, i + 1, r2Key, chunk);
       
       const progress = Math.round(((i + 1) / totalChunks) * 100);
       setUploadProgress(prev => ({ ...prev, [key]: progress }));
     }
 
-    await fileApi.multipartComplete(uploadId, r2Key, parts);
+    await fileApi.multipartComplete(uploadId, r2Key);
   };
 
   const handleBatchUpload = (files: File[]) => {

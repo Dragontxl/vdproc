@@ -166,8 +166,8 @@ export const fileApi = {
       headers: { 'Content-Type': undefined },
     });
   },
-  multipartComplete: (uploadId: string, key: string, parts: { partNumber: number; etag: string }[]) =>
-    api.post('/admin/files/multipart/complete', { uploadId, key, parts }),
+  multipartComplete: (uploadId: string, key: string) =>
+    api.post('/admin/files/multipart/complete', { uploadId, key }),
   multipartAbort: (uploadId: string, key: string) =>
     api.post('/admin/files/multipart/abort', { uploadId, key }),
 };
