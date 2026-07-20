@@ -134,13 +134,7 @@ export default function FileBrowser() {
 
   const handleBatchDownload = async () => {
     if (selectedKeys.length === 0) {
-      message.warning('请选择要下载的文件');
-      return;
-    }
-
-    const fileKeys = selectedKeys.filter(k => !k.endsWith('/'));
-    if (fileKeys.length === 0) {
-      message.warning('请选择文件（不支持下载文件夹）');
+      message.warning('请选择要下载的文件或文件夹');
       return;
     }
 
@@ -149,24 +143,40 @@ export default function FileBrowser() {
 
     try {
       const zip = new JSZip();
+      const allFiles: { key: string; name: string }[] = [];
+
+      for (const key of selectedKeys) {
+        if (key.endsWith('/')) {
+          const folderFiles = await fileApi.listAllFiles(key);
+          allFiles.push(...folderFiles);
+        } else {
+          const filename = key.split('/').pop() || key;
+          allFiles.push({ key, name: filename });
+        }
+      }
+
+      if (allFiles.length === 0) {
+        message.warning('没有找到可下载的文件');
+        return;
+      }
+
       let downloadedCount = 0;
 
-      for (const key of fileKeys) {
-        const filename = key.split('/').pop() || key;
+      for (const file of allFiles) {
         try {
-          const blob = await fileApi.downloadAsBlob(filename, currentPath);
-          zip.file(filename, blob);
+          const blob = await fileApi.downloadAsBlob(file.key.split('/').pop() || file.key, file.key.substring(0, file.key.lastIndexOf('/') + 1));
+          zip.file(file.name, blob);
         } catch (error) {
-          message.warning(`下载 ${filename} 失败`);
+          message.warning(`下载 ${file.name} 失败`);
         }
         downloadedCount++;
-        setBatchDownloadProgress((downloadedCount / fileKeys.length) * 100);
+        setBatchDownloadProgress((downloadedCount / allFiles.length) * 100);
       }
 
       const content = await zip.generateAsync({ type: 'blob' });
       const zipName = currentPath ? `${currentPath.replace(/\/$/, '').split('/').pop()}_files.zip` : 'files.zip';
       saveAs(content, zipName);
-      message.success(`成功下载 ${fileKeys.length} 个文件`);
+      message.success(`成功下载 ${allFiles.length} 个文件`);
     } catch (error) {
       message.error('批量下载失败');
     } finally {

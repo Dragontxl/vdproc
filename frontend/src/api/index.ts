@@ -109,6 +109,17 @@ export const fileApi = {
     });
     return response.data;
   },
+  listAllFiles: async (prefix: string): Promise<{ key: string; name: string }[]> => {
+    const result = await api.get('/admin/files', { params: { prefix, delimiter: '' } });
+    const files: { key: string; name: string }[] = [];
+    const items = result.data?.files || [];
+    for (const item of items) {
+      if (item.type === 'file') {
+        files.push({ key: item.key, name: item.key.replace(prefix, '') });
+      }
+    }
+    return files;
+  },
   delete: (filename: string, prefix?: string, isDirectory?: boolean) => {
     const url = `/admin/files/${filename}`;
     return api.delete(url, { params: { prefix, is_directory: isDirectory } });
