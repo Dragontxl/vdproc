@@ -40,7 +40,7 @@ export class TaskService {
     tags?: string;
   }): Promise<Task> {
     const task: Task = {
-      id: this.generateUUID(),
+      id: this.generateUUID(data.title),
       user_id: 'default_user',
       title: data.title,
       video_path: data.videoPath,
@@ -1139,11 +1139,16 @@ export class TaskService {
     };
   }
 
-  private generateUUID(): string {
-    const array = new Uint8Array(16);
-    crypto.getRandomValues(array);
-    array[6] = (array[6] & 0x0f) | 0x40;
-    array[8] = (array[8] & 0x3f) | 0x80;
-    return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  private generateUUID(title: string): string {
+    const cleanedTitle = title.replace(/[^a-zA-Z0-9]/g, '');
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hour = String(now.getHours()).padStart(2, '0');
+    const minute = String(now.getMinutes()).padStart(2, '0');
+    const timestamp = `${year}${month}${day}${hour}${minute}`;
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
+    return `${cleanedTitle}${timestamp}${randomSuffix}`;
   }
 }
