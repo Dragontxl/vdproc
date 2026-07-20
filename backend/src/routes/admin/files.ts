@@ -286,25 +286,111 @@ fileRoutes.post('/upload', async (c) => {
   const { R2 } = c.env as Bindings;
   
   try {
-    const formData = await c.req.formData();
-    const file = formData.get('file') as File;
-    const prefix = (formData.get('prefix') as string) || '';
+    const contentType = c.req.header('content-type') || '';
     
-    if (!file) {
+    if (!contentType.includes('multipart/form-data')) {
       return c.json({
         code: 400,
         data: null,
-        msg: '请选择要上传的文件',
+        msg: '请使用 multipart/form-data 格式上传',
       }, 400);
     }
 
-    const key = prefix ? `${prefix}${file.name}` : file.name;
+    const boundaryMatch = contentType.match(/boundary=(.+)/);
+    if (!boundaryMatch) {
+      return c.json({
+        code: 400,
+        data: null,
+        msg: '不支持的请求格式',
+      }, 400);
+    }
+
+    const boundary = `--${boundaryMatch[1]}`;
+    const reader = c.req.raw.body.getReader();
     
-    const arrayBuffer = await file.arrayBuffer();
+    let fileName = '';
+    let prefix = '';
+    let fileBuffer = new Uint8Array(0);
+    let inFile = false;
+    let headerParsed = false;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      if (!inFile) {
+        const str = new TextDecoder().decode(value);
+        
+        if (!fileName && str.includes('filename=')) {
+          const fileNameMatch = str.match(/filename="([^"]+)"/);
+          if (fileNameMatch) {
+            fileName = fileNameMatch[1];
+          }
+        }
+        
+        if (!prefix && str.includes('name="prefix"')) {
+          const prefixMatch = str.match(/name="prefix"\r\n\r\n([^\r\n]+)/);
+          if (prefixMatch) {
+            prefix = prefixMatch[1];
+          }
+        }
+
+        if (fileName && !headerParsed) {
+          const headerEnd = str.indexOf('\r\n\r\n');
+          if (headerEnd !== -1) {
+            headerParsed = true;
+            inFile = true;
+            const fileStart = headerEnd + 4;
+            fileBuffer = value.slice(fileStart);
+          }
+        }
+      } else {
+        const newBuffer = new Uint8Array(fileBuffer.length + value.length);
+        newBuffer.set(fileBuffer, 0);
+        newBuffer.set(value, fileBuffer.length);
+        fileBuffer = newBuffer;
+      }
+    }
+
+    if (!fileName) {
+      return c.json({
+        code: 400,
+        data: null,
+        msg: '未找到文件名',
+      }, 400);
+    }
+
+    if (fileBuffer.length === 0) {
+      return c.json({
+        code: 400,
+        data: null,
+        msg: '未找到文件数据',
+      }, 400);
+    }
+
+    const boundaryBytes = new TextEncoder().encode(`\r\n${boundary}--`);
+    let fileEnd = fileBuffer.length;
     
-    await R2.put(key, arrayBuffer, {
+    for (let i = 0; i <= fileBuffer.length - boundaryBytes.length; i++) {
+      let match = true;
+      for (let j = 0; j < boundaryBytes.length; j++) {
+        if (fileBuffer[i + j] !== boundaryBytes[j]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        fileEnd = i;
+        break;
+      }
+    }
+
+    const fileData = fileBuffer.slice(0, fileEnd);
+    const key = prefix ? `${prefix}${fileName}` : fileName;
+    
+    await R2.put(key, fileData, {
       httpMetadata: {
-        contentType: file.type || 'application/octet-stream',
+        contentType: 'application/octet-stream',
       },
     });
 
@@ -312,14 +398,21 @@ fileRoutes.post('/upload', async (c) => {
       code: 200,
       data: {
         key,
-        name: file.name,
-        size: file.size,
-        contentType: file.type,
+        name: fileName,
+        size: fileData.length,
+        contentType: 'application/octet-stream',
       },
       msg: '文件上传成功',
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('R2 upload error:', error);
+    if (error.message?.includes('out of memory') || error.message?.includes('size limit')) {
+      return c.json({
+        code: 413,
+        data: null,
+        msg: '文件过大，无法上传',
+      }, 413);
+    }
     return c.json({
       code: 500,
       data: null,
