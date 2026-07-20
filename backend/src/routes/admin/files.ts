@@ -516,7 +516,10 @@ fileRoutes.post('/multipart/upload', async (c) => {
       },
     });
 
-    const etag = crypto.createHash('md5').update(new Uint8Array(arrayBuffer)).digest('hex');
+    const digest = await crypto.subtle.digest('SHA-256', arrayBuffer);
+    const etag = Array.from(new Uint8Array(digest))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
 
     await DB.prepare('INSERT INTO upload_parts (upload_id, part_number, etag) VALUES (?, ?, ?)')
       .bind(uploadId, partNumber, etag)
