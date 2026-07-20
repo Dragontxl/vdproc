@@ -346,23 +346,14 @@ export default function FileBrowser() {
       }
 
       message.info(`开始上传 ${filesToUpload.length} 个文件...`);
-      let successCount = 0;
 
       for (const { file, relativePath } of filesToUpload) {
-        try {
-          const folderPath = relativePath.substring(0, relativePath.lastIndexOf('/'));
-          const uploadPrefix = folderPath ? `${currentPath}${folderPath}/` : currentPath;
-          await fileApi.upload(file, uploadPrefix);
-          successCount++;
-        } catch (error) {
-          message.error(`上传 ${relativePath} 失败`);
-        }
+        const folderPath = relativePath.substring(0, relativePath.lastIndexOf('/'));
+        const uploadPrefix = folderPath ? `${currentPath}${folderPath}/` : currentPath;
+        await handleUpload(file, uploadPrefix);
       }
 
-      if (successCount > 0) {
-        message.success(`成功上传 ${successCount} 个文件`);
-        loadFiles(currentPath);
-      }
+      message.success(`上传完成`);
     } catch (error) {
       message.error('拖放上传失败');
     }
