@@ -42,12 +42,26 @@ export default function FileBrowser() {
   const loadFiles = async (prefix: string = '') => {
     setLoading(true);
     try {
-      const result = await fileApi.list({ prefix, delimiter: '/' });
-      setFiles(result.data?.files || []);
+      let allFiles: FileItem[] = [];
+      let cursor: string | undefined;
+      let isTruncated = true;
+
+      while (isTruncated) {
+        const result = await fileApi.list({ prefix, delimiter: '/', cursor });
+        const data = result.data;
+        if (data?.files) {
+          allFiles = [...allFiles, ...data.files];
+        }
+        isTruncated = data?.isTruncated || false;
+        cursor = data?.cursor || undefined;
+      }
+
+      setFiles(allFiles);
       setCurrentPath(prefix);
       setSelectedKeys([]);
       setAllSelected(false);
     } catch (error) {
+      console.error('Load files error:', error);
       message.error('加载文件列表失败');
     } finally {
       setLoading(false);

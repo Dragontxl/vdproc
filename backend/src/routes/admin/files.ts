@@ -7,11 +7,13 @@ fileRoutes.get('/', async (c) => {
   const { R2 } = c.env as Bindings;
   const prefix = c.req.query('prefix') || '';
   const delimiter = c.req.query('delimiter') || '/';
+  const cursor = c.req.query('cursor') || undefined;
 
   try {
     const objects = await R2.list({
       prefix,
       delimiter,
+      cursor,
       limit: 1000,
     });
 
@@ -62,6 +64,7 @@ fileRoutes.get('/', async (c) => {
         files,
         prefix,
         isTruncated: objects.truncated,
+        cursor: objects.cursor,
       },
       msg: 'success',
     });

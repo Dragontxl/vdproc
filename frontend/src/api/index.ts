@@ -85,7 +85,7 @@ export const metricsApi = {
 };
 
 export const fileApi = {
-  list: (params?: { prefix?: string; delimiter?: string }) =>
+  list: (params?: { prefix?: string; delimiter?: string; cursor?: string }) =>
     api.get('/admin/files', { params }),
   download: async (filename: string, prefix?: string) => {
     const response = await api.get(`/admin/files/download/${filename}`, {
