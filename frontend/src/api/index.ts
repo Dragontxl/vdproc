@@ -126,7 +126,7 @@ export const fileApi = {
   },
   batchDelete: (keys: string[]) =>
     api.post('/admin/files/batch-delete', { keys }),
-  upload: (file: File, prefix?: string) => {
+  upload: (file: File, prefix?: string, onProgress?: (progress: number) => void) => {
     const formData = new FormData();
     formData.append('file', file);
     if (prefix) {
@@ -134,6 +134,12 @@ export const fileApi = {
     }
     return api.post('/admin/files/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const percent = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+          onProgress(percent);
+        }
+      },
     });
   },
   batchUpload: (files: File[], prefix?: string) => {
@@ -148,6 +154,21 @@ export const fileApi = {
   },
   createFolder: (name: string, prefix?: string) =>
     api.post('/admin/files/create-folder', { name, prefix }),
+  multipartInit: (filename: string, prefix?: string) =>
+    api.post('/admin/files/multipart/init', { filename, prefix }),
+  multipartUpload: (uploadId: string, partNumber: number, file: Blob) => {
+    const formData = new FormData();
+    formData.append('uploadId', uploadId);
+    formData.append('partNumber', partNumber.toString());
+    formData.append('file', file);
+    return api.post('/admin/files/multipart/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  multipartComplete: (uploadId: string) =>
+    api.post('/admin/files/multipart/complete', { uploadId }),
+  multipartAbort: (uploadId: string) =>
+    api.post('/admin/files/multipart/abort', { uploadId }),
 };
 
 export default api;

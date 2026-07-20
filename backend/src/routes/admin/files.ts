@@ -286,111 +286,25 @@ fileRoutes.post('/upload', async (c) => {
   const { R2 } = c.env as Bindings;
   
   try {
-    const contentType = c.req.header('content-type') || '';
+    const formData = await c.req.formData();
+    const file = formData.get('file') as File;
+    const prefix = (formData.get('prefix') as string) || '';
     
-    if (!contentType.includes('multipart/form-data')) {
+    if (!file) {
       return c.json({
         code: 400,
         data: null,
-        msg: '请使用 multipart/form-data 格式上传',
+        msg: '请选择要上传的文件',
       }, 400);
     }
 
-    const boundaryMatch = contentType.match(/boundary=(.+)/);
-    if (!boundaryMatch) {
-      return c.json({
-        code: 400,
-        data: null,
-        msg: '不支持的请求格式',
-      }, 400);
-    }
-
-    const boundary = `--${boundaryMatch[1]}`;
-    const reader = c.req.raw.body.getReader();
+    const key = prefix ? `${prefix}${file.name}` : file.name;
     
-    let fileName = '';
-    let prefix = '';
-    let fileBuffer = new Uint8Array(0);
-    let inFile = false;
-    let headerParsed = false;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      if (!inFile) {
-        const str = new TextDecoder().decode(value);
-        
-        if (!fileName && str.includes('filename=')) {
-          const fileNameMatch = str.match(/filename="([^"]+)"/);
-          if (fileNameMatch) {
-            fileName = fileNameMatch[1];
-          }
-        }
-        
-        if (!prefix && str.includes('name="prefix"')) {
-          const prefixMatch = str.match(/name="prefix"\r\n\r\n([^\r\n]+)/);
-          if (prefixMatch) {
-            prefix = prefixMatch[1];
-          }
-        }
-
-        if (fileName && !headerParsed) {
-          const headerEnd = str.indexOf('\r\n\r\n');
-          if (headerEnd !== -1) {
-            headerParsed = true;
-            inFile = true;
-            const fileStart = headerEnd + 4;
-            fileBuffer = value.slice(fileStart);
-          }
-        }
-      } else {
-        const newBuffer = new Uint8Array(fileBuffer.length + value.length);
-        newBuffer.set(fileBuffer, 0);
-        newBuffer.set(value, fileBuffer.length);
-        fileBuffer = newBuffer;
-      }
-    }
-
-    if (!fileName) {
-      return c.json({
-        code: 400,
-        data: null,
-        msg: '未找到文件名',
-      }, 400);
-    }
-
-    if (fileBuffer.length === 0) {
-      return c.json({
-        code: 400,
-        data: null,
-        msg: '未找到文件数据',
-      }, 400);
-    }
-
-    const boundaryBytes = new TextEncoder().encode(`\r\n${boundary}--`);
-    let fileEnd = fileBuffer.length;
+    const stream = file.stream();
     
-    for (let i = 0; i <= fileBuffer.length - boundaryBytes.length; i++) {
-      let match = true;
-      for (let j = 0; j < boundaryBytes.length; j++) {
-        if (fileBuffer[i + j] !== boundaryBytes[j]) {
-          match = false;
-          break;
-        }
-      }
-      if (match) {
-        fileEnd = i;
-        break;
-      }
-    }
-
-    const fileData = fileBuffer.slice(0, fileEnd);
-    const key = prefix ? `${prefix}${fileName}` : fileName;
-    
-    await R2.put(key, fileData, {
+    await R2.put(key, stream, {
       httpMetadata: {
-        contentType: 'application/octet-stream',
+        contentType: file.type || 'application/octet-stream',
       },
     });
 
@@ -398,9 +312,9 @@ fileRoutes.post('/upload', async (c) => {
       code: 200,
       data: {
         key,
-        name: fileName,
-        size: fileData.length,
-        contentType: 'application/octet-stream',
+        name: file.name,
+        size: file.size,
+        contentType: file.type,
       },
       msg: '文件上传成功',
     });
@@ -490,6 +404,264 @@ fileRoutes.post('/batch-upload', async (c) => {
       code: 500,
       data: null,
       msg: '批量上传失败',
+    }, 500);
+  }
+});
+
+fileRoutes.post('/multipart/init', async (c) => {
+  const { R2, DB } = c.env as Bindings;
+  
+  try {
+    const body = await c.req.json();
+    const { filename, prefix = '' } = body;
+    
+    if (!filename) {
+      return c.json({
+        code: 400,
+        data: null,
+        msg: '缺少文件名',
+      }, 400);
+    }
+
+    const key = prefix ? `${prefix}${filename}` : filename;
+    const uploadId = crypto.randomUUID();
+
+    await DB.prepare('INSERT INTO uploads (upload_id, key, status, created_at) VALUES (?, ?, ?, ?)')
+      .bind(uploadId, key, 'uploading', new Date().toISOString())
+      .run();
+
+    return c.json({
+      code: 200,
+      data: {
+        uploadId,
+        key,
+      },
+      msg: '分片上传初始化成功',
+    });
+  } catch (error: any) {
+    console.error('Multipart init error:', error);
+    return c.json({
+      code: 500,
+      data: null,
+      msg: '初始化分片上传失败',
+    }, 500);
+  }
+});
+
+fileRoutes.post('/multipart/upload', async (c) => {
+  const { R2, DB } = c.env as Bindings;
+  
+  try {
+    const formData = await c.req.formData();
+    const uploadId = formData.get('uploadId') as string;
+    const partNumber = parseInt(formData.get('partNumber') as string);
+    const file = formData.get('file') as File;
+    
+    if (!uploadId || !partNumber || !file) {
+      return c.json({
+        code: 400,
+        data: null,
+        msg: '缺少必要参数',
+      }, 400);
+    }
+
+    const result = await DB.prepare('SELECT key, status FROM uploads WHERE upload_id = ?')
+      .bind(uploadId)
+      .first();
+
+    if (!result || result.status !== 'uploading') {
+      return c.json({
+        code: 400,
+        data: null,
+        msg: '上传会话不存在或已完成',
+      }, 400);
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const partKey = `${uploadId}/part_${partNumber}`;
+    
+    await R2.put(partKey, arrayBuffer, {
+      httpMetadata: {
+        contentType: file.type || 'application/octet-stream',
+      },
+    });
+
+    const etag = crypto.createHash('md5').update(new Uint8Array(arrayBuffer)).digest('hex');
+
+    await DB.prepare('INSERT INTO upload_parts (upload_id, part_number, etag) VALUES (?, ?, ?)')
+      .bind(uploadId, partNumber, etag)
+      .run();
+
+    return c.json({
+      code: 200,
+      data: {
+        partNumber,
+        etag,
+      },
+      msg: '分片上传成功',
+    });
+  } catch (error: any) {
+    console.error('Multipart upload error:', error);
+    return c.json({
+      code: 500,
+      data: null,
+      msg: '分片上传失败',
+    }, 500);
+  }
+});
+
+fileRoutes.post('/multipart/complete', async (c) => {
+  const { R2, DB } = c.env as Bindings;
+  
+  try {
+    const body = await c.req.json();
+    const { uploadId } = body;
+    
+    if (!uploadId) {
+      return c.json({
+        code: 400,
+        data: null,
+        msg: '缺少 uploadId',
+      }, 400);
+    }
+
+    const result = await DB.prepare('SELECT key, status FROM uploads WHERE upload_id = ?')
+      .bind(uploadId)
+      .first();
+
+    if (!result || result.status !== 'uploading') {
+      return c.json({
+        code: 400,
+        data: null,
+        msg: '上传会话不存在或已完成',
+      }, 400);
+    }
+
+    const key = result.key;
+
+    const partsResult = await DB.prepare('SELECT part_number, etag FROM upload_parts WHERE upload_id = ? ORDER BY part_number')
+      .bind(uploadId)
+      .all();
+
+    const parts = (partsResult.results || []) as { part_number: number; etag: string }[];
+
+    if (parts.length === 0) {
+      return c.json({
+        code: 400,
+        data: null,
+        msg: '没有上传任何分片',
+      }, 400);
+    }
+
+    let combinedBuffer = new Uint8Array(0);
+    
+    for (const part of parts) {
+      const partKey = `${uploadId}/part_${part.part_number}`;
+      const partObj = await R2.get(partKey);
+      
+      if (!partObj || !partObj.body) {
+        return c.json({
+          code: 500,
+          data: null,
+          msg: `分片 ${part.part_number} 不存在`,
+        }, 500);
+      }
+
+      const partBuffer = await partObj.arrayBuffer();
+      const newBuffer = new Uint8Array(combinedBuffer.length + partBuffer.byteLength);
+      newBuffer.set(combinedBuffer, 0);
+      newBuffer.set(new Uint8Array(partBuffer), combinedBuffer.length);
+      combinedBuffer = newBuffer;
+
+      await R2.delete(partKey);
+    }
+
+    await R2.put(key, combinedBuffer, {
+      httpMetadata: {
+        contentType: 'application/octet-stream',
+      },
+    });
+
+    await DB.prepare('UPDATE uploads SET status = ? WHERE upload_id = ?')
+      .bind('completed', uploadId)
+      .run();
+
+    await DB.prepare('DELETE FROM upload_parts WHERE upload_id = ?')
+      .bind(uploadId)
+      .run();
+
+    return c.json({
+      code: 200,
+      data: {
+        key,
+        size: combinedBuffer.length,
+      },
+      msg: '文件上传完成',
+    });
+  } catch (error: any) {
+    console.error('Multipart complete error:', error);
+    return c.json({
+      code: 500,
+      data: null,
+      msg: '完成上传失败',
+    }, 500);
+  }
+});
+
+fileRoutes.post('/multipart/abort', async (c) => {
+  const { R2, DB } = c.env as Bindings;
+  
+  try {
+    const body = await c.req.json();
+    const { uploadId } = body;
+    
+    if (!uploadId) {
+      return c.json({
+        code: 400,
+        data: null,
+        msg: '缺少 uploadId',
+      }, 400);
+    }
+
+    const result = await DB.prepare('SELECT key, status FROM uploads WHERE upload_id = ?')
+      .bind(uploadId)
+      .first();
+
+    if (!result) {
+      return c.json({
+        code: 400,
+        data: null,
+        msg: '上传会话不存在',
+      }, 400);
+    }
+
+    const listResult = await R2.list({
+      prefix: `${uploadId}/`,
+    });
+
+    for (const obj of listResult.objects || []) {
+      await R2.delete(obj.key);
+    }
+
+    await DB.prepare('UPDATE uploads SET status = ? WHERE upload_id = ?')
+      .bind('aborted', uploadId)
+      .run();
+
+    await DB.prepare('DELETE FROM upload_parts WHERE upload_id = ?')
+      .bind(uploadId)
+      .run();
+
+    return c.json({
+      code: 200,
+      data: null,
+      msg: '上传已取消',
+    });
+  } catch (error: any) {
+    console.error('Multipart abort error:', error);
+    return c.json({
+      code: 500,
+      data: null,
+      msg: '取消上传失败',
     }, 500);
   }
 });

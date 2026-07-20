@@ -34,6 +34,8 @@ export default function FileBrowser() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [batchDownloadProgress, setBatchDownloadProgress] = useState(0);
   const [isBatchDownloading, setIsBatchDownloading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
+  const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -185,14 +187,61 @@ export default function FileBrowser() {
     }
   };
 
-  const handleUpload = async (file: File) => {
+  const CHUNK_SIZE = 5 * 1024 * 1024;
+
+  const handleUpload = async (file: File, prefix?: string) => {
+    const key = `${file.name}_${file.size}_${Date.now()}`;
+    setUploadingFiles(prev => new Set(prev).add(key));
+    setUploadProgress(prev => ({ ...prev, [key]: 0 }));
+
     try {
-      await fileApi.upload(file, currentPath);
+      if (file.size < CHUNK_SIZE) {
+        await fileApi.upload(file, prefix || currentPath, (progress) => {
+          setUploadProgress(prev => ({ ...prev, [key]: progress }));
+        });
+      } else {
+        await uploadWithMultipart(file, prefix || currentPath, key);
+      }
       message.success(`文件 ${file.name} 上传成功`);
       loadFiles(currentPath);
     } catch (error) {
       message.error(`上传失败: ${(error as any)?.response?.data?.msg || '未知错误'}`);
+    } finally {
+      setUploadingFiles(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(key);
+        return newSet;
+      });
+      setUploadProgress(prev => {
+        const newProgress = { ...prev };
+        delete newProgress[key];
+        return newProgress;
+      });
     }
+  };
+
+  const uploadWithMultipart = async (file: File, prefix: string, key: string) => {
+    const initResult = await fileApi.multipartInit(file.name, prefix);
+    const uploadId = initResult.data?.uploadId;
+    
+    if (!uploadId) {
+      throw new Error('初始化分片上传失败');
+    }
+
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk = file.slice(start, end);
+      
+      await fileApi.multipartUpload(uploadId, i + 1, chunk);
+      
+      const progress = Math.round(((i + 1) / totalChunks) * 100);
+      setUploadProgress(prev => ({ ...prev, [key]: progress }));
+    }
+
+    await fileApi.multipartComplete(uploadId);
   };
 
   const handleBatchUpload = (files: File[]) => {
@@ -516,6 +565,20 @@ export default function FileBrowser() {
       {isBatchDownloading && (
         <div style={{ marginBottom: 16 }}>
           <Progress percent={Math.round(batchDownloadProgress)} status="active" />
+        </div>
+      )}
+
+      {uploadingFiles.size > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          {Array.from(uploadingFiles).map(key => (
+            <div key={key} style={{ marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span>{key.split('_')[0]}</span>
+                <span>{uploadProgress[key]}%</span>
+              </div>
+              <Progress percent={uploadProgress[key]} status="active" />
+            </div>
+          ))}
         </div>
       )}
 
