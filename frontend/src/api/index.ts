@@ -133,6 +133,7 @@ export const fileApi = {
       formData.append('prefix', prefix);
     }
     return api.post('/admin/files/upload', formData, {
+      headers: { 'Content-Type': undefined },
       onUploadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {
           const percent = Math.round((progressEvent.loaded / progressEvent.total) * 100);
@@ -147,7 +148,9 @@ export const fileApi = {
     if (prefix) {
       formData.append('prefix', prefix);
     }
-    return api.post('/admin/files/batch-upload', formData);
+    return api.post('/admin/files/batch-upload', formData, {
+      headers: { 'Content-Type': undefined },
+    });
   },
   createFolder: (name: string, prefix?: string) =>
     api.post('/admin/files/create-folder', { name, prefix }),
@@ -159,7 +162,9 @@ export const fileApi = {
     formData.append('partNumber', partNumber.toString());
     formData.append('key', key);
     formData.append('file', file);
-    return api.post('/admin/files/multipart/upload', formData);
+    return api.post('/admin/files/multipart/upload', formData, {
+      headers: { 'Content-Type': undefined },
+    });
   },
   multipartComplete: (uploadId: string, key: string, parts: { partNumber: number; etag: string }[]) =>
     api.post('/admin/files/multipart/complete', { uploadId, key, parts }),
