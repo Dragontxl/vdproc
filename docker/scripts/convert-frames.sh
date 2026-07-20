@@ -409,18 +409,32 @@ get_missing_frames() {
 
 if [ -n "$SUBTASK_INDEX" ] && [ -n "$SUBTASK_TYPE" ]; then
     FRAME_TYPE="${SUBTASK_TYPE#frame_}"
-    echo "=== Running as subtask: Shot $SUBTASK_INDEX, $FRAME_TYPE frame ==="
+    
+    # 从 metadata 中解析真实的 shot_index（metadata 格式: {"shot_index":N,"frame_type":"first/last"}）
+    SHOT_INDEX="$SUBTASK_INDEX"
+    if [ -n "$METADATA" ]; then
+        META_SHOT=$(echo "$METADATA" | jq -r '.shot_index // ""' 2>/dev/null)
+        META_FRAME=$(echo "$METADATA" | jq -r '.frame_type // ""' 2>/dev/null)
+        if [ -n "$META_SHOT" ] && [ "$META_SHOT" != "null" ]; then
+            SHOT_INDEX="$META_SHOT"
+        fi
+        if [ -n "$META_FRAME" ] && [ "$META_FRAME" != "null" ]; then
+            FRAME_TYPE="$META_FRAME"
+        fi
+    fi
+    
+    echo "=== Running as subtask: Shot $SHOT_INDEX, $FRAME_TYPE frame ==="
     
     rm -f "./frame_results.txt"
     rm -f "./bad_accounts.txt"
     
-    process_frame "$SUBTASK_INDEX" "$FRAME_TYPE" "$WORK_DIR" "$AI_ACCOUNTS"
+    process_frame "$SHOT_INDEX" "$FRAME_TYPE" "$WORK_DIR" "$AI_ACCOUNTS"
     
     echo "Uploading converted frames..."
     aws s3 sync "./ai_shot_frames" "s3://$R2_BUCKET_NAME/${TASK_ID}/ai_shot_frames" \
         --endpoint-url "$R2_ENDPOINT_URL"
     
-    if [ -f "./ai_shot_frames/shot_${SUBTASK_INDEX}_${FRAME_TYPE}.jpg" ] && [ -s "./ai_shot_frames/shot_${SUBTASK_INDEX}_${FRAME_TYPE}.jpg" ]; then
+    if [ -f "./ai_shot_frames/shot_${SHOT_INDEX}_${FRAME_TYPE}.jpg" ] && [ -s "./ai_shot_frames/shot_${SHOT_INDEX}_${FRAME_TYPE}.jpg" ]; then
         echo "Subtask completed successfully"
         exit 0
     else

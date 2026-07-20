@@ -80,7 +80,7 @@ export default function TaskDetail() {
         loadTask();
         loadLogs();
       }
-    }, 10000);
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [id]);
