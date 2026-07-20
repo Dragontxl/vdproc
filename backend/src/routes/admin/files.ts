@@ -409,7 +409,7 @@ fileRoutes.post('/batch-upload', async (c) => {
 });
 
 fileRoutes.post('/multipart/init', async (c) => {
-  const { R2, DB } = c.env as Bindings;
+  const { R2 } = c.env as Bindings;
   
   try {
     const body = await c.req.json();
@@ -424,11 +424,10 @@ fileRoutes.post('/multipart/init', async (c) => {
     }
 
     const key = prefix ? `${prefix}${filename}` : filename;
-    const uploadId = crypto.randomUUID();
 
-    await DB.prepare('INSERT INTO uploads (upload_id, key, status, created_at) VALUES (?, ?, ?, ?)')
-      .bind(uploadId, key, 'uploading', new Date().toISOString())
-      .run();
+    const { uploadId } = await R2.createMultipartUpload(key);
+
+    console.log(`Multipart init: key=${key}, uploadId=${uploadId}`);
 
     return c.json({
       code: 200,
@@ -439,58 +438,66 @@ fileRoutes.post('/multipart/init', async (c) => {
       msg: '分片上传初始化成功',
     });
   } catch (error: any) {
-    console.error('Multipart init error:', error);
+    console.error('Multipart init error:', error, error?.message);
     return c.json({
       code: 500,
       data: null,
-      msg: '初始化分片上传失败',
+      msg: `初始化分片上传失败: ${error?.message || '未知错误'}`,
     }, 500);
   }
 });
 
 fileRoutes.post('/multipart/upload', async (c) => {
-  const { R2, DB } = c.env as Bindings;
+  const { R2 } = c.env as Bindings;
   
   try {
     const formData = await c.req.formData();
     const uploadId = formData.get('uploadId') as string;
-    const partNumber = parseInt(formData.get('partNumber') as string);
+    const partNumberStr = formData.get('partNumber') as string;
+    const key = formData.get('key') as string;
     const file = formData.get('file') as File;
     
-    if (!uploadId || !partNumber || !file) {
+    if (!uploadId) {
       return c.json({
         code: 400,
         data: null,
-        msg: '缺少必要参数',
+        msg: '缺少 uploadId',
       }, 400);
     }
 
-    const result = await DB.prepare('SELECT key, status FROM uploads WHERE upload_id = ?')
-      .bind(uploadId)
-      .first();
-
-    if (!result || result.status !== 'uploading') {
+    if (!key) {
       return c.json({
         code: 400,
         data: null,
-        msg: '上传会话不存在或已完成',
+        msg: '缺少 key',
       }, 400);
     }
+
+    const partNumber = parseInt(partNumberStr);
+    if (!partNumber || isNaN(partNumber)) {
+      return c.json({
+        code: 400,
+        data: null,
+        msg: '缺少或无效的 partNumber',
+      }, 400);
+    }
+
+    if (!file) {
+      return c.json({
+        code: 400,
+        data: null,
+        msg: '缺少文件数据',
+      }, 400);
+    }
+
+    console.log(`Multipart upload: uploadId=${uploadId}, key=${key}, partNumber=${partNumber}, fileSize=${file.size}`);
 
     const arrayBuffer = await file.arrayBuffer();
-    const partKey = `${uploadId}/part_${partNumber}`;
+    const bytes = new Uint8Array(arrayBuffer);
     
-    await R2.put(partKey, arrayBuffer, {
-      httpMetadata: {
-        contentType: file.type || 'application/octet-stream',
-      },
-    });
+    const { etag } = await R2.uploadPart(key, uploadId, partNumber, bytes);
 
-    const etag = crypto.createHash('md5').update(new Uint8Array(arrayBuffer)).digest('hex');
-
-    await DB.prepare('INSERT INTO upload_parts (upload_id, part_number, etag) VALUES (?, ?, ?)')
-      .bind(uploadId, partNumber, etag)
-      .run();
+    console.log(`Multipart upload success: uploadId=${uploadId}, partNumber=${partNumber}, etag=${etag}`);
 
     return c.json({
       code: 200,
@@ -501,155 +508,83 @@ fileRoutes.post('/multipart/upload', async (c) => {
       msg: '分片上传成功',
     });
   } catch (error: any) {
-    console.error('Multipart upload error:', error);
+    console.error('Multipart upload error:', error, error?.message, error?.stack);
     return c.json({
       code: 500,
       data: null,
-      msg: '分片上传失败',
+      msg: `分片上传失败: ${error?.message || '未知错误'}`,
     }, 500);
   }
 });
 
 fileRoutes.post('/multipart/complete', async (c) => {
-  const { R2, DB } = c.env as Bindings;
+  const { R2 } = c.env as Bindings;
   
   try {
     const body = await c.req.json();
-    const { uploadId } = body;
+    const { uploadId, key, parts } = body;
     
-    if (!uploadId) {
+    if (!uploadId || !key) {
       return c.json({
         code: 400,
         data: null,
-        msg: '缺少 uploadId',
+        msg: '缺少 uploadId 或 key',
       }, 400);
     }
 
-    const result = await DB.prepare('SELECT key, status FROM uploads WHERE upload_id = ?')
-      .bind(uploadId)
-      .first();
-
-    if (!result || result.status !== 'uploading') {
+    if (!parts || !Array.isArray(parts)) {
       return c.json({
         code: 400,
         data: null,
-        msg: '上传会话不存在或已完成',
+        msg: '缺少 parts 数组',
       }, 400);
     }
 
-    const key = result.key;
+    console.log(`Completing multipart upload: uploadId=${uploadId}, key=${key}, parts=${parts.length}`);
 
-    const partsResult = await DB.prepare('SELECT part_number, etag FROM upload_parts WHERE upload_id = ? ORDER BY part_number')
-      .bind(uploadId)
-      .all();
+    const uploadedParts = parts.map((p: { partNumber: number; etag: string }) => ({
+      partNumber: p.partNumber,
+      etag: p.etag,
+    }));
 
-    const parts = (partsResult.results || []) as { part_number: number; etag: string }[];
+    const result = await R2.completeMultipartUpload(key, uploadId, uploadedParts);
 
-    if (parts.length === 0) {
-      return c.json({
-        code: 400,
-        data: null,
-        msg: '没有上传任何分片',
-      }, 400);
-    }
-
-    let combinedBuffer = new Uint8Array(0);
-    
-    for (const part of parts) {
-      const partKey = `${uploadId}/part_${part.part_number}`;
-      const partObj = await R2.get(partKey);
-      
-      if (!partObj || !partObj.body) {
-        return c.json({
-          code: 500,
-          data: null,
-          msg: `分片 ${part.part_number} 不存在`,
-        }, 500);
-      }
-
-      const partBuffer = await partObj.arrayBuffer();
-      const newBuffer = new Uint8Array(combinedBuffer.length + partBuffer.byteLength);
-      newBuffer.set(combinedBuffer, 0);
-      newBuffer.set(new Uint8Array(partBuffer), combinedBuffer.length);
-      combinedBuffer = newBuffer;
-
-      await R2.delete(partKey);
-    }
-
-    await R2.put(key, combinedBuffer, {
-      httpMetadata: {
-        contentType: 'application/octet-stream',
-      },
-    });
-
-    await DB.prepare('UPDATE uploads SET status = ? WHERE upload_id = ?')
-      .bind('completed', uploadId)
-      .run();
-
-    await DB.prepare('DELETE FROM upload_parts WHERE upload_id = ?')
-      .bind(uploadId)
-      .run();
+    console.log(`Multipart upload completed: key=${key}, size=${result.size}`);
 
     return c.json({
       code: 200,
       data: {
         key,
-        size: combinedBuffer.length,
+        size: result.size,
       },
       msg: '文件上传完成',
     });
   } catch (error: any) {
-    console.error('Multipart complete error:', error);
+    console.error('Multipart complete error:', error, error?.message, error?.stack);
     return c.json({
       code: 500,
       data: null,
-      msg: '完成上传失败',
+      msg: `完成上传失败: ${error?.message || '未知错误'}`,
     }, 500);
   }
 });
 
 fileRoutes.post('/multipart/abort', async (c) => {
-  const { R2, DB } = c.env as Bindings;
+  const { R2 } = c.env as Bindings;
   
   try {
     const body = await c.req.json();
-    const { uploadId } = body;
+    const { uploadId, key } = body;
     
-    if (!uploadId) {
+    if (!uploadId || !key) {
       return c.json({
         code: 400,
         data: null,
-        msg: '缺少 uploadId',
+        msg: '缺少 uploadId 或 key',
       }, 400);
     }
 
-    const result = await DB.prepare('SELECT key, status FROM uploads WHERE upload_id = ?')
-      .bind(uploadId)
-      .first();
-
-    if (!result) {
-      return c.json({
-        code: 400,
-        data: null,
-        msg: '上传会话不存在',
-      }, 400);
-    }
-
-    const listResult = await R2.list({
-      prefix: `${uploadId}/`,
-    });
-
-    for (const obj of listResult.objects || []) {
-      await R2.delete(obj.key);
-    }
-
-    await DB.prepare('UPDATE uploads SET status = ? WHERE upload_id = ?')
-      .bind('aborted', uploadId)
-      .run();
-
-    await DB.prepare('DELETE FROM upload_parts WHERE upload_id = ?')
-      .bind(uploadId)
-      .run();
+    await R2.abortMultipartUpload(key, uploadId);
 
     return c.json({
       code: 200,

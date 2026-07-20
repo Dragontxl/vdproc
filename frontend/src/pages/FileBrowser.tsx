@@ -223,25 +223,32 @@ export default function FileBrowser() {
   const uploadWithMultipart = async (file: File, prefix: string, key: string) => {
     const initResult = await fileApi.multipartInit(file.name, prefix);
     const uploadId = initResult.data?.uploadId;
+    const r2Key = initResult.data?.key;
     
-    if (!uploadId) {
+    if (!uploadId || !r2Key) {
       throw new Error('初始化分片上传失败');
     }
 
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    const parts: { partNumber: number; etag: string }[] = [];
     
     for (let i = 0; i < totalChunks; i++) {
       const start = i * CHUNK_SIZE;
       const end = Math.min(start + CHUNK_SIZE, file.size);
       const chunk = file.slice(start, end);
       
-      await fileApi.multipartUpload(uploadId, i + 1, chunk);
+      const uploadResult = await fileApi.multipartUpload(uploadId, i + 1, r2Key, chunk);
+      
+      parts.push({
+        partNumber: i + 1,
+        etag: uploadResult.data?.etag || '',
+      });
       
       const progress = Math.round(((i + 1) / totalChunks) * 100);
       setUploadProgress(prev => ({ ...prev, [key]: progress }));
     }
 
-    await fileApi.multipartComplete(uploadId);
+    await fileApi.multipartComplete(uploadId, r2Key, parts);
   };
 
   const handleBatchUpload = (files: File[]) => {

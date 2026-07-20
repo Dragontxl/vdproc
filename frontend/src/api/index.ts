@@ -156,19 +156,20 @@ export const fileApi = {
     api.post('/admin/files/create-folder', { name, prefix }),
   multipartInit: (filename: string, prefix?: string) =>
     api.post('/admin/files/multipart/init', { filename, prefix }),
-  multipartUpload: (uploadId: string, partNumber: number, file: Blob) => {
+  multipartUpload: (uploadId: string, partNumber: number, key: string, file: Blob) => {
     const formData = new FormData();
     formData.append('uploadId', uploadId);
     formData.append('partNumber', partNumber.toString());
+    formData.append('key', key);
     formData.append('file', file);
     return api.post('/admin/files/multipart/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
-  multipartComplete: (uploadId: string) =>
-    api.post('/admin/files/multipart/complete', { uploadId }),
-  multipartAbort: (uploadId: string) =>
-    api.post('/admin/files/multipart/abort', { uploadId }),
+  multipartComplete: (uploadId: string, key: string, parts: { partNumber: number; etag: string }[]) =>
+    api.post('/admin/files/multipart/complete', { uploadId, key, parts }),
+  multipartAbort: (uploadId: string, key: string) =>
+    api.post('/admin/files/multipart/abort', { uploadId, key }),
 };
 
 export default api;
