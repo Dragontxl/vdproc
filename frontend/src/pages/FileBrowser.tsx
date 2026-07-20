@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Card, Table, Tag, Button, Modal, message, Upload, Popconfirm, Space, Breadcrumb, Empty, Checkbox, Input } from 'antd';
+import { Card, Table, Tag, Button, Modal, message, Upload, Popconfirm, Space, Breadcrumb, Empty, Checkbox, Input, Progress } from 'antd';
 import { 
   FolderOutlined, 
   FileOutlined, 
@@ -11,6 +11,8 @@ import {
 } from '@ant-design/icons';
 import { fileApi } from '../api';
 import dayjs from 'dayjs';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 interface FileItem {
   name: string;
@@ -30,6 +32,8 @@ export default function FileBrowser() {
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
+  const [batchDownloadProgress, setBatchDownloadProgress] = useState(0);
+  const [isBatchDownloading, setIsBatchDownloading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -125,6 +129,49 @@ export default function FileBrowser() {
       loadFiles(currentPath);
     } catch (error) {
       message.error('批量删除失败');
+    }
+  };
+
+  const handleBatchDownload = async () => {
+    if (selectedKeys.length === 0) {
+      message.warning('请选择要下载的文件');
+      return;
+    }
+
+    const fileKeys = selectedKeys.filter(k => !k.endsWith('/'));
+    if (fileKeys.length === 0) {
+      message.warning('请选择文件（不支持下载文件夹）');
+      return;
+    }
+
+    setIsBatchDownloading(true);
+    setBatchDownloadProgress(0);
+
+    try {
+      const zip = new JSZip();
+      let downloadedCount = 0;
+
+      for (const key of fileKeys) {
+        const filename = key.split('/').pop() || key;
+        try {
+          const blob = await fileApi.downloadAsBlob(filename, currentPath);
+          zip.file(filename, blob);
+        } catch (error) {
+          message.warning(`下载 ${filename} 失败`);
+        }
+        downloadedCount++;
+        setBatchDownloadProgress((downloadedCount / fileKeys.length) * 100);
+      }
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      const zipName = currentPath ? `${currentPath.replace(/\/$/, '').split('/').pop()}_files.zip` : 'files.zip';
+      saveAs(content, zipName);
+      message.success(`成功下载 ${fileKeys.length} 个文件`);
+    } catch (error) {
+      message.error('批量下载失败');
+    } finally {
+      setIsBatchDownloading(false);
+      setBatchDownloadProgress(0);
     }
   };
 
@@ -416,9 +463,14 @@ export default function FileBrowser() {
             </Button>
           )}
           {selectedKeys.length > 0 && (
-            <Button danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>
-              批量删除 ({selectedKeys.length})
-            </Button>
+            <Space>
+              <Button icon={<DownloadOutlined />} onClick={handleBatchDownload} loading={isBatchDownloading}>
+                批量下载 ({selectedKeys.length})
+              </Button>
+              <Button danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>
+                批量删除 ({selectedKeys.length})
+              </Button>
+            </Space>
           )}
           <Upload
             beforeUpload={(file) => {
@@ -450,6 +502,12 @@ export default function FileBrowser() {
           />
         </Space>
       </div>
+
+      {isBatchDownloading && (
+        <div style={{ marginBottom: 16 }}>
+          <Progress percent={Math.round(batchDownloadProgress)} status="active" />
+        </div>
+      )}
 
       <Card
         style={{

@@ -102,6 +102,13 @@ export const fileApi = {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   },
+  downloadAsBlob: async (filename: string, prefix?: string) => {
+    const response = await api.get(`/admin/files/download/${filename}`, {
+      params: { prefix },
+      responseType: 'blob',
+    });
+    return response.data;
+  },
   delete: (filename: string, prefix?: string, isDirectory?: boolean) => {
     const url = `/admin/files/${filename}`;
     return api.delete(url, { params: { prefix, is_directory: isDirectory } });
