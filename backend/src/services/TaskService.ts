@@ -1140,7 +1140,8 @@ export class TaskService {
   }
 
   private generateUUID(title: string): string {
-    const cleanedTitle = title.replace(/[^a-zA-Z0-9]/g, '');
+    const cleanedTitle = title.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '');
+    const truncatedTitle = cleanedTitle.slice(0, 50);
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -1149,6 +1150,6 @@ export class TaskService {
     const minute = String(now.getMinutes()).padStart(2, '0');
     const timestamp = `${year}${month}${day}${hour}${minute}`;
     const randomSuffix = Math.random().toString(36).substring(2, 8);
-    return `${cleanedTitle}${timestamp}${randomSuffix}`;
+    return `${truncatedTitle}${timestamp}${randomSuffix}`;
   }
 }
