@@ -38,6 +38,7 @@ export default function Tasks() {
       setTasks(result.data || []);
     } catch (error) {
       message.error('加载任务失败');
+      return;
     } finally {
       setLoading(false);
     }
