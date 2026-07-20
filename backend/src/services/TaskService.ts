@@ -825,42 +825,97 @@ export class TaskService {
     query += ' ORDER BY phase, subtask_index';
     
     const result = await this.env.DB.prepare(query).bind(...params).all();
-    const subtasks = result.results || [];
+    let subtasks = result.results || [];
 
-    // 获取任务的原始 prompt 和各 shot 的 positive_prompt，用于构建每个子任务的 original_prompt
     const taskResult = await this.env.DB.prepare('SELECT prompt FROM tasks WHERE id = ?').bind(taskId).first() as any;
     const taskPrompt = taskResult?.prompt || '';
     
-    // 获取 shot_details 中的提示词相关字段（用于构造 GENERATE_SHOTS 的完整 main_prompt）
     let shotData: Record<number, { positive_prompt: string; scene_description: string; dialogue: string }> = {};
-    const shotsResult = await this.env.DB.prepare('SELECT shot_index, positive_prompt, scene_description, dialogue FROM shot_details WHERE task_id = ?').bind(taskId).all();
-    for (const row of (shotsResult.results || []) as any[]) {
-      shotData[row.shot_index] = {
-        positive_prompt: row.positive_prompt || '',
-        scene_description: row.scene_description || '',
-        dialogue: row.dialogue || '',
-      };
-    }
 
-    // 为每个子任务计算 original_prompt（与 Docker 脚本中无 custom_prompt 时的最终提示词保持一致）
-    for (const subtask of subtasks as any[]) {
-      let originalPrompt = '';
-      if (subtask.phase === 'GENERATE_CHARACTERS') {
-        originalPrompt = 'American animation style character design, white background, full body portrait, professional character sheet, clean line art, vibrant colors, high quality, anime style, based on the provided reference image';
-      } else if (subtask.phase === 'CONVERT_FRAMES') {
-        originalPrompt = taskPrompt || '修改为美式动画风格，保留原始图片的元素和内容, 只改变风格。';
-      } else if (subtask.phase === 'GENERATE_SHOTS') {
-        const sd = shotData[subtask.subtask_index];
-        if (sd) {
-          originalPrompt = `${sd.positive_prompt}, American animation style, anime style, high quality, ${sd.scene_description}`;
-          if (sd.dialogue && sd.dialogue !== 'null') {
-            originalPrompt += `, characters speaking: ${sd.dialogue}, no subtitle text on screen, no text overlay`;
-          } else {
-            originalPrompt += ', no dialogue, no speech, characters with neutral expression';
+    try {
+      const r2Obj = await this.env.R2.get(`${taskId}/analysis_result.json`);
+      if (r2Obj && r2Obj.body) {
+        const jsonStr = await r2Obj.text();
+        const analysis = JSON.parse(jsonStr);
+        if (analysis.storyboards && Array.isArray(analysis.storyboards)) {
+          for (let i = 0; i < analysis.storyboards.length; i++) {
+            const shot = analysis.storyboards[i];
+            shotData[i] = {
+              positive_prompt: shot.positive_prompt || '',
+              scene_description: shot.scene_description || '',
+              dialogue: shot.subtitles || shot.dialogue || '',
+            };
           }
         }
       }
-      subtask.original_prompt = originalPrompt;
+    } catch (e) {
+      console.log('Failed to load analysis_result.json from R2:', e);
+    }
+
+    if (Object.keys(shotData).length === 0) {
+      const shotsResult = await this.env.DB.prepare('SELECT shot_index, positive_prompt, scene_description, dialogue FROM shot_details WHERE task_id = ?').bind(taskId).all();
+      for (const row of (shotsResult.results || []) as any[]) {
+        shotData[row.shot_index] = {
+          positive_prompt: row.positive_prompt || '',
+          scene_description: row.scene_description || '',
+          dialogue: row.dialogue || '',
+        };
+      }
+    }
+
+    if (phase === 'GENERATE_SHOTS' && subtasks.length === 0 && Object.keys(shotData).length > 0) {
+      for (const shotIndexStr of Object.keys(shotData)) {
+        const shotIndex = parseInt(shotIndexStr);
+        const sd = shotData[shotIndex];
+        let originalPrompt = `${sd.positive_prompt}, American animation style, anime style, high quality, ${sd.scene_description}`;
+        if (sd.dialogue && sd.dialogue !== 'null') {
+          originalPrompt += `, characters speaking: ${sd.dialogue}, no subtitle text on screen, no text overlay`;
+        } else {
+          originalPrompt += ', no dialogue, no speech, characters with neutral expression';
+        }
+        subtasks.push({
+          id: null,
+          task_id: taskId,
+          phase: 'GENERATE_SHOTS',
+          subtask_index: shotIndex,
+          subtask_type: 'shot',
+          status: 'PENDING',
+          input_path: '',
+          output_path: '',
+          ai_account_id: null,
+          retry_count: 0,
+          max_retries: 3,
+          started_at: null,
+          completed_at: null,
+          error_msg: '',
+          metadata: '',
+          created_at: '',
+          original_prompt: originalPrompt,
+        });
+      }
+      subtasks.sort((a, b) => a.subtask_index - b.subtask_index);
+    }
+
+    for (const subtask of subtasks as any[]) {
+      if (!subtask.original_prompt) {
+        let originalPrompt = '';
+        if (subtask.phase === 'GENERATE_CHARACTERS') {
+          originalPrompt = 'American animation style character design, white background, full body portrait, professional character sheet, clean line art, vibrant colors, high quality, anime style, based on the provided reference image';
+        } else if (subtask.phase === 'CONVERT_FRAMES') {
+          originalPrompt = taskPrompt || '修改为美式动画风格，保留原始图片的元素和内容, 只改变风格。';
+        } else if (subtask.phase === 'GENERATE_SHOTS') {
+          const sd = shotData[subtask.subtask_index];
+          if (sd) {
+            originalPrompt = `${sd.positive_prompt}, American animation style, anime style, high quality, ${sd.scene_description}`;
+            if (sd.dialogue && sd.dialogue !== 'null') {
+              originalPrompt += `, characters speaking: ${sd.dialogue}, no subtitle text on screen, no text overlay`;
+            } else {
+              originalPrompt += ', no dialogue, no speech, characters with neutral expression';
+            }
+          }
+        }
+        subtask.original_prompt = originalPrompt;
+      }
     }
 
     return subtasks;
