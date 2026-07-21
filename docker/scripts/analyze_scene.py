@@ -322,11 +322,28 @@ def parse_json_response(text):
         text = text[:-3]
         log("Stripped ``` suffix")
     
+    text = text.strip()
+    
     try:
         return json.loads(text)
     except json.JSONDecodeError as e:
         log(f"JSON parse error: {e}")
-        log(f"Full response text: {text}")
+        log(f"Attempting to extract valid JSON...")
+        
+        first_brace = text.find('{')
+        last_brace = text.rfind('}')
+        
+        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+            extracted = text[first_brace:last_brace+1]
+            log(f"Extracted JSON from position {first_brace} to {last_brace}")
+            
+            try:
+                return json.loads(extracted)
+            except json.JSONDecodeError as e2:
+                log(f"Still invalid after extraction: {e2}")
+                log(f"Extracted JSON (first 800 chars): {extracted[:800]}")
+        
+        log(f"Full response text (first 2000 chars): {text[:2000]}")
         raise
 
 def main():
