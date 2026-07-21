@@ -45,8 +45,61 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
     
     echo "Processing shot $i: $START_TIME -> $END_TIME"
     
+    START_SECONDS=$(echo "$START_TIME" | awk -F: '{print ($1 * 3600) + ($2 * 60) + $3}')
     END_SECONDS=$(echo "$END_TIME" | awk -F: '{print ($1 * 3600) + ($2 * 60) + $3}')
+    echo "Start time in seconds: $START_SECONDS"
     echo "End time in seconds: $END_SECONDS"
+    
+    if awk "BEGIN {exit !($END_SECONDS <= $START_SECONDS)}"; then
+        echo "Warning: end_time ($END_TIME) <= start_time ($START_TIME), fixing..."
+        if [ "$i" -lt $((SHOT_COUNT - 1)) ]; then
+            NEXT_START=$(echo "$RESULT" | jq -r ".storyboards[$((i+1))].start_time")
+            NEXT_START_SECONDS=$(echo "$NEXT_START" | awk -F: '{print ($1 * 3600) + ($2 * 60) + $3}')
+            if awk "BEGIN {exit !($NEXT_START_SECONDS > $START_SECONDS)}"; then
+                END_TIME="$NEXT_START"
+                END_SECONDS="$NEXT_START_SECONDS"
+                echo "  Fixed: using next shot start_time as end_time: $END_TIME"
+            else
+                END_SECONDS=$(awk "BEGIN {print $START_SECONDS + 5}")
+                END_HOURS=$(printf "%02d" $(awk "BEGIN {print int($END_SECONDS / 3600)}"))
+                END_MINS=$(printf "%02d" $(awk "BEGIN {print int(($END_SECONDS % 3600) / 60)}"))
+                END_SECS=$(printf "%06.3f" $(awk "BEGIN {print $END_SECONDS % 60}"))
+                END_TIME="${END_HOURS}:${END_MINS}:${END_SECS}"
+                echo "  Fixed: adding 5s to start_time: $END_TIME"
+            fi
+        else
+            END_SECONDS="$VIDEO_SECONDS"
+            END_HOURS=$(printf "%02d" $(awk "BEGIN {print int($END_SECONDS / 3600)}"))
+            END_MINS=$(printf "%02d" $(awk "BEGIN {print int(($END_SECONDS % 3600) / 60)}"))
+            END_SECS=$(printf "%06.3f" $(awk "BEGIN {print $END_SECONDS % 60}"))
+            END_TIME="${END_HOURS}:${END_MINS}:${END_SECS}"
+            echo "  Fixed: using video duration as end_time: $END_TIME"
+        fi
+    fi
+    
+    if awk "BEGIN {exit !($END_SECONDS > $VIDEO_SECONDS)}"; then
+        echo "Warning: end_time ($END_TIME) exceeds video duration, clamping..."
+        END_SECONDS="$VIDEO_SECONDS"
+        END_HOURS=$(printf "%02d" $(awk "BEGIN {print int($END_SECONDS / 3600)}"))
+        END_MINS=$(printf "%02d" $(awk "BEGIN {print int(($END_SECONDS % 3600) / 60)}"))
+        END_SECS=$(printf "%06.3f" $(awk "BEGIN {print $END_SECONDS % 60}"))
+        END_TIME="${END_HOURS}:${END_MINS}:${END_SECS}"
+        echo "  Fixed end_time: $END_TIME"
+    fi
+    
+    if [ "$i" -gt 0 ]; then
+        PREV_END_TIME=$(echo "$RESULT" | jq -r ".storyboards[$((i-1))].end_time")
+        PREV_END_SECONDS=$(echo "$PREV_END_TIME" | awk -F: '{print ($1 * 3600) + ($2 * 60) + $3}')
+        if awk "BEGIN {exit !($START_SECONDS < $PREV_END_SECONDS)}"; then
+            echo "Warning: start_time ($START_TIME) < previous end_time ($PREV_END_TIME), fixing..."
+            START_SECONDS="$PREV_END_SECONDS"
+            START_HOURS=$(printf "%02d" $(awk "BEGIN {print int($START_SECONDS / 3600)}"))
+            START_MINS=$(printf "%02d" $(awk "BEGIN {print int(($START_SECONDS % 3600) / 60)}"))
+            START_SECS=$(printf "%06.3f" $(awk "BEGIN {print $START_SECONDS % 60}"))
+            START_TIME="${START_HOURS}:${START_MINS}:${START_SECS}"
+            echo "  Fixed start_time: $START_TIME"
+        fi
+    fi
     
     if [ "$i" -eq 0 ]; then
         echo "Extracting first frame (shot_0 only)..."

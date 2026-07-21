@@ -144,6 +144,170 @@ def extract_srt_content(srt_path):
     log(f"SRT file not found: {srt_path}")
     return ""
 
+def parse_time_to_seconds(time_str):
+    try:
+        parts = time_str.split(':')
+        h = int(parts[0])
+        m = int(parts[1])
+        s_parts = parts[2].split('.')
+        s = int(s_parts[0])
+        ms = int(s_parts[1]) if len(s_parts) > 1 else 0
+        return h * 3600 + m * 60 + s + ms / 1000
+    except Exception:
+        return None
+
+def seconds_to_time_str(seconds):
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    ms = int((seconds - int(seconds)) * 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}.{ms:03d}"
+
+def get_video_duration(video_path):
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+             '-of', 'default=noprint_wrappers=1:nokey=1', video_path],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return float(result.stdout.strip())
+    except Exception as e:
+        log(f"Warning: Failed to get video duration with ffprobe: {e}")
+    try:
+        result = subprocess.run(
+            ['ffmpeg', '-i', video_path],
+            capture_output=True, text=True, timeout=30
+        )
+        import re
+        match = re.search(r'Duration: (\d+):(\d+):(\d+\.\d+)', result.stderr)
+        if match:
+            h = int(match.group(1))
+            m = int(match.group(2))
+            s = float(match.group(3))
+            return h * 3600 + m * 60 + s
+    except Exception as e:
+        log(f"Warning: Failed to get video duration with ffmpeg: {e}")
+    return None
+
+def validate_and_fix_storyboards(result_json, video_duration=None, scenes_data=None):
+    storyboards = result_json.get('storyboards', [])
+    if not storyboards:
+        log("Warning: No storyboards found in result")
+        return result_json
+
+    log(f"Validating {len(storyboards)} storyboards...")
+    fixed_count = 0
+
+    scenes_map = {}
+    if scenes_data:
+        for s in scenes_data:
+            idx = s.get('scene_number', 0)
+            scenes_map[idx] = {
+                'start': s.get('start_timecode', ''),
+                'end': s.get('end_timecode', ''),
+                'duration': s.get('length_seconds', 0)
+            }
+
+    for i, shot in enumerate(storyboards):
+        start_str = shot.get('start_time', '')
+        end_str = shot.get('end_time', '')
+        start_sec = parse_time_to_seconds(start_str)
+        end_sec = parse_time_to_seconds(end_str)
+
+        needs_fix = False
+
+        if start_sec is None:
+            log(f"  Shot {i}: Invalid start_time format: {start_str}")
+            needs_fix = True
+        if end_sec is None:
+            log(f"  Shot {i}: Invalid end_time format: {end_str}")
+            needs_fix = True
+
+        if start_sec is not None and end_sec is not None and end_sec <= start_sec:
+            log(f"  Shot {i}: end_time ({end_str}) <= start_time ({start_str}), duration={end_sec - start_sec:.3f}s")
+            needs_fix = True
+
+        if needs_fix:
+            fixed_count += 1
+            scene_info = scenes_map.get(i, {})
+            scene_start = parse_time_to_seconds(scene_info.get('start', ''))
+            scene_end = parse_time_to_seconds(scene_info.get('end', ''))
+            scene_duration = scene_info.get('duration', 0)
+
+            if start_sec is None and scene_start is not None:
+                start_sec = scene_start
+                log(f"    Using scene start_time: {seconds_to_time_str(start_sec)}")
+            elif start_sec is None:
+                if i == 0:
+                    start_sec = 0.0
+                else:
+                    prev_end = parse_time_to_seconds(storyboards[i-1].get('end_time', ''))
+                    start_sec = prev_end if prev_end is not None else 0.0
+                log(f"    Fallback start_time: {seconds_to_time_str(start_sec)}")
+
+            if end_sec is None or end_sec <= start_sec:
+                if scene_end is not None and scene_end > start_sec:
+                    end_sec = scene_end
+                    log(f"    Using scene end_time: {seconds_to_time_str(end_sec)}")
+                elif scene_duration and scene_duration > 0:
+                    end_sec = start_sec + scene_duration
+                    log(f"    Using scene duration: {scene_duration}s -> end_time: {seconds_to_time_str(end_sec)}")
+                elif i < len(storyboards) - 1:
+                    next_start = parse_time_to_seconds(storyboards[i+1].get('start_time', ''))
+                    if next_start is not None and next_start > start_sec:
+                        end_sec = next_start
+                        log(f"    Using next shot start_time: {seconds_to_time_str(end_sec)}")
+                    else:
+                        end_sec = start_sec + 5.0
+                        log(f"    Fallback: adding 5s -> end_time: {seconds_to_time_str(end_sec)}")
+                else:
+                    if video_duration and video_duration > start_sec:
+                        end_sec = video_duration
+                        log(f"    Using video duration: {video_duration}s -> end_time: {seconds_to_time_str(end_sec)}")
+                    else:
+                        end_sec = start_sec + 5.0
+                        log(f"    Fallback: adding 5s -> end_time: {seconds_to_time_str(end_sec)}")
+
+            if video_duration and end_sec > video_duration:
+                end_sec = video_duration
+                log(f"    Clamping end_time to video duration: {seconds_to_time_str(end_sec)}")
+            if video_duration and start_sec > video_duration:
+                start_sec = max(0, video_duration - 1.0)
+                log(f"    Clamping start_time to video duration: {seconds_to_time_str(start_sec)}")
+
+            shot['start_time'] = seconds_to_time_str(start_sec)
+            shot['end_time'] = seconds_to_time_str(end_sec)
+
+    log("Validating storyboard sequence...")
+    for i in range(1, len(storyboards)):
+        prev_end = parse_time_to_seconds(storyboards[i-1].get('end_time', ''))
+        curr_start = parse_time_to_seconds(storyboards[i].get('start_time', ''))
+        
+        if prev_end is not None and curr_start is not None and curr_start < prev_end:
+            log(f"  Shot {i}: start_time ({storyboards[i]['start_time']}) < previous end_time ({storyboards[i-1]['end_time']})")
+            storyboards[i]['start_time'] = seconds_to_time_str(prev_end)
+            fixed_count += 1
+            
+            curr_end = parse_time_to_seconds(storyboards[i].get('end_time', ''))
+            if curr_end is not None and curr_end <= prev_end:
+                new_end = prev_end + 3.0
+                if video_duration and new_end > video_duration:
+                    new_end = video_duration
+                storyboards[i]['end_time'] = seconds_to_time_str(new_end)
+                log(f"    Also fixed end_time: {storyboards[i]['end_time']}")
+
+    if video_duration:
+        last_end = parse_time_to_seconds(storyboards[-1].get('end_time', ''))
+        if last_end is not None and last_end > video_duration:
+            storyboards[-1]['end_time'] = seconds_to_time_str(video_duration)
+            log(f"  Last shot end_time clamped to video duration: {seconds_to_time_str(video_duration)}")
+            fixed_count += 1
+
+    log(f"Validation complete: fixed {fixed_count} issues")
+    return result_json
+
 def parse_json_response(text):
     if not text:
         raise Exception("Empty response from API")
@@ -327,6 +491,25 @@ def main():
         
         log("Parsing analysis result...")
         result_json = parse_json_response(result_text)
+        
+        log("Getting video duration for validation...")
+        video_duration = get_video_duration(video_local_path)
+        if video_duration:
+            log(f"Video duration: {video_duration:.3f}s ({seconds_to_time_str(video_duration)})")
+        else:
+            log("Warning: Could not determine video duration")
+        
+        scenes_data = None
+        if os.path.exists(scenes_local_path):
+            try:
+                with open(scenes_local_path, 'r') as f:
+                    scenes_data = json.load(f)
+                log(f"Loaded {len(scenes_data)} scenes for reference")
+            except Exception as e:
+                log(f"Warning: Failed to load scenes data: {e}")
+        
+        log("Validating and fixing storyboard timestamps...")
+        result_json = validate_and_fix_storyboards(result_json, video_duration, scenes_data)
         
         output_path = "./analysis_result.json"
         with open(output_path, 'w', encoding='utf-8') as f:
