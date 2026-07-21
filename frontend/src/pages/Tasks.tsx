@@ -277,7 +277,7 @@ export default function Tasks() {
           <Form.Item name="fps" label="抽帧帧率" initialValue={24}>
             <InputNumber min={1} max={120} />
           </Form.Item>
-          <Form.Item name="outputFps" label="输出帧率" initialValue={30}>
+          <Form.Item name="outputFps" label="输出帧率" initialValue={24}>
             <InputNumber min={1} max={120} />
           </Form.Item>
           <Form.Item name="priority" label="优先级" initialValue={0}>

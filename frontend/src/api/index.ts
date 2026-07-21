@@ -87,10 +87,16 @@ export const metricsApi = {
 export const fileApi = {
   list: (params?: { prefix?: string; delimiter?: string; cursor?: string }) =>
     api.get('/admin/files', { params }),
-  download: async (filename: string, prefix?: string) => {
+  download: async (filename: string, prefix?: string, onProgress?: (progress: number) => void) => {
     const response = await api.get(`/admin/files/download/${filename}`, {
       params: { prefix },
       responseType: 'blob',
+      onDownloadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const percent = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+          onProgress(percent);
+        }
+      },
     });
     
     const url = window.URL.createObjectURL(new Blob([response.data]));

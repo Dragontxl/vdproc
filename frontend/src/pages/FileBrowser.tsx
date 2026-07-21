@@ -36,6 +36,8 @@ export default function FileBrowser() {
   const [isBatchDownloading, setIsBatchDownloading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
+  const [downloadProgress, setDownloadProgress] = useState<{ [key: string]: number }>({});
+  const [downloadingFiles, setDownloadingFiles] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -86,9 +88,27 @@ export default function FileBrowser() {
 
   const handleDownload = async (filename: string, key: string) => {
     try {
-      await fileApi.download(filename, currentPath);
+      setDownloadingFiles(prev => new Set(prev).add(key));
+      setDownloadProgress(prev => ({ ...prev, [key]: 0 }));
+      
+      await fileApi.download(filename, currentPath, (progress) => {
+        setDownloadProgress(prev => ({ ...prev, [key]: progress }));
+      });
+      
+      message.success(`文件 ${filename} 下载成功`);
     } catch (error) {
       message.error('下载失败');
+    } finally {
+      setDownloadingFiles(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(key);
+        return newSet;
+      });
+      setDownloadProgress(prev => {
+        const newProgress = { ...prev };
+        delete newProgress[key];
+        return newProgress;
+      });
     }
   };
 
@@ -483,9 +503,12 @@ export default function FileBrowser() {
         <Space>
           {record.type === 'file' && (
             <>
-              <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload(record.name, record.key)}>
-                下载
+              <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload(record.name, record.key)} loading={downloadingFiles.has(record.key)}>
+                {downloadingFiles.has(record.key) ? `${downloadProgress[record.key]}%` : '下载'}
               </Button>
+              {downloadingFiles.has(record.key) && (
+                <Progress percent={downloadProgress[record.key]} size="small" status="active" />
+              )}
               <Popconfirm
                 title={`确定要删除 ${record.name} 吗？`}
                 onConfirm={() => handleDelete(record.name, record.key)}

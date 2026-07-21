@@ -197,11 +197,11 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
         full_prompt = custom_prompt
         print(f"  Shot {shot_index}: Using custom prompt")
     else:
-        has_dialogue = "characters speaking:" in prompt
+        has_dialogue = "说话人:" in prompt
         if has_dialogue:
-            full_prompt = "在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。严格按照提供的提示词和对话内容生成画面，角色可以有与对话匹配的口型动作，但不要在画面中生成任何文字字幕或额外的对话情节。" + prompt
+            full_prompt = "在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。严格按照以下角色设定和对话内容生成画面，确保说话人的口型与台词匹配，非说话人保持沉默。不要在画面中生成任何文字字幕或额外的对话情节。\n\n" + prompt
         else:
-            full_prompt = "在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。严格按照提供的提示词生成画面，不要在画面中生成任何文字内容、对话字幕、口型动作或对话情节。" + prompt
+            full_prompt = "在两个参考图像之间创建一个平滑的过渡场景，保持角色身份一致性，动作自然。严格按照提供的提示词生成画面，不要在画面中生成任何文字内容、对话字幕、口型动作或对话情节。\n\n" + prompt
 
     target_frames = int(duration_seconds * output_fps)
     if target_frames < 9:
@@ -438,18 +438,53 @@ def process_shot(shot_index):
     print(f"First frame URL: {first_frame_url}")
     print(f"Last frame URL: {last_frame_url}")
 
-    characters = shot.get('characters_present', [])
+    characters_present = shot.get('characters_present', [])
     speaker = shot.get('speaker', '')
     dialogue = shot.get('subtitles', '')
     scene_desc = shot.get('scene_description', '')
     positive_prompt = shot.get('positive_prompt', '')
     negative_prompt = shot.get('negative_prompt', '')
 
-    main_prompt = f"{positive_prompt}, American animation style, anime style, high quality, {scene_desc}"
-    if dialogue and dialogue != 'null':
-        main_prompt += f", characters speaking: {dialogue}, no subtitle text on screen, no text overlay"
+    # 构建角色外观描述：从全局 characters 数组中查找每个出场角色的详细特征
+    global_characters = result.get('characters', [])
+    char_map = {c.get('role_id'): c for c in global_characters}
+
+    role_descriptions = []
+    for role_id in characters_present:
+        char = char_map.get(role_id)
+        if char:
+            gender = char.get('gender', '未知')
+            features = char.get('permanent_features', '无特殊特征')
+            role_descriptions.append(f"角色{role_id}({gender}, {features})")
+        else:
+            role_descriptions.append(f"角色{role_id}")
+
+    # 构建说话人与对话绑定：明确标注哪个角色在说话及其台词
+    if speaker and speaker != 'null' and dialogue and dialogue != 'null':
+        speaker_char = char_map.get(speaker)
+        if speaker_char:
+            speaker_gender = speaker_char.get('gender', '未知')
+            speaker_features = speaker_char.get('permanent_features', '无特殊特征')
+            speaker_desc = f"说话人: 角色{speaker}({speaker_gender}, {speaker_features}), 台词: \"{dialogue}\""
+        else:
+            speaker_desc = f"说话人: 角色{speaker}, 台词: \"{dialogue}\""
+
+        non_speakers = [r for r in characters_present if r != speaker]
+        if non_speakers:
+            silent_desc = f"沉默角色: {', '.join(non_speakers)}, 表情平静, 无口型动作"
+        else:
+            silent_desc = ""
     else:
-        main_prompt += ", no dialogue, no speech, characters with neutral expression"
+        speaker_desc = "本段无对话, 所有角色表情平静, 无口型动作"
+        silent_desc = ""
+
+    # 构建结构化提示词：将角色描述、对话、场景描述结构化
+    main_prompt = f"""场景描述: {scene_desc}
+出场角色: {'; '.join(role_descriptions)}
+{speaker_desc}
+{silent_desc}
+画面风格: American animation style, anime style, high quality
+{positive_prompt}"""
 
     account_index = shot_index % len(accounts) if accounts else 0
     output_fps = int(os.environ.get('OUTPUT_FPS', 24))
