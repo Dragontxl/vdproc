@@ -577,7 +577,11 @@ export class TaskService {
 
     console.log('updateTaskProgress called:', { taskId, phase, processedCount, totalCount, failedCount, message });
 
-    const progress = totalCount > 0 ? Math.round((processedCount / totalCount) * 100) : 0;
+    const phaseIndex = phaseOrder.indexOf(phase as TaskPhase);
+    const phasesCount = phaseOrder.length;
+    const phaseProgress = totalCount > 0 ? Math.round((processedCount / totalCount) * 100) : 0;
+    
+    const progress = Math.round(((phaseIndex / phasesCount) * 100) + ((phaseProgress / 100) * (100 / phasesCount)));
 
     await this.env.DB.prepare(`
       UPDATE tasks SET progress = ?, processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -805,7 +809,11 @@ export class TaskService {
   }
 
   async updateProgress(taskId: string, phase: string, processedCount: number, totalCount: number) {
-    const progress = totalCount > 0 ? Math.round((processedCount / totalCount) * 100) : 0;
+    const phaseIndex = phaseOrder.indexOf(phase as TaskPhase);
+    const phasesCount = phaseOrder.length;
+    const phaseProgress = totalCount > 0 ? Math.round((processedCount / totalCount) * 100) : 0;
+    
+    const progress = Math.round(((phaseIndex / phasesCount) * 100) + ((phaseProgress / 100) * (100 / phasesCount)));
     
     await this.env.DB.prepare(`
       UPDATE tasks SET progress = ?, processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
