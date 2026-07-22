@@ -838,7 +838,7 @@ export class TaskService {
     const taskResult = await this.env.DB.prepare('SELECT prompt FROM tasks WHERE id = ?').bind(taskId).first() as any;
     const taskPrompt = taskResult?.prompt || '';
     
-    let shotData: Record<number, { positive_prompt: string; scene_description: string; dialogue: string }> = {};
+    let shotData: Record<number, { positive_prompt: string; scene_description: string; dialogue: string; video_summary: string; characters: any[]; camera_movement: string; dialogues: any[] }> = {};
 
     try {
       const r2Obj = await this.env.R2.get(`${taskId}/analysis_result.json`);
@@ -846,12 +846,18 @@ export class TaskService {
         const jsonStr = await r2Obj.text();
         const analysis = JSON.parse(jsonStr);
         if (analysis.storyboards && Array.isArray(analysis.storyboards)) {
+          const videoSummary = analysis.video_summary || '';
+          const characters = analysis.characters || [];
           for (let i = 0; i < analysis.storyboards.length; i++) {
             const shot = analysis.storyboards[i];
             shotData[i] = {
               positive_prompt: shot.positive_prompt || '',
               scene_description: shot.scene_description || '',
               dialogue: shot.subtitles || shot.dialogue || '',
+              video_summary: videoSummary,
+              characters: characters,
+              camera_movement: shot.camera_movement || '',
+              dialogues: shot.dialogues || [],
             };
           }
         }
@@ -867,6 +873,10 @@ export class TaskService {
           positive_prompt: row.positive_prompt || '',
           scene_description: row.scene_description || '',
           dialogue: row.dialogue || '',
+          video_summary: '',
+          characters: [],
+          camera_movement: '',
+          dialogues: [],
         };
       }
     }
@@ -875,12 +885,59 @@ export class TaskService {
       for (const shotIndexStr of Object.keys(shotData)) {
         const shotIndex = parseInt(shotIndexStr);
         const sd = shotData[shotIndex];
-        let originalPrompt = `${sd.positive_prompt}, American animation style, anime style, high quality, ${sd.scene_description}`;
-        if (sd.dialogue && sd.dialogue !== 'null') {
-          originalPrompt += `, characters speaking: ${sd.dialogue}, no subtitle text on screen, no text overlay`;
-        } else {
-          originalPrompt += ', no dialogue, no speech, characters with neutral expression';
+        
+        const characterDescriptions: string[] = [];
+        if (sd.characters && sd.dialogues && Array.isArray(sd.dialogues) && sd.dialogues.length > 0) {
+          const charMap: Record<string, any> = {};
+          for (const c of sd.characters) {
+            charMap[c.role_id] = c;
+          }
+          const presentRoles = new Set<string>();
+          for (const d of sd.dialogues) {
+            if (d.speaker) {
+              presentRoles.add(d.speaker);
+            }
+          }
+          for (const roleId of presentRoles) {
+            const char = charMap[roleId];
+            if (char) {
+              const charName = char.name || '';
+              const gender = char.gender || '';
+              const features = char.permanent_features || '';
+              if (charName && gender && features) {
+                characterDescriptions.push(`${roleId}（${charName}）是${gender}，${features}`);
+              } else if (charName && features) {
+                characterDescriptions.push(`${roleId}（${charName}），${features}`);
+              } else if (gender && features) {
+                characterDescriptions.push(`${roleId}是${gender}，${features}`);
+              } else if (features) {
+                characterDescriptions.push(`${roleId}，${features}`);
+              } else if (charName) {
+                characterDescriptions.push(`${roleId}（${charName}）`);
+              }
+            }
+          }
         }
+
+        let subtitlesPart = '';
+        if (sd.dialogues && Array.isArray(sd.dialogues) && sd.dialogues.length > 0) {
+          const dialogueParts: string[] = [];
+          for (const d of sd.dialogues) {
+            const speaker = d.speaker || '';
+            const text = d.text || '';
+            if (speaker && text && speaker !== 'null' && text !== 'null') {
+              dialogueParts.push(`${speaker}：${text}`);
+            } else if (text && text !== 'null') {
+              dialogueParts.push(text);
+            }
+          }
+          if (dialogueParts.length > 0) {
+            subtitlesPart = '，' + dialogueParts.join('；');
+          }
+        }
+
+        const originalPrompt = `整体视频的情节是${sd.video_summary}，本片段是其中的一个分镜。${characterDescriptions.join('；')}。${sd.camera_movement}${sd.scene_description}${subtitlesPart}。不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕。`;
+        
         subtasks.push({
           id: null,
           task_id: taskId,
@@ -914,12 +971,57 @@ export class TaskService {
         } else if (subtask.phase === 'GENERATE_SHOTS') {
           const sd = shotData[subtask.subtask_index];
           if (sd) {
-            originalPrompt = `${sd.positive_prompt}, American animation style, anime style, high quality, ${sd.scene_description}`;
-            if (sd.dialogue && sd.dialogue !== 'null') {
-              originalPrompt += `, characters speaking: ${sd.dialogue}, no subtitle text on screen, no text overlay`;
-            } else {
-              originalPrompt += ', no dialogue, no speech, characters with neutral expression';
+            const characterDescriptions: string[] = [];
+            if (sd.characters && sd.dialogues && Array.isArray(sd.dialogues) && sd.dialogues.length > 0) {
+              const charMap: Record<string, any> = {};
+              for (const c of sd.characters) {
+                charMap[c.role_id] = c;
+              }
+              const presentRoles = new Set<string>();
+              for (const d of sd.dialogues) {
+                if (d.speaker) {
+                  presentRoles.add(d.speaker);
+                }
+              }
+              for (const roleId of presentRoles) {
+                const char = charMap[roleId];
+                if (char) {
+                  const charName = char.name || '';
+                  const gender = char.gender || '';
+                  const features = char.permanent_features || '';
+                  if (charName && gender && features) {
+                    characterDescriptions.push(`${roleId}（${charName}）是${gender}，${features}`);
+                  } else if (charName && features) {
+                    characterDescriptions.push(`${roleId}（${charName}），${features}`);
+                  } else if (gender && features) {
+                    characterDescriptions.push(`${roleId}是${gender}，${features}`);
+                  } else if (features) {
+                    characterDescriptions.push(`${roleId}，${features}`);
+                  } else if (charName) {
+                    characterDescriptions.push(`${roleId}（${charName}）`);
+                  }
+                }
+              }
             }
+
+            let subtitlesPart = '';
+            if (sd.dialogues && Array.isArray(sd.dialogues) && sd.dialogues.length > 0) {
+              const dialogueParts: string[] = [];
+              for (const d of sd.dialogues) {
+                const speaker = d.speaker || '';
+                const text = d.text || '';
+                if (speaker && text && speaker !== 'null' && text !== 'null') {
+                  dialogueParts.push(`${speaker}：${text}`);
+                } else if (text && text !== 'null') {
+                  dialogueParts.push(text);
+                }
+              }
+              if (dialogueParts.length > 0) {
+                subtitlesPart = '，' + dialogueParts.join('；');
+              }
+            }
+
+            originalPrompt = `整体视频的情节是${sd.video_summary}，本片段是其中的一个分镜。${characterDescriptions.join('；')}。${sd.camera_movement}${sd.scene_description}${subtitlesPart}。不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕。`;
           }
         }
         subtask.original_prompt = originalPrompt;
