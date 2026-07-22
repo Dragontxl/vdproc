@@ -437,8 +437,7 @@ def process_shot(shot_index):
     print(f"Last frame URL: {last_frame_url}")
 
     characters_present = shot.get('characters_present', [])
-    speaker = shot.get('speaker', '')
-    dialogue = shot.get('subtitles', '')
+    dialogues = shot.get('dialogues', [])
     scene_desc = shot.get('scene_description', '')
     camera_movement = shot.get('camera_movement', '')
     positive_prompt = shot.get('positive_prompt', '')
@@ -462,13 +461,18 @@ def process_shot(shot_index):
         else:
             character_descriptions.append(f"{role_id}")
 
-    speaker_desc = ""
-    if speaker and speaker != 'null' and dialogue and dialogue != 'null':
-        speaker_desc = f"{speaker}：{dialogue}"
-
     subtitles_part = ""
-    if dialogue and dialogue != 'null':
-        subtitles_part = f"，{speaker_desc}" if speaker_desc else f"，{dialogue}"
+    if dialogues and isinstance(dialogues, list):
+        dialogue_parts = []
+        for d in dialogues:
+            speaker = d.get('speaker', '')
+            text = d.get('text', '')
+            if speaker and text and speaker != 'null' and text != 'null':
+                dialogue_parts.append(f"{speaker}：{text}")
+            elif text and text != 'null':
+                dialogue_parts.append(text)
+        if dialogue_parts:
+            subtitles_part = "，" + "；".join(dialogue_parts)
 
     main_prompt = f"整体视频的情节是{video_summary}，本片段是其中的一个分镜。{'；'.join(character_descriptions)}。{camera_movement}{scene_desc}{subtitles_part}。不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕。"
 

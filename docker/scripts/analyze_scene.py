@@ -498,8 +498,7 @@ def main():
 5. 每段分镜输出：
    - 精确起止时间（修改后的）
    - 本段所有出场人物role_id
-   - 本段发言人role_id
-   - 完整台词字幕（遵循上方字幕规则）
+   - 对话数组（dialogues），包含每句话的 speaker 和 text，用于区分多人对话的归属
    - 场景描述
    - 光影描述
    - 运镜描述
@@ -540,8 +539,12 @@ JSON格式如下：
       "start_time": "00:00:00.000",
       "end_time": "00:00:05.000",
       "characters_present": ["R1"],
-      "speaker": "R1",
-      "subtitles": "台词内容",
+      "dialogues": [
+        {{
+          "speaker": "R1",
+          "text": "台词内容"
+        }}
+      ],
       "scene_description": "场景描述",
       "lighting_description": "光影描述",
       "camera_movement": "运镜描述",
@@ -555,7 +558,7 @@ JSON格式如下：
 - start_time、end_time 和 best_face_time 必须使用 HH:MM:SS.mmm 格式
 - storyboards 数组不能为空，必须至少包含一个分镜
 - characters_present 和 differentiation_labels 必须是数组
-- speaker 可以为 null
+- dialogues 是数组，每个元素包含 speaker（角色ID）和 text（台词内容），无对话时可以为空数组
 - best_face_time 必须选择该人物面部最清晰、正面、完整的帧，确保后续可以准确提取人脸
 - 不要添加任何额外的顶层键"""
         
