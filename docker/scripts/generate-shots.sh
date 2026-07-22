@@ -452,12 +452,19 @@ def process_shot(shot_index):
     for role_id in characters_present:
         char = char_map.get(role_id)
         if char:
+            char_name = char.get('name', '')
             gender = char.get('gender', '')
             features = char.get('permanent_features', '')
-            if gender and features:
+            if char_name and gender and features:
+                character_descriptions.append(f"{role_id}（{char_name}）是{gender}，{features}")
+            elif char_name and features:
+                character_descriptions.append(f"{role_id}（{char_name}），{features}")
+            elif gender and features:
                 character_descriptions.append(f"{role_id}是{gender}，{features}")
             elif features:
                 character_descriptions.append(f"{role_id}，{features}")
+            elif char_name:
+                character_descriptions.append(f"{role_id}（{char_name}）")
         else:
             character_descriptions.append(f"{role_id}")
 
