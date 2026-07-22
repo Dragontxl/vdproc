@@ -308,6 +308,48 @@ def validate_and_fix_storyboards(result_json, video_duration=None, scenes_data=N
     log(f"Validation complete: fixed {fixed_count} issues")
     return result_json
 
+def repair_json(text):
+    """尝试修复常见的 JSON 格式错误"""
+    import re
+    
+    # 1. 移除 JavaScript 风格的注释
+    text = re.sub(r'//.*?$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
+    
+    # 2. 修复无引号的键名 (如  key: value -> "key": "value")
+    text = re.sub(r'(\{|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', text)
+    
+    # 3. 修复单引号字符串 (Python 风格) 改为双引号
+    text = re.sub(r"'([^'\\]*(?:\\.[^'\\]*)*)'", r'"\1"', text)
+    
+    # 4. 移除尾随逗号 (trailing commas)
+    text = re.sub(r',\s*([}\]])', r'\1', text)
+    
+    # 5. 修复字符串中未转义的换行符
+    text = re.sub(r'(?<=": ")(.*?)(?=")', lambda m: m.group(1).replace('\n', '\\n').replace('\r', '\\r'), text)
+    
+    # 6. 修复 True/False/None (Python 风格) 为 JSON 标准
+    text = re.sub(r'\bTrue\b', 'true', text)
+    text = re.sub(r'\bFalse\b', 'false', text)
+    text = re.sub(r'\bNone\b', 'null', text)
+    
+    # 7. 修复字符串值中未转义的双引号 (常见问题)
+    # 例如 "description": "角色说"你好"了" -> "description": "角色说\"你好\"了"
+    def fix_inner_quotes(match):
+        prefix = match.group(1)  # "key": "
+        content = match.group(2)  # 字符串内容
+        suffix = match.group(3)  # "
+        # 如果内容中有奇数个双引号，说明有未转义的双引号
+        # 保留转义的双引号，对未转义的双引号进行转义
+        fixed_content = re.sub(r'(?<!\\)"', r'\\"', content)
+        return prefix + fixed_content + suffix
+    
+    # 这个正则匹配 "key": "value" 模式，其中 value 可能含未转义的双引号
+    text = re.sub(r'("\w+"):\s*"((?:[^"\\]|\\.)*?)"\s*([,}\]])', fix_inner_quotes, text, flags=re.DOTALL)
+    
+    return text
+
+
 def parse_json_response(text):
     if not text:
         raise Exception("Empty response from API")
@@ -324,27 +366,43 @@ def parse_json_response(text):
     
     text = text.strip()
     
+    # 第一次尝试：直接解析
     try:
         return json.loads(text)
     except json.JSONDecodeError as e:
-        log(f"JSON parse error: {e}")
-        log(f"Attempting to extract valid JSON...")
-        
-        first_brace = text.find('{')
-        last_brace = text.rfind('}')
-        
-        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-            extracted = text[first_brace:last_brace+1]
-            log(f"Extracted JSON from position {first_brace} to {last_brace}")
-            
-            try:
-                return json.loads(extracted)
-            except json.JSONDecodeError as e2:
-                log(f"Still invalid after extraction: {e2}")
-                log(f"Extracted JSON (first 800 chars): {extracted[:800]}")
-        
-        log(f"Full response text (first 2000 chars): {text[:2000]}")
-        raise
+        log(f"Initial JSON parse failed: {e}")
+    
+    # 第二次尝试：提取最外层的 JSON 块
+    first_brace = text.find('{')
+    last_brace = text.rfind('}')
+    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+        extracted = text[first_brace:last_brace+1]
+        log(f"Extracted JSON block from position {first_brace} to {last_brace}")
+        try:
+            return json.loads(extracted)
+        except json.JSONDecodeError as e:
+            log(f"Extracted JSON still invalid: {e}")
+    
+    # 第三次尝试：应用修复规则
+    log("Attempting JSON repair...")
+    repaired = repair_json(text)
+    try:
+        return json.loads(repaired)
+    except json.JSONDecodeError as e:
+        log(f"Repair attempt failed: {e}")
+    
+    # 第四次尝试：提取并修复
+    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+        extracted = text[first_brace:last_brace+1]
+        repaired = repair_json(extracted)
+        try:
+            return json.loads(repaired)
+        except json.JSONDecodeError as e:
+            log(f"Extract+repair attempt failed: {e}")
+            log(f"Repaired JSON (first 1500 chars): {repaired[:1500]}")
+    
+    log(f"Full response text (first 2000 chars): {text[:2000]}")
+    raise Exception(f"Failed to parse JSON after all repair attempts: {e}")
 
 def main():
     try:
@@ -448,7 +506,19 @@ def main():
    - 正向prompt（用于AI生成）
    - 反向prompt（用于排除不想要的元素）
 
-请严格按照以下JSON格式输出，必须包含 video_summary、characters 和 storyboards 三个顶层键：
+请严格按照以下JSON格式输出，必须包含 video_summary、characters 和 storyboards 三个顶层键。
+
+⚠️ 重要 JSON 格式要求：
+- 必须输出严格合法的 JSON，不能包含任何注释（不要使用 // 或 /* */）
+- 所有字符串值中的双引号必须用反斜杠转义（如 \"）
+- 所有字符串值中的换行符必须用 \n 转义
+- 不要使用尾随逗号（如 "key": "value", } 是错误的）
+- 不要在字符串值中使用未转义的控制字符
+- 所有键名必须用双引号包围
+- 只能使用双引号，不能使用单引号
+- 确保每个 { 都有对应的 }，每个 [ 都有对应的 ]
+
+JSON格式如下：
 
 {{
   "video_summary": "整体视频的核心内容总结，包括故事主题、主要角色关系、关键情节发展",
