@@ -936,7 +936,7 @@ export class TaskService {
           }
         }
 
-        const originalPrompt = `整体视频的情节是${sd.video_summary}，本片段是其中的一个分镜。${characterDescriptions.join('；')}。${sd.camera_movement}${sd.scene_description}${subtitlesPart}。不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕。`;
+        const originalPrompt = `整体视频的情节是${sd.video_summary}，本片段是其中的一个分镜。${characterDescriptions.join('；')}。${sd.camera_movement}${sd.scene_description}${subtitlesPart}。不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕。有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。`;
         
         subtasks.push({
           id: null,
@@ -1021,7 +1021,7 @@ export class TaskService {
               }
             }
 
-            originalPrompt = `整体视频的情节是${sd.video_summary}，本片段是其中的一个分镜。${characterDescriptions.join('；')}。${sd.camera_movement}${sd.scene_description}${subtitlesPart}。不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕。`;
+            originalPrompt = `整体视频的情节是${sd.video_summary}，本片段是其中的一个分镜。${characterDescriptions.join('；')}。${sd.camera_movement}${sd.scene_description}${subtitlesPart}。不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕。有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。`;
           }
         }
         subtask.original_prompt = originalPrompt;
