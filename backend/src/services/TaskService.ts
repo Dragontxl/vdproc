@@ -936,7 +936,14 @@ export class TaskService {
           }
         }
 
-        const originalPrompt = `整体视频的情节是${sd.video_summary}，本片段是其中的一个分镜。${characterDescriptions.join('；')}。${sd.camera_movement}${sd.scene_description}${subtitlesPart}。生成的视频片段严格以第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧。不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕。有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。`;
+        const originalPrompt = `场景背景：${sd.video_summary}，本片段是其中的一个分镜。
+角色描述：${characterDescriptions.join('；')}
+镜头运动：${sd.camera_movement}
+场景描述：${sd.scene_description}
+人物对话：${subtitlesPart}
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。`;
         
         subtasks.push({
           id: null,
@@ -1021,7 +1028,14 @@ export class TaskService {
               }
             }
 
-            originalPrompt = `整体视频的情节是${sd.video_summary}，本片段是其中的一个分镜。${characterDescriptions.join('；')}。${sd.camera_movement}${sd.scene_description}${subtitlesPart}。生成的视频片段严格以第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧。不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕。有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。`;
+            originalPrompt = `场景背景：${sd.video_summary}，本片段是其中的一个分镜。
+角色描述：${characterDescriptions.join('；')}
+镜头运动：${sd.camera_movement}
+场景描述：${sd.scene_description}
+人物对话：${subtitlesPart}
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。`;
           }
         }
         subtask.original_prompt = originalPrompt;
