@@ -481,7 +481,7 @@ def process_shot(shot_index):
         if dialogue_parts:
             subtitles_part = "，" + "；".join(dialogue_parts)
 
-    main_prompt = f"整体视频的情节是{video_summary}，本片段是其中的一个分镜。{'；'.join(character_descriptions)}。{camera_movement}{scene_desc}{subtitles_part}。不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕。有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。"
+    main_prompt = f"整体视频的情节是{video_summary}，本片段是其中的一个分镜。{'；'.join(character_descriptions)}。{camera_movement}{scene_desc}{subtitles_part}。生成的视频片段严格以第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧。不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕。有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。"
 
     account_index = shot_index % len(accounts) if accounts else 0
     output_fps = int(os.environ.get('OUTPUT_FPS', 24))
