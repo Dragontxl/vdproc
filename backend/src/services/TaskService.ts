@@ -905,15 +905,15 @@ export class TaskService {
               const gender = char.gender || '';
               const features = char.permanent_features || '';
               if (charName && gender && features) {
-                characterDescriptions.push(`${roleId}（${charName}）是${gender}，${features}`);
+                characterDescriptions.push(`${charName}是${gender}，${features}`);
               } else if (charName && features) {
-                characterDescriptions.push(`${roleId}（${charName}），${features}`);
+                characterDescriptions.push(`${charName}，${features}`);
               } else if (gender && features) {
-                characterDescriptions.push(`${roleId}是${gender}，${features}`);
+                characterDescriptions.push(`${gender}，${features}`);
               } else if (features) {
-                characterDescriptions.push(`${roleId}，${features}`);
+                characterDescriptions.push(features);
               } else if (charName) {
-                characterDescriptions.push(`${roleId}（${charName}）`);
+                characterDescriptions.push(charName);
               }
             }
           }
@@ -926,7 +926,13 @@ export class TaskService {
             const speaker = d.speaker || '';
             const text = d.text || '';
             if (speaker && text && speaker !== 'null' && text !== 'null') {
-              dialogueParts.push(`${speaker}：${text}`);
+              let speakerName = speaker;
+              if (speaker.includes('（') && speaker.includes('）')) {
+                const nameStart = speaker.indexOf('（') + 1;
+                const nameEnd = speaker.indexOf('）');
+                speakerName = speaker.substring(nameStart, nameEnd);
+              }
+              dialogueParts.push(`${speakerName}：${text}`);
             } else if (text && text !== 'null') {
               dialogueParts.push(text);
             }
@@ -943,6 +949,7 @@ export class TaskService {
 人物对话：${subtitlesPart}
 关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
 字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
 对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。`;
         
         subtasks.push({
@@ -997,15 +1004,15 @@ export class TaskService {
                   const gender = char.gender || '';
                   const features = char.permanent_features || '';
                   if (charName && gender && features) {
-                    characterDescriptions.push(`${roleId}（${charName}）是${gender}，${features}`);
+                    characterDescriptions.push(`${charName}是${gender}，${features}`);
                   } else if (charName && features) {
-                    characterDescriptions.push(`${roleId}（${charName}），${features}`);
+                    characterDescriptions.push(`${charName}，${features}`);
                   } else if (gender && features) {
-                    characterDescriptions.push(`${roleId}是${gender}，${features}`);
+                    characterDescriptions.push(`${gender}，${features}`);
                   } else if (features) {
-                    characterDescriptions.push(`${roleId}，${features}`);
+                    characterDescriptions.push(features);
                   } else if (charName) {
-                    characterDescriptions.push(`${roleId}（${charName}）`);
+                    characterDescriptions.push(charName);
                   }
                 }
               }
@@ -1018,7 +1025,13 @@ export class TaskService {
                 const speaker = d.speaker || '';
                 const text = d.text || '';
                 if (speaker && text && speaker !== 'null' && text !== 'null') {
-                  dialogueParts.push(`${speaker}：${text}`);
+                  let speakerName = speaker;
+                  if (speaker.includes('（') && speaker.includes('）')) {
+                    const nameStart = speaker.indexOf('（') + 1;
+                    const nameEnd = speaker.indexOf('）');
+                    speakerName = speaker.substring(nameStart, nameEnd);
+                  }
+                  dialogueParts.push(`${speakerName}：${text}`);
                 } else if (text && text !== 'null') {
                   dialogueParts.push(text);
                 }
@@ -1035,6 +1048,7 @@ export class TaskService {
 人物对话：${subtitlesPart}
 关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
 字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
 对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。`;
           }
         }
