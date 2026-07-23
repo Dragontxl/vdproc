@@ -210,7 +210,6 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
 
     request_body = {
         'model': 'agnes-video-v2.0',
-        'prompt': full_prompt,
         'image': image_urls,
         'image_list': image_urls,
         'mode': 'keyframes',
@@ -221,7 +220,7 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
         'height': 448,
         'seed': 42,
         'global_prompt': '人物对话必须严格按照提示词中的对话文本生成，包括文本内容和语种。口型必须与对话内容精确匹配。',
-        'local_prompts': '',
+        'local_prompts': full_prompt,
         'max_length': 256,
         'background_image': None
     }
