@@ -366,10 +366,13 @@ def parse_json_response(text):
     
     text = text.strip()
     
+    e = None
+    
     # 第一次尝试：直接解析
     try:
         return json.loads(text)
-    except json.JSONDecodeError as e:
+    except json.JSONDecodeError as err:
+        e = err
         log(f"Initial JSON parse failed: {e}")
     
     # 第二次尝试：提取最外层的 JSON 块
@@ -380,29 +383,42 @@ def parse_json_response(text):
         log(f"Extracted JSON block from position {first_brace} to {last_brace}")
         try:
             return json.loads(extracted)
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError as err:
+            e = err
             log(f"Extracted JSON still invalid: {e}")
     
     # 第三次尝试：应用修复规则
     log("Attempting JSON repair...")
-    repaired = repair_json(text)
     try:
-        return json.loads(repaired)
-    except json.JSONDecodeError as e:
-        log(f"Repair attempt failed: {e}")
+        repaired = repair_json(text)
+        try:
+            return json.loads(repaired)
+        except json.JSONDecodeError as err:
+            e = err
+            log(f"Repair attempt failed: {e}")
+            log(f"Repaired JSON (first 1500 chars): {repaired[:1500]}")
+    except Exception as err:
+        e = err
+        log(f"Repair function raised exception: {e}")
     
     # 第四次尝试：提取并修复
     if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
         extracted = text[first_brace:last_brace+1]
-        repaired = repair_json(extracted)
         try:
-            return json.loads(repaired)
-        except json.JSONDecodeError as e:
-            log(f"Extract+repair attempt failed: {e}")
-            log(f"Repaired JSON (first 1500 chars): {repaired[:1500]}")
+            repaired = repair_json(extracted)
+            try:
+                return json.loads(repaired)
+            except json.JSONDecodeError as err:
+                e = err
+                log(f"Extract+repair attempt failed: {e}")
+                log(f"Repaired JSON (first 1500 chars): {repaired[:1500]}")
+        except Exception as err:
+            e = err
+            log(f"Extract+repair function raised exception: {e}")
     
     log(f"Full response text (first 2000 chars): {text[:2000]}")
-    raise Exception(f"Failed to parse JSON after all repair attempts: {e}")
+    error_msg = str(e) if e else "Unknown error"
+    raise Exception(f"Failed to parse JSON after all repair attempts: {error_msg}")
 
 def main():
     try:
