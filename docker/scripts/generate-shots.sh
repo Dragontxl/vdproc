@@ -490,6 +490,10 @@ def process_shot(shot_index):
 字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
 对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。"""
 
+    print(f"=== Shot {shot_index} Full Prompt ===")
+    print(main_prompt)
+    print(f"=== End Shot {shot_index} Prompt ===")
+
     account_index = shot_index % len(accounts) if accounts else 0
     output_fps = int(os.environ.get('OUTPUT_FPS', 24))
 
