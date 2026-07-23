@@ -440,8 +440,6 @@ def process_shot(shot_index):
     dialogues = shot.get('dialogues', [])
     scene_desc = shot.get('scene_description', '')
     camera_movement = shot.get('camera_movement', '')
-    positive_prompt = shot.get('positive_prompt', '')
-    negative_prompt = shot.get('negative_prompt', '')
 
     video_summary = result.get('video_summary', '')
 
