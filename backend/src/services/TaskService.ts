@@ -927,10 +927,9 @@ export class TaskService {
             const text = d.text || '';
             if (speaker && text && speaker !== 'null' && text !== 'null') {
               let speakerName = speaker;
-              if (speaker.includes('（') && speaker.includes('）')) {
-                const nameStart = speaker.indexOf('（') + 1;
-                const nameEnd = speaker.indexOf('）');
-                speakerName = speaker.substring(nameStart, nameEnd);
+              const charInfo = charMap[speaker];
+              if (charInfo && charInfo.name) {
+                speakerName = charInfo.name;
               }
               dialogueParts.push(`${speakerName}：${text}`);
             } else if (text && text !== 'null') {
@@ -1026,10 +1025,9 @@ export class TaskService {
                 const text = d.text || '';
                 if (speaker && text && speaker !== 'null' && text !== 'null') {
                   let speakerName = speaker;
-                  if (speaker.includes('（') && speaker.includes('）')) {
-                    const nameStart = speaker.indexOf('（') + 1;
-                    const nameEnd = speaker.indexOf('）');
-                    speakerName = speaker.substring(nameStart, nameEnd);
+                  const charInfo = charMap[speaker];
+                  if (charInfo && charInfo.name) {
+                    speakerName = charInfo.name;
                   }
                   dialogueParts.push(`${speakerName}：${text}`);
                 } else if (text && text !== 'null') {

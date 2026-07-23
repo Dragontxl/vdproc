@@ -473,12 +473,10 @@ def process_shot(shot_index):
             speaker = d.get('speaker', '')
             text = d.get('text', '')
             if speaker and text and speaker != 'null' and text != 'null':
-                if '（' in speaker and '）' in speaker:
-                    name_start = speaker.find('（') + 1
-                    name_end = speaker.find('）')
-                    speaker_name = speaker[name_start:name_end]
-                else:
-                    speaker_name = speaker
+                speaker_name = speaker
+                char_info = char_map.get(speaker)
+                if char_info and char_info.get('name'):
+                    speaker_name = char_info.get('name')
                 dialogue_parts.append(f"{speaker_name}：{text}")
             elif text and text != 'null':
                 dialogue_parts.append(text)
