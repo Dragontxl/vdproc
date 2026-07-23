@@ -454,17 +454,17 @@ def process_shot(shot_index):
             gender = char.get('gender', '')
             features = char.get('permanent_features', '')
             if char_name and gender and features:
-                character_descriptions.append(f"{role_id}（{char_name}）是{gender}，{features}")
+                character_descriptions.append(f"{char_name}是{gender}，{features}")
             elif char_name and features:
-                character_descriptions.append(f"{role_id}（{char_name}），{features}")
+                character_descriptions.append(f"{char_name}，{features}")
             elif gender and features:
-                character_descriptions.append(f"{role_id}是{gender}，{features}")
+                character_descriptions.append(f"{gender}，{features}")
             elif features:
-                character_descriptions.append(f"{role_id}，{features}")
+                character_descriptions.append(features)
             elif char_name:
-                character_descriptions.append(f"{role_id}（{char_name}）")
+                character_descriptions.append(char_name)
         else:
-            character_descriptions.append(f"{role_id}")
+            character_descriptions.append(role_id)
 
     subtitles_part = ""
     if dialogues and isinstance(dialogues, list):
@@ -473,7 +473,13 @@ def process_shot(shot_index):
             speaker = d.get('speaker', '')
             text = d.get('text', '')
             if speaker and text and speaker != 'null' and text != 'null':
-                dialogue_parts.append(f"{speaker}：{text}")
+                if '（' in speaker and '）' in speaker:
+                    name_start = speaker.find('（') + 1
+                    name_end = speaker.find('）')
+                    speaker_name = speaker[name_start:name_end]
+                else:
+                    speaker_name = speaker
+                dialogue_parts.append(f"{speaker_name}：{text}")
             elif text and text != 'null':
                 dialogue_parts.append(text)
         if dialogue_parts:
