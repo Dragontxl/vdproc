@@ -214,13 +214,13 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
         'image': image_urls,
         'image_list': image_urls,
         'mode': 'keyframes',
-        'negative_prompt': 'pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable text, incorrect lettering, incorrect slogan, english text, english dialogue, speaking english',
+        'negative_prompt': 'pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable text, incorrect lettering, incorrect slogan',
         'num_frames': num_frames,
         'frame_rate': output_fps,
         'width': 832,
         'height': 448,
         'seed': 42,
-        'global_prompt': '所有内容必须使用中文，人物对话必须是中文，禁止出现任何英文文字或英文对话',
+        'global_prompt': '人物对话必须严格按照提示词中的对话文本生成，包括文本内容和语种。口型必须与对话内容精确匹配。',
         'local_prompts': '',
         'max_length': 256,
         'background_image': None
@@ -488,7 +488,7 @@ def process_shot(shot_index):
 人物对话：{subtitles_part}
 关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
 字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
-语言强制要求：本视频所有内容必须为中文，人物对话必须使用中文，禁止出现任何英文文字、英文对话或英文口型，人物的口型必须与中文对话内容精确匹配，确保发音为中文语音
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
 对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。"""
 
     print(f"=== Shot {shot_index} Full Prompt ===")
