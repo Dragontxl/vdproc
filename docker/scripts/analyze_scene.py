@@ -231,7 +231,7 @@ def validate_and_fix_storyboards(result_json, video_duration=None, scenes_data=N
             needs_fix = True
         
         time_key_pattern = r'^\d{2}:\d{2}:\d{2}\.\d{3}$'
-        for key in shot.keys():
+        for key in list(shot.keys()):
             if re.match(time_key_pattern, key) and key not in ['start_time', 'end_time']:
                 log(f"  Shot {i}: Found suspicious time-format key '{key}', likely corrupted JSON structure")
                 needs_fix = True
