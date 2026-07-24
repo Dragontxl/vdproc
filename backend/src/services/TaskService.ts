@@ -985,11 +985,13 @@ export class TaskService {
           const sd = shotData[subtask.subtask_index];
           if (sd) {
             const characterDescriptions: string[] = [];
-            if (sd.characters && sd.dialogues && Array.isArray(sd.dialogues) && sd.dialogues.length > 0) {
-              const charMap: Record<string, any> = {};
+            const charMap: Record<string, any> = {};
+            if (sd.characters && Array.isArray(sd.characters)) {
               for (const c of sd.characters) {
                 charMap[c.role_id] = c;
               }
+            }
+            if (sd.dialogues && Array.isArray(sd.dialogues) && sd.dialogues.length > 0) {
               const presentRoles = new Set<string>();
               for (const d of sd.dialogues) {
                 if (d.speaker) {
