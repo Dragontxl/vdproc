@@ -433,11 +433,9 @@ def process_shot(shot_index):
         first_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_0_first.jpg"
     else:
         first_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_{shot_index - 1}_last.jpg"
-    middle_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_{shot_index}_middle.jpg"
     last_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_{shot_index}_last.jpg"
 
     print(f"First frame URL: {first_frame_url}")
-    print(f"Middle frame URL: {middle_frame_url}")
     print(f"Last frame URL: {last_frame_url}")
 
     characters_present = shot.get('characters_present', [])
@@ -492,7 +490,7 @@ def process_shot(shot_index):
 镜头运动：{camera_movement}
 场景描述：{scene_desc}
 人物对话：{subtitles_part}
-关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+关键帧要求：第1张图片为起始帧，第2张图片为结束帧，在两帧之间创建平滑过渡
 字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
 语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
 对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。"""
@@ -509,7 +507,7 @@ def process_shot(shot_index):
 
     notify_subtask_python("update", shot_index, "PROCESSING")
     
-    video_url = generate_video(accounts if accounts else None, account_index, [first_frame_url, middle_frame_url, last_frame_url], main_prompt, shot_index, duration, output_fps)
+    video_url = generate_video(accounts if accounts else None, account_index, [first_frame_url, last_frame_url], main_prompt, shot_index, duration, output_fps)
 
     if video_url:
         print(f"Downloading generated video for shot {shot_index}...")

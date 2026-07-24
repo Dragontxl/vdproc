@@ -104,14 +104,6 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
     echo "Extracting first frame..."
     ffmpeg -ss "$START_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_first.jpg"
     
-    MIDDLE_SECONDS=$(awk "BEGIN {print ($START_SECONDS + $END_SECONDS) / 2}")
-    MIDDLE_HOURS=$(printf "%02d" $(awk "BEGIN {print int($MIDDLE_SECONDS / 3600)}"))
-    MIDDLE_MINS=$(printf "%02d" $(awk "BEGIN {print int(($MIDDLE_SECONDS % 3600) / 60)}"))
-    MIDDLE_SECS=$(printf "%06.3f" $(awk "BEGIN {print $MIDDLE_SECONDS % 60}"))
-    MIDDLE_TIME="${MIDDLE_HOURS}:${MIDDLE_MINS}:${MIDDLE_SECS}"
-    echo "Extracting middle frame at $MIDDLE_TIME..."
-    ffmpeg -ss "$MIDDLE_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_middle.jpg"
-    
     echo "Extracting last frame..."
     ffmpeg -ss "$END_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_last.jpg" 2>&1 || true
     
