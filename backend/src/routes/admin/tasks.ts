@@ -116,14 +116,23 @@ taskRoutes.get('/:id/subtasks', async (c) => {
   const { id } = c.req.param();
   const phase = c.req.query('phase') as string;
   
-  const taskService = new TaskService(c.env as Bindings);
-  const subtasks = await taskService.getPhaseSubtasks(id, phase);
-  
-  return c.json({
-    code: 200,
-    data: subtasks,
-    msg: 'success',
-  });
+  try {
+    const taskService = new TaskService(c.env as Bindings);
+    const subtasks = await taskService.getPhaseSubtasks(id, phase);
+    
+    return c.json({
+      code: 200,
+      data: subtasks,
+      msg: 'success',
+    });
+  } catch (error: any) {
+    console.error('Failed to load subtasks:', error);
+    return c.json({
+      code: 500,
+      data: [],
+      msg: error.message || '加载子任务失败',
+    }, 500);
+  }
 });
 
 taskRoutes.post('/:id/subtasks/:phase/:index/run', async (c) => {

@@ -127,8 +127,9 @@ export default function TaskDetail() {
         }
         return next;
       });
-    } catch (error) {
-      message.error('加载子任务失败');
+    } catch (error: any) {
+      const msg = error.response?.data?.msg || '加载子任务失败';
+      message.error(msg);
     } finally {
       setSubtaskLoading(false);
     }

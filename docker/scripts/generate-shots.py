@@ -43,6 +43,7 @@ def main():
         request_body = {
             'model': model_name,
             'prompt': full_prompt,
+            'mode': 'keyframes',
             'extra_body': {
                 'image': image_urls,
                 'mode': 'keyframes'
@@ -54,7 +55,7 @@ def main():
             'seed': 42
         }
         
-        json_data = json.dumps(request_body).encode('utf-8')
+        json_data = json.dumps(request_body, ensure_ascii=False).encode('utf-8')
         
         headers = {
             'Content-Type': 'application/json',
@@ -113,9 +114,10 @@ def main():
                 print(f"  Shot {shot_index}: Poll {poll_attempt+1}/{max_polls} - Status: {status}, Progress: {progress}%")
                 
                 if status == 'completed':
-                    url = resp_data.get('remixed_from_video_id') or resp_data.get('video_url') or resp_data.get('output_url') or resp_data.get('url')
-                    if isinstance(resp_data.get('data'), dict):
-                        url = url or resp_data.get('data').get('url')
+                    url = resp_data.get('url') or resp_data.get('remixed_from_video_id') or resp_data.get('video_url') or resp_data.get('output_url')
+                    if not url:
+                        metadata = resp_data.get('metadata', {})
+                        url = metadata.get('url') if isinstance(metadata, dict) else None
                     if url:
                         print(f"  Shot {shot_index}: Got video URL: {url}")
                         return url

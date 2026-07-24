@@ -211,12 +211,11 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
     request_body = {
         'model': 'agnes-video-v2.0',
         'prompt': full_prompt,
-        'negative_prompt': 'pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable text, incorrect lettering, incorrect slogan',
+        'mode': 'keyframes',
         'num_frames': num_frames,
         'frame_rate': output_fps,
         'width': 832,
         'height': 448,
-        'seed': 42,
         'extra_body': {
             'image': image_urls,
             'mode': 'keyframes'
@@ -270,7 +269,7 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
                 base_url = 'https://' + base_url
 
             request_body['model'] = model_name
-            json_data = json.dumps(request_body).encode('utf-8')
+            json_data = json.dumps(request_body, ensure_ascii=False).encode('utf-8')
 
             headers = {
                 'Content-Type': 'application/json',
@@ -379,7 +378,10 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
 
                     if status == 'completed':
                         print(f"  Shot {shot_index}: Completed response: {resp_body[:2000]}")
-                        url = resp_data.get('url')
+                        url = resp_data.get('url') or resp_data.get('remixed_from_video_id')
+                        if not url:
+                            metadata = resp_data.get('metadata', {})
+                            url = metadata.get('url') if isinstance(metadata, dict) else None
                         if url:
                             print(f"  Shot {shot_index}: Got video URL: {url}")
                             return url
