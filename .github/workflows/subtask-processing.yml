@@ -53,10 +53,6 @@ jobs:
           SUBTASK_INDEX: ${{ inputs.subtask_index || github.event.client_payload.subtask_index }}
           CONFIG_JSON: ${{ inputs.config || github.event.client_payload.config || '{}' }}
         run: |
-          echo "TASK_ID=$TASK_ID" >> $GITHUB_OUTPUT
-          echo "PHASE=$PHASE" >> $GITHUB_OUTPUT
-          echo "SUBTASK_INDEX=$SUBTASK_INDEX" >> $GITHUB_OUTPUT
-          
           VIDEO_PATH=$(echo "$CONFIG_JSON" | jq -r '.video_path // ""')
           FPS=$(echo "$CONFIG_JSON" | jq -r '.fps // 30')
           PROMPT=$(echo "$CONFIG_JSON" | jq -r '.prompt // ""')
@@ -67,15 +63,24 @@ jobs:
           INPUT_PATH=$(echo "$CONFIG_JSON" | jq -r '.input_path // ""')
           METADATA=$(echo "$CONFIG_JSON" | jq -r '.metadata // ""')
           
-          echo "VIDEO_PATH=$VIDEO_PATH" >> $GITHUB_OUTPUT
-          echo "FPS=$FPS" >> $GITHUB_OUTPUT
-          echo "PROMPT=$PROMPT" >> $GITHUB_OUTPUT
-          echo "CUSTOM_PROMPT=$CUSTOM_PROMPT" >> $GITHUB_OUTPUT
-          echo "OUTPUT_FPS=$OUTPUT_FPS" >> $GITHUB_OUTPUT
-          echo "MAX_CONCURRENT=$MAX_CONCURRENT" >> $GITHUB_OUTPUT
-          echo "SUBTASK_TYPE=$SUBTASK_TYPE" >> $GITHUB_OUTPUT
-          echo "INPUT_PATH=$INPUT_PATH" >> $GITHUB_OUTPUT
-          echo "METADATA=$METADATA" >> $GITHUB_OUTPUT
+          {
+            echo "TASK_ID=$TASK_ID"
+            echo "PHASE=$PHASE"
+            echo "SUBTASK_INDEX=$SUBTASK_INDEX"
+            echo "VIDEO_PATH=$VIDEO_PATH"
+            echo "FPS=$FPS"
+            echo "PROMPT<<EOF"
+            echo "$PROMPT"
+            echo "EOF"
+            echo "CUSTOM_PROMPT<<EOF"
+            echo "$CUSTOM_PROMPT"
+            echo "EOF"
+            echo "OUTPUT_FPS=$OUTPUT_FPS"
+            echo "MAX_CONCURRENT=$MAX_CONCURRENT"
+            echo "SUBTASK_TYPE=$SUBTASK_TYPE"
+            echo "INPUT_PATH=$INPUT_PATH"
+            echo "METADATA=$METADATA"
+          } >> $GITHUB_OUTPUT
 
       - name: Run character generation subtask
         if: ${{ steps.parse_subtask.outputs.PHASE == 'GENERATE_CHARACTERS' }}
