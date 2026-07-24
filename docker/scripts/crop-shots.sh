@@ -104,25 +104,22 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
     echo "Extracting first frame..."
     ffmpeg -ss "$START_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_first.jpg"
     
-    echo "Extracting last frame..."
-    ffmpeg -ss "$END_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_last.jpg" 2>&1 || true
-    
-    if [ ! -f "./shot_frames/shot_${i}_last.jpg" ]; then
-        echo "Failed to extract last frame at $END_TIME, trying -sseof (0.5s before end)..."
-        ffmpeg -sseof -0.5 -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_last.jpg" 2>&1 || true
+    echo "Extracting last frame (0.5s before end)..."
+    LAST_FRAME_SECONDS=$(awk "BEGIN {print $END_SECONDS - 0.5}")
+    if awk "BEGIN {exit !($LAST_FRAME_SECONDS < $START_SECONDS)}"; then
+        LAST_FRAME_SECONDS="$START_SECONDS"
     fi
+    LAST_FRAME_HOURS=$(printf "%02d" $(awk "BEGIN {print int($LAST_FRAME_SECONDS / 3600)}"))
+    LAST_FRAME_MINS=$(printf "%02d" $(awk "BEGIN {print int(($LAST_FRAME_SECONDS % 3600) / 60)}"))
+    LAST_FRAME_SECS=$(printf "%06.3f" $(awk "BEGIN {print $LAST_FRAME_SECONDS % 60}"))
+    LAST_FRAME_TIME="${LAST_FRAME_HOURS}:${LAST_FRAME_MINS}:${LAST_FRAME_SECS}"
+    echo "  Last frame time: $LAST_FRAME_TIME"
+    
+    ffmpeg -ss "$LAST_FRAME_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_last.jpg" 2>&1 || true
     
     if [ ! -f "./shot_frames/shot_${i}_last.jpg" ]; then
-        echo "Failed to extract last frame, trying fallback..."
-        if [ "$i" -eq 0 ] && [ -f "./shot_frames/shot_${i}_first.jpg" ]; then
-            cp "./shot_frames/shot_${i}_first.jpg" "./shot_frames/shot_${i}_last.jpg"
-        else
-            PREV_LAST="./shot_frames/shot_$((i-1))_last.jpg"
-            if [ -f "$PREV_LAST" ]; then
-                cp "$PREV_LAST" "./shot_frames/shot_${i}_last.jpg"
-            fi
-        fi
-        echo "Using fallback for last frame"
+        echo "Failed to extract last frame, using first frame as fallback..."
+        cp "./shot_frames/shot_${i}_first.jpg" "./shot_frames/shot_${i}_last.jpg"
     fi
     
     echo "Cropping shot video..."
