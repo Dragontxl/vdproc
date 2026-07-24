@@ -5,6 +5,7 @@ import json
 import time
 import traceback
 import io
+import re
 import google.generativeai as genai
 
 TASK_ID = os.environ.get('TASK_ID')
@@ -228,6 +229,15 @@ def validate_and_fix_storyboards(result_json, video_duration=None, scenes_data=N
         if start_sec is not None and end_sec is not None and end_sec <= start_sec:
             log(f"  Shot {i}: end_time ({end_str}) <= start_time ({start_str}), duration={end_sec - start_sec:.3f}s")
             needs_fix = True
+        
+        time_key_pattern = r'^\d{2}:\d{2}:\d{2}\.\d{3}$'
+        for key in shot.keys():
+            if re.match(time_key_pattern, key) and key not in ['start_time', 'end_time']:
+                log(f"  Shot {i}: Found suspicious time-format key '{key}', likely corrupted JSON structure")
+                needs_fix = True
+                if 'end_time' not in shot or shot['end_time'] == key:
+                    shot['end_time'] = shot.get(key, end_str)
+                    del shot[key]
 
         if needs_fix:
             fixed_count += 1
