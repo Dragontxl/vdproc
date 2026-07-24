@@ -315,6 +315,22 @@ def validate_and_fix_storyboards(result_json, video_duration=None, scenes_data=N
             log(f"  Last shot end_time clamped to video duration: {seconds_to_time_str(video_duration)}")
             fixed_count += 1
 
+    color_words = ['红色', '绿色', '蓝色', '青色', '黄色', '紫色', '橙色', '黑色', '白色', '灰色', '棕色', '粉色', '金色', '银色',
+                   '红色的', '绿色的', '蓝色的', '青色的', '黄色的', '紫色的', '橙色的', '黑色的', '白色的', '灰色的', '棕色的', '粉色的', '金色的', '银色的',
+                   '红', '绿', '蓝', '青', '黄', '紫', '橙', '黑', '白', '灰', '棕', '粉', '金', '银']
+    
+    characters = result_json.get('characters', [])
+    for char in characters:
+        features = char.get('permanent_features', '')
+        if features:
+            original_features = features
+            for color in color_words:
+                features = features.replace(color, '')
+            if features != original_features:
+                char['permanent_features'] = features.strip()
+                fixed_count += 1
+                log(f"  Character {char.get('name', char.get('role_id', ''))}: Removed color words from permanent_features")
+    
     log(f"Validation complete: fixed {fixed_count} issues")
     return result_json
 
@@ -555,7 +571,7 @@ JSON格式如下：
       "gender": "男",
       "body_type": "中等身形",
       "height": "中等偏高",
-      "permanent_features": "描述",
+      "permanent_features": "描述（不包含任何颜色词汇，如红色、绿色、蓝色、青色、黄色、紫色、橙色、黑色、白色、灰色、棕色、粉色、金色、银色等）",
       "differentiation_labels": ["标签1", "标签2"],
       "best_face_time": "00:00:02.500",
       "face_position_x": 0.5,
