@@ -1,0 +1,858 @@
+== Executing phase 7/8: GENERATE_SHOTS ===
+========================================
+=== Phase 7: Shot Generation ===
+Task ID: wl7202607240618m2xo7e
+AI Account ID: 
+Output FPS: 24
+Downloading analysis result...
+Completed 21.7 KiB/21.7 KiB (150.6 KiB/s) with 1 file(s) remaining
+download: s3://***/wl7202607240618m2xo7e/analysis_result.json to ./analysis_result.json
+Found 24 shots to generate
+Available AI accounts: 3
+Max concurrent (from GitHub accounts): 3
+Effective concurrency: 3
+=== Round 1/3: Processing shots [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23] ===
+  Filtered to 3 video-type AI accounts
+Starting concurrent shot generation with 3 workers (effective concurrency: 3, AI accounts: 3)...
+Processing shot 0: 00:00:00.000 - 00:00:10.000 (duration=10.000s)
+Processing shot 1: 00:00:10.000 - 00:00:24.000 (duration=14.000s)
+Processing shot 2: 00:00:24.000 - 00:00:35.000 (duration=11.000s)
+First frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_0_last.jpg
+Middle frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_1_middle.jpg
+Last frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_1_last.jpg
+=== Shot 1 Full Prompt ===
+场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤；曹真是男，身穿古代铠甲，头戴属头盔，留着浓密络腮胡，眼神冷酷威严
+镜头运动：中景，微微晃动模拟战马的动感。
+场景描述：王朗在马背上对诸葛亮指手画脚，神态傲慢，身旁陪伴着身披重铠的将军曹真。
+人物对话：，王朗：公既知天命，识时务，为何要兴无名之师，犯我疆界？
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。
+=== End Shot 1 Prompt ===
+Shot 1: Starting with AI account index 1
+Shot 1: Duration: 14.000s, Target frames: 336
+First frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_1_last.jpg
+Middle frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_2_middle.jpg
+Last frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_2_last.jpg
+=== Shot 2 Full Prompt ===
+场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：诸葛亮是男，头戴八卦巾，留有深色胡须和山羊胡，面容儒雅，眉宇间透着聪慧
+镜头运动：特写，机位保持静止，专注表情细节。
+场景描述：诸葛亮手摇羽扇，面色平稳地高声驳斥，显得胸有成竹。
+人物对话：，诸葛亮：我奉诏讨贼，何谓之无名？
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。
+=== End Shot 2 Prompt ===
+Shot 2: Starting with AI account index 2
+Shot 2: Duration: 11.000s, Target frames: 264
+First frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_0_first.jpg
+Middle frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_0_middle.jpg
+Last frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_0_last.jpg
+=== Shot 0 Full Prompt ===
+场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：诸葛亮是男，头戴八卦巾，留有深色胡须和山羊胡，面容儒雅，眉宇间透着聪慧；王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤
+镜头运动：中景与特写交替的正反打镜头。
+场景描述：两军对垒，王朗骑在战马之上，向对面的诸葛亮拱手搭话；诸葛亮安坐在蜀军的四轮车上礼貌回应。
+人物对话：，王朗：来者可是诸葛孔明？；诸葛亮：正是。；王朗：久闻公之大名，今日有幸相会。
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。
+=== End Shot 0 Prompt ===
+Shot 0: Starting with AI account index 0
+Shot 0: Duration: 10.000s, Target frames: 240
+  Shot 2: Duration: 11.000s, FPS: 24, Target frames: 257
+  Shot 2: Request body num_frames: 257, frame_rate: 24, expected duration: 10.71s
+  Shot 2: Prompt length: 514 characters
+  Shot 2: Prompt preview (first 500 chars): 场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：诸葛亮是男，头戴八卦巾，留有深色胡须和山羊胡，面容儒雅，眉宇间透着聪慧
+镜头运动：特写，机位保持静止，专注表情细节。
+场景描述：诸葛亮手摇羽扇，面色平稳地高声驳斥，显得胸有成竹。
+人物对话：，诸葛亮：我奉诏讨贼，何谓之无名？
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任...
+  Shot 2: Request body keys: ['model', 'prompt', 'negative_prompt', 'num_frames', 'frame_rate', 'width', 'height', 'seed', 'extra_body']
+  Shot 2: extra_body keys: ['image', 'mode']
+  Shot 2: Image URLs count: 3
+  Shot 2: Using AI account index 2 (alias: dragontxl001v)
+  Shot 2: Using AI account index 2 (db_id=15, model=agnes-video-v2.0, URL=***/v1/videos)
+  Shot 2: Attempt 1/3 - URL: ***/v1/videos
+  Shot 1: Duration: 14.000s, FPS: 24, Target frames: 329
+  Shot 1: Request body num_frames: 329, frame_rate: 24, expected duration: 13.71s
+  Shot 1: Prompt length: 570 characters
+  Shot 1: Prompt preview (first 500 chars): 场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤；曹真是男，身穿古代铠甲，头戴属头盔，留着浓密络腮胡，眼神冷酷威严
+镜头运动：中景，微微晃动模拟战马的动感。
+场景描述：王朗在马背上对诸葛亮指手画脚，神态傲慢，身旁陪伴着身披重铠的将军曹真。
+人物对话：，王朗：公既知天命，识时务，为何要兴无名之师，犯我疆界？
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对...
+  Shot 1: Request body keys: ['model', 'prompt', 'negative_prompt', 'num_frames', 'frame_rate', 'width', 'height', 'seed', 'extra_body']
+  Shot 1: extra_body keys: ['image', 'mode']
+  Shot 1: Image URLs count: 3
+  Shot 1: Using AI account index 1 (alias: 273249482v)
+  Shot 1: Using AI account index 1 (db_id=13, model=agnes-video-v2.0, URL=***/v1/videos)
+  Shot 1: Attempt 1/3 - URL: ***/v1/videos
+  Shot 0: Duration: 10.000s, FPS: 24, Target frames: 233
+  Shot 0: Request body num_frames: 233, frame_rate: 24, expected duration: 9.71s
+  Shot 0: Prompt length: 592 characters
+  Shot 0: Prompt preview (first 500 chars): 场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：诸葛亮是男，头戴八卦巾，留有深色胡须和山羊胡，面容儒雅，眉宇间透着聪慧；王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤
+镜头运动：中景与特写交替的正反打镜头。
+场景描述：两军对垒，王朗骑在战马之上，向对面的诸葛亮拱手搭话；诸葛亮安坐在蜀军的四轮车上礼貌回应。
+人物对话：，王朗：来者可是诸葛孔明？；诸葛亮：正是。；王朗：久闻公之大名，今日有幸相会。
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人...
+  Shot 0: Request body keys: ['model', 'prompt', 'negative_prompt', 'num_frames', 'frame_rate', 'width', 'height', 'seed', 'extra_body']
+  Shot 0: extra_body keys: ['image', 'mode']
+  Shot 0: Image URLs count: 3
+  Shot 0: Using AI account index 0 (alias: ashare_ldragonv)
+  Shot 0: Using AI account index 0 (db_id=11, model=agnes-video-v2.0, URL=***/v1/videos)
+  Shot 0: Attempt 1/3 - URL: ***/v1/videos
+  Shot 1: Attempt 1/3 - HTTP 200
+  Shot 1: Response: {"id":"task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k","video_id":"task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k","task_id":"task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k","object":"video","model":"agnes-video-v2.0","status":"queued","progress":0,"created_at":1784876934,"seconds":"13.7","size":"832x448"}...
+  Shot 1: Got task ID: task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k
+  Shot 1: Got video ID: task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k
+  Shot 1: Polling for result...
+  Shot 0: Attempt 1/3 failed: HTTP Error 503: Service Unavailable
+  Shot 0: 503 queue full, waiting 20s before retry...
+  Shot 2: Attempt 1/3 - HTTP 200
+  Shot 2: Response: {"id":"task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY","video_id":"task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY","task_id":"task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY","object":"video","model":"agnes-video-v2.0","status":"queued","progress":0,"created_at":1784876935,"seconds":"10.7","size":"832x448"}...
+  Shot 2: Got task ID: task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY
+  Shot 2: Got video ID: task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY
+  Shot 2: Polling for result...
+  Shot 1: Poll 1/90 - Status: pending, Progress: 0%
+  Shot 2: Poll 1/90 - Status: pending, Progress: 0%
+  Shot 0: Attempt 2/3 - URL: ***/v1/videos
+  Shot 1: Poll 2/90 - Status: pending, Progress: 0%
+  Shot 2: Poll 2/90 - Status: pending, Progress: 0%
+  Shot 0: Attempt 2/3 failed: HTTP Error 503: Service Unavailable
+  Shot 0: 503 queue full, waiting 30s before retry...
+  Shot 1: Poll 3/90 - Status: pending, Progress: 0%
+  Shot 2: Poll 3/90 - Status: pending, Progress: 0%
+  Shot 1: Poll 4/90 - Status: pending, Progress: 0%
+  Shot 2: Poll 4/90 - Status: pending, Progress: 0%
+  Shot 1: Poll 5/90 - Status: in_progress, Progress: 30%
+  Shot 2: Poll 5/90 - Status: in_progress, Progress: 30%
+  Shot 0: Attempt 3/3 - URL: ***/v1/videos
+  Shot 1: Poll 6/90 - Status: in_progress, Progress: 30%
+  Shot 2: Poll 6/90 - Status: in_progress, Progress: 30%
+  Shot 0: Attempt 3/3 failed: HTTP Error 503: Service Unavailable
+  Shot 0: 503 queue full, waiting 40s before retry...
+  Shot 1: Poll 7/90 - Status: in_progress, Progress: 30%
+  Shot 2: Poll 7/90 - Status: in_progress, Progress: 30%
+  Shot 1: Poll 8/90 - Status: in_progress, Progress: 30%
+  Shot 2: Poll 8/90 - Status: in_progress, Progress: 30%
+  Shot 1: Poll 9/90 - Status: in_progress, Progress: 30%
+  Shot 2: Poll 9/90 - Status: in_progress, Progress: 30%
+  Shot 1: Poll 10/90 - Status: in_progress, Progress: 30%
+  Shot 0: Failed to get task ID with account 0, trying next account
+  Shot 2: Poll 10/90 - Status: in_progress, Progress: 30%
+  Shot 1: Poll 11/90 - Status: in_progress, Progress: 30%
+  Shot 2: Poll 11/90 - Status: in_progress, Progress: 30%
+  Shot 1: Poll 12/90 - Status: in_progress, Progress: 30%
+  Shot 2: Poll 12/90 - Status: in_progress, Progress: 30%
+  Shot 1: Poll 13/90 - Status: in_progress, Progress: 30%
+  Shot 2: Poll 13/90 - Status: in_progress, Progress: 30%
+  Shot 1: Poll 14/90 - Status: in_progress, Progress: 30%
+  Shot 2: Poll 14/90 - Status: in_progress, Progress: 30%
+  Shot 1: Poll 15/90 - Status: in_progress, Progress: 30%
+  Shot 2: Poll 15/90 - Status: in_progress, Progress: 30%
+  Shot 1: Poll 16/90 - Status: in_progress, Progress: 30%
+  Shot 2: Poll 16/90 - Status: in_progress, Progress: 30%
+  Shot 1: Poll 17/90 - Status: in_progress, Progress: 30%
+  Shot 2: Poll 17/90 - Status: in_progress, Progress: 30%
+  Shot 1: Poll 18/90 - Status: in_progress, Progress: 30%
+  Shot 2: Poll 18/90 - Status: completed, Progress: 100%
+  Shot 2: Completed response: {"completed_at":1784877115,"created_at":1784876978,"error":null,"expires_at":null,"id":"task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY","input_image_filename":["task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY-1.png","task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY-2.png","task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY-3.png"],"internal_progress":100,"internal_status":"completed","model":"agnes-video-v2.0","object":"video","perf_download_bytes":3378840,"perf_download_s":7.7515502078459,"perf_infer_s":129.85254916083,"perf_infer_t0":7345792.3476014,"perf_output_size":2630650,"perf_params":{"frame_rate":24,"height":448,"num_frames":257,"num_inference_steps":8,"seed":42,"width":832},"perf_upload_s":2.5976511752233,"progress":100,"prompt_id":"d8e88cee-d23b-4676-984d-c14ff2ea0e14","remixed_from_video_id":null,"request_params":{"background_image":null,"frame_rate":24,"global_prompt":"","height":448,"image":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY/2.png"],"image_list":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY/2.png"],"local_prompts":"","max_length":256,"mode":"keyframes","model":"agnes-video-v2.0","negative_prompt":"pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable tex
+  Shot 2: Got video URL: https://platform-outputs.agnes-ai.space/videos/agnes-video-v2.0/task_D9fDfTp2KsMEHlHopL2g1Kb7EiVPGCPY.mp4
+Downloading generated video for shot 2...
+Successfully generated shot 2
+Processing shot 3: 00:00:35.000 - 00:00:46.000 (duration=11.000s)
+First frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_2_last.jpg
+Middle frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_3_middle.jpg
+Last frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_3_last.jpg
+=== Shot 3 Full Prompt ===
+场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤；曹真是男，身穿古代铠甲，头戴属头盔，留着浓密络腮胡，眼神冷酷威严
+镜头运动：中景，拉开一点展现战马和身后的魏军旗帜。
+场景描述：王朗听完狂妄大笑，神色越发自得，摆出说教的姿态，曹真在旁听着。
+人物对话：，王朗：哈哈哈哈！天数有变，神器更易，而归有德之人，此乃自然之理。
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。
+=== End Shot 3 Prompt ===
+Shot 3: Starting with AI account index 0
+Shot 3: Duration: 11.000s, Target frames: 264
+  Shot 3: Duration: 11.000s, FPS: 24, Target frames: 257
+  Shot 3: Request body num_frames: 257, frame_rate: 24, expected duration: 10.71s
+  Shot 3: Prompt length: 576 characters
+  Shot 3: Prompt preview (first 500 chars): 场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤；曹真是男，身穿古代铠甲，头戴属头盔，留着浓密络腮胡，眼神冷酷威严
+镜头运动：中景，拉开一点展现战马和身后的魏军旗帜。
+场景描述：王朗听完狂妄大笑，神色越发自得，摆出说教的姿态，曹真在旁听着。
+人物对话：，王朗：哈哈哈哈！天数有变，神器更易，而归有德之人，此乃自然之理。
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，...
+  Shot 3: Request body keys: ['model', 'prompt', 'negative_prompt', 'num_frames', 'frame_rate', 'width', 'height', 'seed', 'extra_body']
+  Shot 3: extra_body keys: ['image', 'mode']
+  Shot 3: Image URLs count: 3
+  Shot 3: Using AI account index 0 (alias: ashare_ldragonv)
+  Shot 3: Using AI account index 0 (db_id=11, model=agnes-video-v2.0, URL=***/v1/videos)
+  Shot 3: Attempt 1/3 - URL: ***/v1/videos
+  Shot 1: Poll 19/90 - Status: in_progress, Progress: 30%
+  Shot 3: Attempt 1/3 - HTTP 200
+  Shot 3: Response: {"id":"task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9","video_id":"task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9","task_id":"task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9","object":"video","model":"agnes-video-v2.0","status":"queued","progress":0,"created_at":1784877132,"seconds":"10.7","size":"832x448"}...
+  Shot 3: Got task ID: task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9
+  Shot 3: Got video ID: task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9
+  Shot 3: Polling for result...
+  Shot 1: Poll 20/90 - Status: completed, Progress: 100%
+  Shot 1: Completed response: {"completed_at":1784877133,"created_at":1784876978,"error":null,"expires_at":null,"id":"task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k","input_image_filename":["task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k-1.png","task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k-2.png","task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k-3.png"],"internal_progress":100,"internal_status":"completed","model":"agnes-video-v2.0","object":"video","perf_download_bytes":3141620,"perf_download_s":7.5680849896744,"perf_infer_s":149.50680875406,"perf_infer_t0":3084045.8075689,"perf_output_size":2797992,"perf_params":{"frame_rate":24,"height":448,"num_frames":329,"num_inference_steps":8,"seed":42,"width":832},"perf_upload_s":2.599995536264,"progress":100,"prompt_id":"bee7da06-657e-4e6c-9073-c3153d403b00","remixed_from_video_id":null,"request_params":{"background_image":null,"frame_rate":24,"global_prompt":"","height":448,"image":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k/2.png"],"image_list":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k/2.png"],"local_prompts":"","max_length":256,"mode":"keyframes","model":"agnes-video-v2.0","negative_prompt":"pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable text
+  Shot 1: Got video URL: https://platform-outputs.agnes-ai.space/videos/agnes-video-v2.0/task_5MGi1CeQhWLVo1Nb8NFAOMXgG8LFmk6k.mp4
+Downloading generated video for shot 1...
+  Shot 0: Using AI account index 1 (alias: 273249482v)
+  Shot 0: Using AI account index 1 (db_id=13, model=agnes-video-v2.0, URL=***/v1/videos)
+  Shot 0: Attempt 1/3 - URL: ***/v1/videos
+  Shot 3: Poll 1/90 - Status: pending, Progress: 0%
+Successfully generated shot 1
+Processing shot 4: 00:00:46.000 - 00:00:54.000 (duration=8.000s)
+First frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_3_last.jpg
+Middle frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_4_middle.jpg
+Last frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_4_last.jpg
+=== Shot 4 Full Prompt ===
+场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：诸葛亮是男，头戴八卦巾，留有深色胡须和山羊胡，面容儒雅，眉宇间透着聪慧
+镜头运动：中近景，捕捉诸葛亮严肃与不屑的神情。
+场景描述：诸葛亮对王朗的说辞不为所动，眼神犀利地一针见血反问。
+人物对话：，诸葛亮：曹贼篡汉，霸占中原，何称有德之人？
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。
+=== End Shot 4 Prompt ===
+Shot 4: Starting with AI account index 1
+Shot 4: Duration: 8.000s, Target frames: 192
+  Shot 0: Attempt 1/3 - HTTP 200
+  Shot 0: Response: {"id":"task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P","video_id":"task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P","task_id":"task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P","object":"video","model":"agnes-video-v2.0","status":"queued","progress":0,"created_at":1784877144,"seconds":"9.7","size":"832x448"}...
+  Shot 0: Got task ID: task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P
+  Shot 0: Got video ID: task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P
+  Shot 0: Polling for result...
+  Shot 4: Duration: 8.000s, FPS: 24, Target frames: 185
+  Shot 4: Request body num_frames: 185, frame_rate: 24, expected duration: 7.71s
+  Shot 4: Prompt length: 521 characters
+  Shot 4: Prompt preview (first 500 chars): 场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：诸葛亮是男，头戴八卦巾，留有深色胡须和山羊胡，面容儒雅，眉宇间透着聪慧
+镜头运动：中近景，捕捉诸葛亮严肃与不屑的神情。
+场景描述：诸葛亮对王朗的说辞不为所动，眼神犀利地一针见血反问。
+人物对话：，诸葛亮：曹贼篡汉，霸占中原，何称有德之人？
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话...
+  Shot 4: Request body keys: ['model', 'prompt', 'negative_prompt', 'num_frames', 'frame_rate', 'width', 'height', 'seed', 'extra_body']
+  Shot 4: extra_body keys: ['image', 'mode']
+  Shot 4: Image URLs count: 3
+  Shot 3: Poll 2/90 - Status: pending, Progress: 0%
+  Shot 0: Poll 1/90 - Status: pending, Progress: 0%
+  Shot 3: Poll 3/90 - Status: pending, Progress: 0%
+  Shot 0: Poll 2/90 - Status: pending, Progress: 0%
+  Shot 3: Poll 4/90 - Status: in_progress, Progress: 30%
+  Shot 0: Poll 3/90 - Status: pending, Progress: 0%
+  Shot 3: Poll 5/90 - Status: in_progress, Progress: 30%
+  Shot 0: Poll 4/90 - Status: pending, Progress: 0%
+  Shot 3: Poll 6/90 - Status: in_progress, Progress: 30%
+  Shot 0: Poll 5/90 - Status: in_progress, Progress: 30%
+  Shot 3: Poll 7/90 - Status: in_progress, Progress: 30%
+  Shot 0: Poll 6/90 - Status: in_progress, Progress: 30%
+  Shot 3: Poll 8/90 - Status: in_progress, Progress: 30%
+  Shot 0: Poll 7/90 - Status: in_progress, Progress: 30%
+  Shot 3: Poll 9/90 - Status: in_progress, Progress: 30%
+  Shot 0: Poll 8/90 - Status: in_progress, Progress: 30%
+  Shot 3: Poll 10/90 - Status: in_progress, Progress: 30%
+  Shot 0: Poll 9/90 - Status: in_progress, Progress: 30%
+  Shot 3: Poll 11/90 - Status: in_progress, Progress: 30%
+  Shot 0: Poll 10/90 - Status: in_progress, Progress: 30%
+  Shot 3: Poll 12/90 - Status: in_progress, Progress: 30%
+  Shot 0: Poll 11/90 - Status: in_progress, Progress: 30%
+  Shot 3: Poll 13/90 - Status: in_progress, Progress: 30%
+  Shot 0: Poll 12/90 - Status: in_progress, Progress: 30%
+  Shot 3: Poll 14/90 - Status: in_progress, Progress: 30%
+  Shot 0: Poll 13/90 - Status: in_progress, Progress: 30%
+  Shot 3: Poll 15/90 - Status: in_progress, Progress: 30%
+  Shot 0: Poll 14/90 - Status: in_progress, Progress: 30%
+  Shot 3: Poll 16/90 - Status: in_progress, Progress: 30%
+  Shot 0: Poll 15/90 - Status: in_progress, Progress: 30%
+  Shot 3: Poll 17/90 - Status: in_progress, Progress: 30%
+  Shot 0: Poll 16/90 - Status: in_progress, Progress: 30%
+  Shot 3: Poll 18/90 - Status: completed, Progress: 100%
+  Shot 3: Completed response: {"completed_at":1784877312,"created_at":1784877168,"error":null,"expires_at":null,"id":"task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9","input_image_filename":["task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9-1.png","task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9-2.png","task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9-3.png"],"internal_progress":100,"internal_status":"completed","model":"agnes-video-v2.0","object":"video","perf_download_bytes":3407530,"perf_download_s":7.901352503337,"perf_infer_s":138.30703372601,"perf_infer_t0":7510939.5766727,"perf_output_size":2396453,"perf_params":{"frame_rate":24,"height":448,"num_frames":257,"num_inference_steps":8,"seed":42,"width":832},"perf_upload_s":2.5345769114792,"progress":100,"prompt_id":"073b1a0f-5966-4547-8356-f12af88a8476","remixed_from_video_id":null,"request_params":{"background_image":null,"frame_rate":24,"global_prompt":"","height":448,"image":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9/2.png"],"image_list":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9/2.png"],"local_prompts":"","max_length":256,"mode":"keyframes","model":"agnes-video-v2.0","negative_prompt":"pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable text
+  Shot 3: Got video URL: https://platform-outputs.agnes-ai.space/videos/agnes-video-v2.0/task_nFftj3jQaGmhtg6HMkfrUV1O6bNkpkl9.mp4
+Downloading generated video for shot 3...
+  Shot 0: Poll 17/90 - Status: in_progress, Progress: 30%
+Successfully generated shot 3
+Processing shot 5: 00:00:54.000 - 00:01:06.000 (duration=12.000s)
+First frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_4_last.jpg
+Middle frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_5_middle.jpg
+Last frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_5_last.jpg
+=== Shot 5 Full Prompt ===
+场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤；曹真是男，身穿古代铠甲，头戴属头盔，留着浓密络腮胡，眼神冷酷威严
+镜头运动：中景，王朗处于画面中心，配合夸张的手势。
+场景描述：王朗高举双手，激动地向诸葛亮陈述东汉末年的混乱局势，试图用大义压人。
+人物对话：，王朗：自桓帝、灵帝以来，黄巾猖獗，天下纷争。社稷有累卵之危，生灵有倒悬之急。
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。
+=== End Shot 5 Prompt ===
+Shot 5: Starting with AI account index 2
+Shot 5: Duration: 12.000s, Target frames: 288
+  Shot 5: Duration: 12.000s, FPS: 24, Target frames: 281
+  Shot 5: Request body num_frames: 281, frame_rate: 24, expected duration: 11.71s
+  Shot 5: Prompt length: 585 characters
+  Shot 5: Prompt preview (first 500 chars): 场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤；曹真是男，身穿古代铠甲，头戴属头盔，留着浓密络腮胡，眼神冷酷威严
+镜头运动：中景，王朗处于画面中心，配合夸张的手势。
+场景描述：王朗高举双手，激动地向诸葛亮陈述东汉末年的混乱局势，试图用大义压人。
+人物对话：，王朗：自桓帝、灵帝以来，黄巾猖獗，天下纷争。社稷有累卵之危，生灵有倒悬之急。
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与...
+  Shot 5: Request body keys: ['model', 'prompt', 'negative_prompt', 'num_frames', 'frame_rate', 'width', 'height', 'seed', 'extra_body']
+  Shot 5: extra_body keys: ['image', 'mode']
+  Shot 5: Image URLs count: 3
+  Shot 5: Using AI account index 2 (alias: dragontxl001v)
+  Shot 5: Using AI account index 2 (db_id=15, model=agnes-video-v2.0, URL=***/v1/videos)
+  Shot 5: Attempt 1/3 - URL: ***/v1/videos
+  Shot 5: Attempt 1/3 failed: HTTP Error 503: Service Unavailable
+  Shot 5: 503 queue full, waiting 20s before retry...
+  Shot 0: Poll 18/90 - Status: completed, Progress: 100%
+  Shot 0: Completed response: {"completed_at":1784877326,"created_at":1784877183,"error":null,"expires_at":null,"id":"task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P","input_image_filename":["task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P-1.png","task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P-2.png","task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P-3.png"],"internal_progress":100,"internal_status":"completed","model":"agnes-video-v2.0","object":"video","perf_download_bytes":2945517,"perf_download_s":7.1771438783035,"perf_infer_s":138.00667542685,"perf_infer_t0":7432193.3059041,"perf_output_size":1613715,"perf_params":{"frame_rate":24,"height":448,"num_frames":233,"num_inference_steps":8,"seed":42,"width":832},"perf_upload_s":2.4337205849588,"progress":100,"prompt_id":"445ffd9d-9df2-4699-9112-c9d2fc90a750","remixed_from_video_id":null,"request_params":{"background_image":null,"frame_rate":24,"global_prompt":"","height":448,"image":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P/2.png"],"image_list":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P/2.png"],"local_prompts":"","max_length":256,"mode":"keyframes","model":"agnes-video-v2.0","negative_prompt":"pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable tex
+  Shot 0: Got video URL: https://platform-outputs.agnes-ai.space/videos/agnes-video-v2.0/task_ptbIr0BrT2FVNU20ppsfEGmndFyYrP4P.mp4
+Downloading generated video for shot 0...
+  Shot 4: Using AI account index 1 (alias: 273249482v)
+  Shot 4: Using AI account index 1 (db_id=13, model=agnes-video-v2.0, URL=***/v1/videos)
+  Shot 4: Attempt 1/3 - URL: ***/v1/videos
+Successfully generated shot 0
+Processing shot 6: 00:01:06.000 - 00:01:20.000 (duration=14.000s)
+First frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_5_last.jpg
+Middle frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_6_middle.jpg
+Last frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_6_last.jpg
+=== Shot 6 Full Prompt ===
+场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤；曹真是男，身穿古代铠甲，头戴属头盔，留着浓密络腮胡，眼神冷酷威严
+镜头运动：中景，机位固定在王朗前方。
+场景描述：王朗滔滔不绝地歌颂曹操扫平天下的功绩，神情洋洋得意。
+人物对话：，王朗：我太祖武皇帝，扫清六合，席卷八荒；万姓倾心，四方仰德。此非以权势取之，实乃天命所归也！
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。
+=== End Shot 6 Prompt ===
+Shot 6: Starting with AI account index 0
+Shot 6: Duration: 14.000s, Target frames: 336
+  Shot 6: Duration: 14.000s, FPS: 24, Target frames: 329
+  Shot 6: Request body num_frames: 329, frame_rate: 24, expected duration: 13.71s
+  Shot 6: Prompt length: 578 characters
+  Shot 6: Prompt preview (first 500 chars): 场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤；曹真是男，身穿古代铠甲，头戴属头盔，留着浓密络腮胡，眼神冷酷威严
+镜头运动：中景，机位固定在王朗前方。
+场景描述：王朗滔滔不绝地歌颂曹操扫平天下的功绩，神情洋洋得意。
+人物对话：，王朗：我太祖武皇帝，扫清六合，席卷八荒；万姓倾心，四方仰德。此非以权势取之，实乃天命所归也！
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹...
+  Shot 6: Request body keys: ['model', 'prompt', 'negative_prompt', 'num_frames', 'frame_rate', 'width', 'height', 'seed', 'extra_body']
+  Shot 6: extra_body keys: ['image', 'mode']
+  Shot 6: Image URLs count: 3
+  Shot 6: Using AI account index 0 (alias: ashare_ldragonv)
+  Shot 6: Using AI account index 0 (db_id=11, model=agnes-video-v2.0, URL=***/v1/videos)
+  Shot 6: Attempt 1/3 - URL: ***/v1/videos
+  Shot 6: Attempt 1/3 - HTTP 200
+  Shot 6: Response: {"id":"task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT","video_id":"task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT","task_id":"task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT","object":"video","model":"agnes-video-v2.0","status":"queued","progress":0,"created_at":1784877335,"seconds":"13.7","size":"832x448"}...
+  Shot 6: Got task ID: task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT
+  Shot 6: Got video ID: task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT
+  Shot 6: Polling for result...
+  Shot 4: Attempt 1/3 failed: HTTP Error 503: Service Unavailable
+  Shot 4: 503 queue full, waiting 20s before retry...
+  Shot 5: Attempt 2/3 - URL: ***/v1/videos
+  Shot 6: Poll 1/90 - Status: pending, Progress: 0%
+  Shot 5: Attempt 2/3 failed: HTTP Error 503: Service Unavailable
+  Shot 5: 503 queue full, waiting 30s before retry...
+  Shot 6: Poll 2/90 - Status: pending, Progress: 0%
+  Shot 4: Attempt 2/3 - URL: ***/v1/videos
+  Shot 4: Attempt 2/3 failed: HTTP Error 503: Service Unavailable
+  Shot 4: 503 queue full, waiting 30s before retry...
+  Shot 6: Poll 3/90 - Status: pending, Progress: 0%
+  Shot 6: Poll 4/90 - Status: pending, Progress: 0%
+  Shot 5: Attempt 3/3 - URL: ***/v1/videos
+  Shot 5: Attempt 3/3 - HTTP 200
+  Shot 5: Response: {"id":"task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6","video_id":"task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6","task_id":"task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6","object":"video","model":"agnes-video-v2.0","status":"queued","progress":0,"created_at":1784877385,"seconds":"11.7","size":"832x448"}...
+  Shot 5: Got task ID: task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6
+  Shot 5: Got video ID: task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6
+  Shot 5: Polling for result...
+  Shot 6: Poll 5/90 - Status: in_progress, Progress: 30%
+  Shot 5: Poll 1/90 - Status: pending, Progress: 0%
+  Shot 4: Attempt 3/3 - URL: ***/v1/videos
+  Shot 6: Poll 6/90 - Status: in_progress, Progress: 30%
+  Shot 4: Attempt 3/3 - HTTP 200
+  Shot 4: Response: {"id":"task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9","video_id":"task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9","task_id":"task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9","object":"video","model":"agnes-video-v2.0","status":"queued","progress":0,"created_at":1784877399,"seconds":"7.7","size":"832x448"}...
+  Shot 4: Got task ID: task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9
+  Shot 4: Got video ID: task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9
+  Shot 4: Polling for result...
+  Shot 5: Poll 2/90 - Status: pending, Progress: 0%
+  Shot 6: Poll 7/90 - Status: in_progress, Progress: 30%
+  Shot 4: Poll 1/90 - Status: pending, Progress: 0%
+  Shot 5: Poll 3/90 - Status: pending, Progress: 0%
+  Shot 6: Poll 8/90 - Status: in_progress, Progress: 30%
+  Shot 4: Poll 2/90 - Status: pending, Progress: 0%
+  Shot 5: Poll 4/90 - Status: in_progress, Progress: 30%
+  Shot 6: Poll 9/90 - Status: in_progress, Progress: 30%
+  Shot 4: Poll 3/90 - Status: pending, Progress: 0%
+  Shot 5: Poll 5/90 - Status: in_progress, Progress: 30%
+  Shot 6: Poll 10/90 - Status: in_progress, Progress: 30%
+  Shot 4: Poll 4/90 - Status: in_progress, Progress: 30%
+  Shot 5: Poll 6/90 - Status: in_progress, Progress: 30%
+  Shot 6: Poll 11/90 - Status: in_progress, Progress: 30%
+  Shot 4: Poll 5/90 - Status: in_progress, Progress: 30%
+  Shot 5: Poll 7/90 - Status: in_progress, Progress: 30%
+  Shot 6: Poll 12/90 - Status: in_progress, Progress: 30%
+  Shot 4: Poll 6/90 - Status: in_progress, Progress: 30%
+  Shot 5: Poll 8/90 - Status: in_progress, Progress: 30%
+  Shot 6: Poll 13/90 - Status: in_progress, Progress: 30%
+  Shot 4: Poll 7/90 - Status: in_progress, Progress: 30%
+  Shot 5: Poll 9/90 - Status: in_progress, Progress: 30%
+  Shot 6: Poll 14/90 - Status: in_progress, Progress: 30%
+  Shot 4: Poll 8/90 - Status: in_progress, Progress: 30%
+  Shot 5: Poll 10/90 - Status: in_progress, Progress: 30%
+  Shot 6: Poll 15/90 - Status: in_progress, Progress: 30%
+  Shot 4: Poll 9/90 - Status: in_progress, Progress: 30%
+  Shot 5: Poll 11/90 - Status: in_progress, Progress: 30%
+  Shot 6: Poll 16/90 - Status: in_progress, Progress: 30%
+  Shot 4: Poll 10/90 - Status: in_progress, Progress: 30%
+  Shot 5: Poll 12/90 - Status: in_progress, Progress: 30%
+  Shot 6: Poll 17/90 - Status: in_progress, Progress: 30%
+  Shot 4: Poll 11/90 - Status: in_progress, Progress: 30%
+  Shot 5: Poll 13/90 - Status: in_progress, Progress: 30%
+  Shot 6: Poll 18/90 - Status: in_progress, Progress: 30%
+  Shot 4: Poll 12/90 - Status: in_progress, Progress: 30%
+  Shot 5: Poll 14/90 - Status: in_progress, Progress: 30%
+  Shot 6: Poll 19/90 - Status: in_progress, Progress: 30%
+  Shot 4: Poll 13/90 - Status: in_progress, Progress: 30%
+  Shot 5: Poll 15/90 - Status: in_progress, Progress: 30%
+  Shot 6: Poll 20/90 - Status: in_progress, Progress: 30%
+  Shot 4: Poll 14/90 - Status: in_progress, Progress: 30%
+  Shot 5: Poll 16/90 - Status: in_progress, Progress: 30%
+  Shot 6: Poll 21/90 - Status: completed, Progress: 100%
+  Shot 6: Completed response: {"completed_at":1784877550,"created_at":1784877382,"error":null,"expires_at":null,"id":"task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT","input_image_filename":["task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT-1.png","task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT-2.png","task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT-3.png"],"internal_progress":100,"internal_status":"completed","model":"agnes-video-v2.0","object":"video","perf_download_bytes":3177093,"perf_download_s":6.6139675630257,"perf_infer_s":161.08585275244,"perf_infer_t0":7345410.6988159,"perf_output_size":3218669,"perf_params":{"frame_rate":24,"height":448,"num_frames":329,"num_inference_steps":8,"seed":42,"width":832},"perf_upload_s":3.8487395523116,"progress":100,"prompt_id":"b3de36ac-d6cf-4225-a1d3-8fcec02bc71a","remixed_from_video_id":null,"request_params":{"background_image":null,"frame_rate":24,"global_prompt":"","height":448,"image":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT/2.png"],"image_list":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT/2.png"],"local_prompts":"","max_length":256,"mode":"keyframes","model":"agnes-video-v2.0","negative_prompt":"pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable tex
+  Shot 6: Got video URL: https://platform-outputs.agnes-ai.space/videos/agnes-video-v2.0/task_GrR6cOpapf1vmmvM0EZvHM0yDIuOUrWT.mp4
+Downloading generated video for shot 6...
+  Shot 4: Poll 15/90 - Status: completed, Progress: 100%
+  Shot 4: Completed response: {"completed_at":1784877553,"created_at":1784877437,"error":null,"expires_at":null,"id":"task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9","input_image_filename":["task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9-1.png","task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9-2.png","task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9-3.png"],"internal_progress":100,"internal_status":"completed","model":"agnes-video-v2.0","object":"video","perf_download_bytes":3405317,"perf_download_s":7.6930545596406,"perf_infer_s":110.63158190623,"perf_infer_t0":6716240.7091169,"perf_output_size":2088953,"perf_params":{"frame_rate":24,"height":448,"num_frames":185,"num_inference_steps":8,"seed":42,"width":832},"perf_upload_s":2.3822086295113,"progress":100,"prompt_id":"d94d18a8-8e9a-4c3e-81ad-a808e1b75403","remixed_from_video_id":null,"request_params":{"background_image":null,"frame_rate":24,"global_prompt":"","height":448,"image":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9/2.png"],"image_list":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9/2.png"],"local_prompts":"","max_length":256,"mode":"keyframes","model":"agnes-video-v2.0","negative_prompt":"pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable tex
+  Shot 4: Got video URL: https://platform-outputs.agnes-ai.space/videos/agnes-video-v2.0/task_fRR0Kmn9bie3KFC2451k7NylPRXFgrM9.mp4
+Downloading generated video for shot 4...
+Successfully generated shot 6
+Processing shot 7: 00:01:20.000 - 00:01:33.000 (duration=13.000s)
+First frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_6_last.jpg
+Middle frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_7_middle.jpg
+Last frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_7_last.jpg
+=== Shot 7 Full Prompt ===
+场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤；曹真是男，身穿古代铠甲，头戴属头盔，留着浓密络腮胡，眼神冷酷威严
+镜头运动：中景，伴随王朗手势的微微侧拍。
+场景描述：王朗继续赞颂曹丕建魏的顺天应人，神态十分骄傲且自我感动。
+人物对话：，王朗：我世祖文皇帝，神文圣武，继承大统，应天合人，法尧禅舜，处中国以治万邦，这岂非天心人意乎？
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。
+=== End Shot 7 Prompt ===
+Shot 7: Starting with AI account index 1
+Shot 7: Duration: 13.000s, Target frames: 312
+  Shot 7: Duration: 13.000s, FPS: 24, Target frames: 305
+  Shot 7: Request body num_frames: 305, frame_rate: 24, expected duration: 12.71s
+  Shot 7: Prompt length: 583 characters
+  Shot 7: Prompt preview (first 500 chars): 场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤；曹真是男，身穿古代铠甲，头戴属头盔，留着浓密络腮胡，眼神冷酷威严
+镜头运动：中景，伴随王朗手势的微微侧拍。
+场景描述：王朗继续赞颂曹丕建魏的顺天应人，神态十分骄傲且自我感动。
+人物对话：，王朗：我世祖文皇帝，神文圣武，继承大统，应天合人，法尧禅舜，处中国以治万邦，这岂非天心人意乎？
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话...
+  Shot 7: Request body keys: ['model', 'prompt', 'negative_prompt', 'num_frames', 'frame_rate', 'width', 'height', 'seed', 'extra_body']
+  Shot 7: extra_body keys: ['image', 'mode']
+  Shot 7: Image URLs count: 3
+  Shot 7: Using AI account index 1 (alias: 273249482v)
+  Shot 7: Using AI account index 1 (db_id=13, model=agnes-video-v2.0, URL=***/v1/videos)
+  Shot 7: Attempt 1/3 - URL: ***/v1/videos
+Successfully generated shot 4
+Processing shot 8: 00:01:33.000 - 00:01:46.000 (duration=13.000s)
+First frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_7_last.jpg
+Middle frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_8_middle.jpg
+Last frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_8_last.jpg
+=== Shot 8 Full Prompt ===
+场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：诸葛亮是男，头戴八卦巾，留有深色胡须和山羊胡，面容儒雅，眉宇间透着聪慧
+镜头运动：特写诸葛亮的面部，着重刻画轻蔑、冷笑的微妙神态变化。
+场景描述：诸葛亮静坐在四轮车上，听到王朗的话后，露出冰冷而轻蔑的嘲讽冷笑，轻轻摇扇。
+人物对话：，王朗：今公蕴大才、抱大器，自比管仲、乐毅，何乃强要逆天理、背人情而行事？
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。
+=== End Shot 8 Prompt ===
+Shot 8: Starting with AI account index 2
+Shot 8: Duration: 13.000s, Target frames: 312
+  Shot 8: Duration: 13.000s, FPS: 24, Target frames: 305
+  Shot 8: Request body num_frames: 305, frame_rate: 24, expected duration: 12.71s
+  Shot 8: Prompt length: 555 characters
+  Shot 8: Prompt preview (first 500 chars): 场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：诸葛亮是男，头戴八卦巾，留有深色胡须和山羊胡，面容儒雅，眉宇间透着聪慧
+镜头运动：特写诸葛亮的面部，着重刻画轻蔑、冷笑的微妙神态变化。
+场景描述：诸葛亮静坐在四轮车上，听到王朗的话后，露出冰冷而轻蔑的嘲讽冷笑，轻轻摇扇。
+人物对话：，王朗：今公蕴大才、抱大器，自比管仲、乐毅，何乃强要逆天理、背人情而行事？
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：...
+  Shot 8: Request body keys: ['model', 'prompt', 'negative_prompt', 'num_frames', 'frame_rate', 'width', 'height', 'seed', 'extra_body']
+  Shot 8: extra_body keys: ['image', 'mode']
+  Shot 8: Image URLs count: 3
+  Shot 7: Attempt 1/3 - HTTP 200
+  Shot 7: Response: {"id":"task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5","video_id":"task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5","task_id":"task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5","object":"video","model":"agnes-video-v2.0","status":"queued","progress":0,"created_at":1784877559,"seconds":"12.7","size":"832x448"}...
+  Shot 7: Got task ID: task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5
+  Shot 7: Got video ID: task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5
+  Shot 7: Polling for result...
+  Shot 5: Poll 17/90 - Status: in_progress, Progress: 30%
+  Shot 7: Poll 1/90 - Status: pending, Progress: 0%
+  Shot 5: Poll 18/90 - Status: completed, Progress: 100%
+  Shot 5: Completed response: {"completed_at":1784877567,"created_at":1784877421,"error":null,"expires_at":null,"id":"task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6","input_image_filename":["task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6-1.png","task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6-2.png","task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6-3.png"],"internal_progress":100,"internal_status":"completed","model":"agnes-video-v2.0","object":"video","perf_download_bytes":3211022,"perf_download_s":7.4050991935655,"perf_infer_s":140.1695625307,"perf_infer_t0":7326225.5189841,"perf_output_size":2238677,"perf_params":{"frame_rate":24,"height":448,"num_frames":281,"num_inference_steps":8,"seed":42,"width":832},"perf_upload_s":2.4649936268106,"progress":100,"prompt_id":"419946b8-6b98-4b26-8991-5e76c4ced350","remixed_from_video_id":null,"request_params":{"background_image":null,"frame_rate":24,"global_prompt":"","height":448,"image":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6/2.png"],"image_list":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6/2.png"],"local_prompts":"","max_length":256,"mode":"keyframes","model":"agnes-video-v2.0","negative_prompt":"pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable text
+  Shot 5: Got video URL: https://platform-outputs.agnes-ai.space/videos/agnes-video-v2.0/task_zVqbArLQoCq24aRVOHdNEsL0Gke4NTr6.mp4
+Downloading generated video for shot 5...
+  Shot 8: Using AI account index 2 (alias: dragontxl001v)
+  Shot 8: Using AI account index 2 (db_id=15, model=agnes-video-v2.0, URL=***/v1/videos)
+  Shot 8: Attempt 1/3 - URL: ***/v1/videos
+Successfully generated shot 5
+Processing shot 9: 00:01:46.000 - 00:01:58.000 (duration=12.000s)
+First frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_8_last.jpg
+Middle frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_9_middle.jpg
+Last frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_9_last.jpg
+=== Shot 9 Full Prompt ===
+场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤；曹真是男，身穿古代铠甲，头戴属头盔，留着浓密络腮胡，眼神冷酷威严
+镜头运动：中景与全景的短暂切换，展示后方林立的兵器和士兵。
+场景描述：王朗气焰极其嚣张，挥舞双臂恐吓蜀汉军队，身后的魏军将士和曹真静立其旁。
+人物对话：，王朗：岂不闻古人云：‘顺天者昌，逆天者亡’？今我大魏带甲百万，良将千员。谅尔等腐草之萤光，如何比得上天空之皓月？
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。
+=== End Shot 9 Prompt ===
+Shot 9: Starting with AI account index 0
+Shot 9: Duration: 12.000s, Target frames: 288
+  Shot 9: Duration: 12.000s, FPS: 24, Target frames: 281
+  Shot 9: Request body num_frames: 281, frame_rate: 24, expected duration: 11.71s
+  Shot 9: Prompt length: 608 characters
+  Shot 9: Prompt preview (first 500 chars): 场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤；曹真是男，身穿古代铠甲，头戴属头盔，留着浓密络腮胡，眼神冷酷威严
+镜头运动：中景与全景的短暂切换，展示后方林立的兵器和士兵。
+场景描述：王朗气焰极其嚣张，挥舞双臂恐吓蜀汉军队，身后的魏军将士和曹真静立其旁。
+人物对话：，王朗：岂不闻古人云：‘顺天者昌，逆天者亡’？今我大魏带甲百万，良将千员。谅尔等腐草之萤光，如何比得上天空之皓月？
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对...
+  Shot 9: Request body keys: ['model', 'prompt', 'negative_prompt', 'num_frames', 'frame_rate', 'width', 'height', 'seed', 'extra_body']
+  Shot 9: extra_body keys: ['image', 'mode']
+  Shot 9: Image URLs count: 3
+  Shot 9: Using AI account index 0 (alias: ashare_ldragonv)
+  Shot 9: Using AI account index 0 (db_id=11, model=agnes-video-v2.0, URL=***/v1/videos)
+  Shot 9: Attempt 1/3 - URL: ***/v1/videos
+  Shot 8: Attempt 1/3 - HTTP 200
+  Shot 8: Response: {"id":"task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA","video_id":"task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA","task_id":"task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA","object":"video","model":"agnes-video-v2.0","status":"queued","progress":0,"created_at":1784877576,"seconds":"12.7","size":"832x448"}...
+  Shot 8: Got task ID: task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA
+  Shot 8: Got video ID: task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA
+  Shot 8: Polling for result...
+  Shot 7: Poll 2/90 - Status: pending, Progress: 0%
+  Shot 9: Attempt 1/3 failed: HTTP Error 503: Service Unavailable
+  Shot 9: 503 queue full, waiting 20s before retry...
+  Shot 8: Poll 1/90 - Status: pending, Progress: 0%
+  Shot 7: Poll 3/90 - Status: pending, Progress: 0%
+  Shot 8: Poll 2/90 - Status: pending, Progress: 0%
+  Shot 7: Poll 4/90 - Status: pending, Progress: 0%
+  Shot 9: Attempt 2/3 - URL: ***/v1/videos
+  Shot 9: Attempt 2/3 - HTTP 200
+  Shot 9: Response: {"id":"task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np","video_id":"task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np","task_id":"task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np","object":"video","model":"agnes-video-v2.0","status":"queued","progress":0,"created_at":1784877604,"seconds":"11.7","size":"832x448"}...
+  Shot 9: Got task ID: task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np
+  Shot 9: Got video ID: task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np
+  Shot 9: Polling for result...
+  Shot 8: Poll 3/90 - Status: pending, Progress: 0%
+  Shot 7: Poll 5/90 - Status: in_progress, Progress: 30%
+  Shot 9: Poll 1/90 - Status: pending, Progress: 0%
+  Shot 8: Poll 4/90 - Status: pending, Progress: 0%
+  Shot 7: Poll 6/90 - Status: in_progress, Progress: 30%
+  Shot 9: Poll 2/90 - Status: pending, Progress: 0%
+  Shot 8: Poll 5/90 - Status: in_progress, Progress: 30%
+  Shot 7: Poll 7/90 - Status: in_progress, Progress: 30%
+  Shot 9: Poll 3/90 - Status: pending, Progress: 0%
+  Shot 8: Poll 6/90 - Status: in_progress, Progress: 30%
+  Shot 7: Poll 8/90 - Status: in_progress, Progress: 30%
+  Shot 9: Poll 4/90 - Status: pending, Progress: 0%
+  Shot 8: Poll 7/90 - Status: in_progress, Progress: 30%
+  Shot 7: Poll 9/90 - Status: in_progress, Progress: 30%
+  Shot 9: Poll 5/90 - Status: in_progress, Progress: 30%
+  Shot 8: Poll 8/90 - Status: in_progress, Progress: 30%
+  Shot 7: Poll 10/90 - Status: in_progress, Progress: 30%
+  Shot 9: Poll 6/90 - Status: in_progress, Progress: 30%
+  Shot 8: Poll 9/90 - Status: in_progress, Progress: 30%
+  Shot 7: Poll 11/90 - Status: in_progress, Progress: 30%
+  Shot 9: Poll 7/90 - Status: in_progress, Progress: 30%
+  Shot 8: Poll 10/90 - Status: in_progress, Progress: 30%
+  Shot 7: Poll 12/90 - Status: in_progress, Progress: 30%
+  Shot 9: Poll 8/90 - Status: in_progress, Progress: 30%
+  Shot 8: Poll 11/90 - Status: in_progress, Progress: 30%
+  Shot 7: Poll 13/90 - Status: in_progress, Progress: 30%
+  Shot 9: Poll 9/90 - Status: in_progress, Progress: 30%
+  Shot 8: Poll 12/90 - Status: in_progress, Progress: 30%
+  Shot 7: Poll 14/90 - Status: in_progress, Progress: 30%
+  Shot 9: Poll 10/90 - Status: in_progress, Progress: 30%
+  Shot 8: Poll 13/90 - Status: in_progress, Progress: 30%
+  Shot 7: Poll 15/90 - Status: in_progress, Progress: 30%
+  Shot 9: Poll 11/90 - Status: in_progress, Progress: 30%
+  Shot 8: Poll 14/90 - Status: in_progress, Progress: 30%
+  Shot 7: Poll 16/90 - Status: in_progress, Progress: 30%
+  Shot 9: Poll 12/90 - Status: in_progress, Progress: 30%
+  Shot 8: Poll 15/90 - Status: in_progress, Progress: 30%
+  Shot 7: Poll 17/90 - Status: in_progress, Progress: 30%
+  Shot 9: Poll 13/90 - Status: in_progress, Progress: 30%
+  Shot 8: Poll 16/90 - Status: in_progress, Progress: 30%
+  Shot 7: Poll 18/90 - Status: in_progress, Progress: 30%
+  Shot 9: Poll 14/90 - Status: in_progress, Progress: 30%
+  Shot 8: Poll 17/90 - Status: in_progress, Progress: 30%
+  Shot 7: Poll 19/90 - Status: completed, Progress: 100%
+  Shot 7: Completed response: {"completed_at":1784877756,"created_at":1784877598,"error":null,"expires_at":null,"id":"task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5","input_image_filename":["task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5-1.png","task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5-2.png","task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5-3.png"],"internal_progress":100,"internal_status":"completed","model":"agnes-video-v2.0","object":"video","perf_download_bytes":3054171,"perf_download_s":7.4939353018999,"perf_infer_s":151.45054406859,"perf_infer_t0":7525967.9737821,"perf_output_size":2833783,"perf_params":{"frame_rate":24,"height":448,"num_frames":305,"num_inference_steps":8,"seed":42,"width":832},"perf_upload_s":3.1476557748392,"progress":100,"prompt_id":"e6b5e42e-291e-438f-9949-11f5d2b03c4e","remixed_from_video_id":null,"request_params":{"background_image":null,"frame_rate":24,"global_prompt":"","height":448,"image":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5/2.png"],"image_list":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5/2.png"],"local_prompts":"","max_length":256,"mode":"keyframes","model":"agnes-video-v2.0","negative_prompt":"pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable tex
+  Shot 7: Got video URL: https://platform-outputs.agnes-ai.space/videos/agnes-video-v2.0/task_dyrx06WOObPcrNeREoxUjFvsfpruZVX5.mp4
+Downloading generated video for shot 7...
+Successfully generated shot 7
+Processing shot 10: 00:01:58.000 - 00:02:11.000 (duration=13.000s)
+First frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_9_last.jpg
+Middle frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_10_middle.jpg
+Last frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_10_last.jpg
+=== Shot 10 Full Prompt ===
+场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤
+镜头运动：中近景，聚焦在王朗以为得逞的笑容上。
+场景描述：王朗得意地向诸葛亮抛出高官厚禄的诱饵，以为胜券在握，抚须微带笑意。
+人物对话：，王朗：你若倒戈卸甲，以礼来降，仍不失封侯之位。国安民乐，岂不美哉？
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。
+=== End Shot 10 Prompt ===
+Shot 10: Starting with AI account index 1
+Shot 10: Duration: 13.000s, Target frames: 312
+  Shot 10: Duration: 13.000s, FPS: 24, Target frames: 305
+  Shot 10: Request body num_frames: 305, frame_rate: 24, expected duration: 12.71s
+  Shot 10: Prompt length: 544 characters
+  Shot 10: Prompt preview (first 500 chars): 场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：王朗是男，长着长长的山羊胡，额头有明显的皱纹，面容苍老，神色傲慢后变得惊恐气愤
+镜头运动：中近景，聚焦在王朗以为得逞的笑容上。
+场景描述：王朗得意地向诸葛亮抛出高官厚禄的诱饵，以为胜券在握，抚须微带笑意。
+人物对话：，王朗：你若倒戈卸甲，以礼来降，仍不失封侯之位。国安民乐，岂不美哉？
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人...
+  Shot 10: Request body keys: ['model', 'prompt', 'negative_prompt', 'num_frames', 'frame_rate', 'width', 'height', 'seed', 'extra_body']
+  Shot 10: extra_body keys: ['image', 'mode']
+  Shot 10: Image URLs count: 3
+  Shot 10: Using AI account index 1 (alias: 273249482v)
+  Shot 10: Using AI account index 1 (db_id=13, model=agnes-video-v2.0, URL=***/v1/videos)
+  Shot 10: Attempt 1/3 - URL: ***/v1/videos
+  Shot 9: Poll 15/90 - Status: in_progress, Progress: 30%
+  Shot 8: Poll 18/90 - Status: in_progress, Progress: 30%
+  Shot 10: Attempt 1/3 failed: HTTP Error 503: Service Unavailable
+  Shot 10: 503 queue full, waiting 20s before retry...
+  Shot 9: Poll 16/90 - Status: in_progress, Progress: 30%
+  Shot 8: Poll 19/90 - Status: in_progress, Progress: 30%
+  Shot 9: Poll 17/90 - Status: in_progress, Progress: 30%
+  Shot 8: Poll 20/90 - Status: completed, Progress: 100%
+  Shot 8: Completed response: {"completed_at":1784877773,"created_at":1784877623,"error":null,"expires_at":null,"id":"task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA","input_image_filename":["task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA-1.png","task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA-2.png","task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA-3.png"],"internal_progress":100,"internal_status":"completed","model":"agnes-video-v2.0","object":"video","perf_download_bytes":3026616,"perf_download_s":8.2313434788957,"perf_infer_s":145.16282252222,"perf_infer_t0":7006663.7961394,"perf_output_size":2251368,"perf_params":{"frame_rate":24,"height":448,"num_frames":305,"num_inference_steps":8,"seed":42,"width":832},"perf_upload_s":2.4302546391264,"progress":100,"prompt_id":"316350f8-ebd9-4db9-ba3b-500ed7529710","remixed_from_video_id":null,"request_params":{"background_image":null,"frame_rate":24,"global_prompt":"","height":448,"image":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA/2.png"],"image_list":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA/2.png"],"local_prompts":"","max_length":256,"mode":"keyframes","model":"agnes-video-v2.0","negative_prompt":"pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable tex
+  Shot 8: Got video URL: https://platform-outputs.agnes-ai.space/videos/agnes-video-v2.0/task_glylPiHkZE6c26bS6dnzw7kEbjG0duqA.mp4
+Downloading generated video for shot 8...
+Successfully generated shot 8
+Processing shot 11: 00:02:11.000 - 00:02:26.000 (duration=15.000s)
+First frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_10_last.jpg
+Middle frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_11_middle.jpg
+Last frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_11_last.jpg
+=== Shot 11 Full Prompt ===
+场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：诸葛亮是男，头戴八卦巾，留有深色胡须和山羊胡，面容儒雅，眉宇间透着聪慧
+镜头运动：中景拉近至面部特写，突出情绪转变的震撼感。
+场景描述：诸葛亮突然仰天大笑，随即勃然大怒，收敛笑容，直视王朗，痛加斥责。
+人物对话：，诸葛亮：我原以为你身为汉朝老臣，来到阵前，面对两军将士，必有高论，没想到竟说出如此粗鄙之语！
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。
+=== End Shot 11 Prompt ===
+Shot 11: Starting with AI account index 2
+Shot 11: Duration: 15.000s, Target frames: 360
+  Shot 11: Duration: 15.000s, FPS: 24, Target frames: 353
+  Shot 11: Request body num_frames: 353, frame_rate: 24, expected duration: 14.71s
+  Shot 11: Prompt length: 555 characters
+  Shot 11: Prompt preview (first 500 chars): 场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：诸葛亮是男，头戴八卦巾，留有深色胡须和山羊胡，面容儒雅，眉宇间透着聪慧
+镜头运动：中景拉近至面部特写，突出情绪转变的震撼感。
+场景描述：诸葛亮突然仰天大笑，随即勃然大怒，收敛笑容，直视王朗，痛加斥责。
+人物对话：，诸葛亮：我原以为你身为汉朝老臣，来到阵前，面对两军将士，必有高论，没想到竟说出如此粗鄙之语！
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：...
+  Shot 11: Request body keys: ['model', 'prompt', 'negative_prompt', 'num_frames', 'frame_rate', 'width', 'height', 'seed', 'extra_body']
+  Shot 11: extra_body keys: ['image', 'mode']
+  Shot 11: Image URLs count: 3
+  Shot 11: Using AI account index 2 (alias: dragontxl001v)
+  Shot 11: Using AI account index 2 (db_id=15, model=agnes-video-v2.0, URL=***/v1/videos)
+  Shot 11: Attempt 1/3 - URL: ***/v1/videos
+  Shot 10: Attempt 2/3 - URL: ***/v1/videos
+  Shot 9: Poll 18/90 - Status: in_progress, Progress: 30%
+  Shot 10: Attempt 2/3 - HTTP 200
+  Shot 10: Response: {"id":"task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG","video_id":"task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG","task_id":"task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG","object":"video","model":"agnes-video-v2.0","status":"queued","progress":0,"created_at":1784877793,"seconds":"12.7","size":"832x448"}...
+  Shot 10: Got task ID: task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG
+  Shot 10: Got video ID: task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG
+  Shot 10: Polling for result...
+  Shot 11: Attempt 1/3 - HTTP 200
+  Shot 11: Response: {"id":"task_wynCWQqDidec9akkJcOyGKehCqtoMwdu","video_id":"task_wynCWQqDidec9akkJcOyGKehCqtoMwdu","task_id":"task_wynCWQqDidec9akkJcOyGKehCqtoMwdu","object":"video","model":"agnes-video-v2.0","status":"queued","progress":0,"created_at":1784877794,"seconds":"14.7","size":"832x448"}...
+  Shot 11: Got task ID: task_wynCWQqDidec9akkJcOyGKehCqtoMwdu
+  Shot 11: Got video ID: task_wynCWQqDidec9akkJcOyGKehCqtoMwdu
+  Shot 11: Polling for result...
+  Shot 9: Poll 19/90 - Status: in_progress, Progress: 30%
+  Shot 10: Poll 1/90 - Status: pending, Progress: 0%
+  Shot 11: Poll 1/90 - Status: pending, Progress: 0%
+  Shot 9: Poll 20/90 - Status: in_progress, Progress: 30%
+  Shot 10: Poll 2/90 - Status: pending, Progress: 0%
+  Shot 11: Poll 2/90 - Status: pending, Progress: 0%
+  Shot 9: Poll 21/90 - Status: completed, Progress: 100%
+  Shot 9: Completed response: {"completed_at":1784877814,"created_at":1784877651,"error":null,"expires_at":null,"id":"task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np","input_image_filename":["task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np-1.png","task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np-2.png","task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np-3.png"],"internal_progress":100,"internal_status":"completed","model":"agnes-video-v2.0","object":"video","perf_download_bytes":3067499,"perf_download_s":7.7237754734233,"perf_infer_s":155.93639205303,"perf_infer_t0":5182142.8362782,"perf_output_size":1950227,"perf_params":{"frame_rate":24,"height":448,"num_frames":281,"num_inference_steps":8,"seed":42,"width":832},"perf_upload_s":2.402508311905,"progress":100,"prompt_id":"cb374f55-45fe-4823-9146-679885c35ffa","remixed_from_video_id":null,"request_params":{"background_image":null,"frame_rate":24,"global_prompt":"","height":448,"image":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np/2.png"],"image_list":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np/2.png"],"local_prompts":"","max_length":256,"mode":"keyframes","model":"agnes-video-v2.0","negative_prompt":"pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable text
+  Shot 9: Got video URL: https://platform-outputs.agnes-ai.space/videos/agnes-video-v2.0/task_jLsWWiE5DeveD8hNvZgtYRFeX050Y5np.mp4
+Downloading generated video for shot 9...
+Successfully generated shot 9
+Processing shot 12: 00:02:26.000 - 00:02:38.000 (duration=12.000s)
+First frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_11_last.jpg
+Middle frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_12_middle.jpg
+Last frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_12_last.jpg
+=== Shot 12 Full Prompt ===
+场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：诸葛亮是男，头戴八卦巾，留有深色胡须和山羊胡，面容儒雅，眉宇间透着聪慧
+镜头运动：中景，略带仰视，展现诸葛亮作为说客的凛然正气。
+场景描述：诸葛亮站起身，神态庄重，开始大声历数朝廷的历史悲剧，直击人心。
+人物对话：，诸葛亮：我有一言，请诸位静听：昔日桓帝、灵帝之时，汉统衰落，宦官酿祸；国乱岁凶，四方扰攘。
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：有人物对话时要严格按人物对话文本生成，不要随机生成对话。没有人物对话时则不要生成任何对话，也不要有对话的口型。
+=== End Shot 12 Prompt ===
+Shot 12: Starting with AI account index 0
+Shot 12: Duration: 12.000s, Target frames: 288
+  Shot 12: Duration: 12.000s, FPS: 24, Target frames: 281
+  Shot 12: Request body num_frames: 281, frame_rate: 24, expected duration: 11.71s
+  Shot 12: Prompt length: 555 characters
+  Shot 12: Prompt preview (first 500 chars): 场景背景：整体视频展示了三国时期经典的“诸葛亮骂死王朗”场景。在蜀魏两军阵前，曹魏司徒王朗企图通过说辞劝降蜀汉丞相诸葛亮，声称曹魏代替汉朝是天命所归。诸葛亮对此予以坚决痛击，用激昂犀利的言辞痛骂王朗为谄谀之臣、无耻老贼，指责其谄媚篡汉、助曹为虐，最终王朗羞愤交加，急火攻心，当场吐血落马而亡。，本片段是其中的一个分镜。
+角色描述：诸葛亮是男，头戴八卦巾，留有深色胡须和山羊胡，面容儒雅，眉宇间透着聪慧
+镜头运动：中景，略带仰视，展现诸葛亮作为说客的凛然正气。
+场景描述：诸葛亮站起身，神态庄重，开始大声历数朝廷的历史悲剧，直击人心。
+人物对话：，诸葛亮：我有一言，请诸位静听：昔日桓帝、灵帝之时，汉统衰落，宦官酿祸；国乱岁凶，四方扰攘。
+关键帧要求：第1张图片为起始帧，第3张图片为结束帧，第2张图片是中间帧
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容和语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物的口型必须与对话内容精确匹配，确保发音与对话文本的语种一致。
+对话要求：...
+  Shot 12: Request body keys: ['model', 'prompt', 'negative_prompt', 'num_frames', 'frame_rate', 'width', 'height', 'seed', 'extra_body']
+  Shot 12: extra_body keys: ['image', 'mode']
+  Shot 12: Image URLs count: 3
+  Shot 12: Using AI account index 0 (alias: ashare_ldragonv)
+  Shot 12: Using AI account index 0 (db_id=11, model=agnes-video-v2.0, URL=***/v1/videos)
+  Shot 12: Attempt 1/3 - URL: ***/v1/videos
+  Shot 10: Poll 3/90 - Status: pending, Progress: 0%
+  Shot 11: Poll 3/90 - Status: pending, Progress: 0%
+  Shot 12: Attempt 1/3 - HTTP 200
+  Shot 12: Response: {"id":"task_ljqgJzBk7UmscqXzo65U1Nsy8i0J8CoU","video_id":"task_ljqgJzBk7UmscqXzo65U1Nsy8i0J8CoU","task_id":"task_ljqgJzBk7UmscqXzo65U1Nsy8i0J8CoU","object":"video","model":"agnes-video-v2.0","status":"queued","progress":0,"created_at":1784877832,"seconds":"11.7","size":"832x448"}...
+  Shot 12: Got task ID: task_ljqgJzBk7UmscqXzo65U1Nsy8i0J8CoU
+  Shot 12: Got video ID: task_ljqgJzBk7UmscqXzo65U1Nsy8i0J8CoU
+  Shot 12: Polling for result...
+  Shot 10: Poll 4/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 4/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 1/90 - Status: pending, Progress: 0%
+  Shot 10: Poll 5/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 5/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 2/90 - Status: pending, Progress: 0%
+  Shot 10: Poll 6/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 6/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 3/90 - Status: pending, Progress: 0%
+  Shot 10: Poll 7/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 7/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 4/90 - Status: pending, Progress: 0%
+  Shot 10: Poll 8/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 8/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 5/90 - Status: pending, Progress: 0%
+  Shot 10: Poll 9/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 9/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 6/90 - Status: in_progress, Progress: 30%
+  Shot 10: Poll 10/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 10/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 7/90 - Status: in_progress, Progress: 30%
+  Shot 10: Poll 11/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 11/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 8/90 - Status: in_progress, Progress: 30%
+  Shot 10: Poll 12/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 12/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 9/90 - Status: in_progress, Progress: 30%
+  Shot 10: Poll 13/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 13/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 10/90 - Status: in_progress, Progress: 30%
+  Shot 10: Poll 14/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 14/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 11/90 - Status: in_progress, Progress: 30%
+  Shot 10: Poll 15/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 15/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 12/90 - Status: in_progress, Progress: 30%
+  Shot 10: Poll 16/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 16/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 13/90 - Status: in_progress, Progress: 30%
+  Shot 10: Poll 17/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 17/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 14/90 - Status: in_progress, Progress: 30%
+  Shot 10: Poll 18/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 18/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 15/90 - Status: in_progress, Progress: 30%
+  Shot 10: Poll 19/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 19/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 16/90 - Status: in_progress, Progress: 30%
+  Shot 10: Poll 20/90 - Status: in_progress, Progress: 30%
+  Shot 11: Poll 20/90 - Status: queued, Progress: 0%
+  Shot 12: Poll 17/90 - Status: in_progress, Progress: 30%
+  Shot 10: Poll 21/90 - Status: completed, Progress: 100%
+  Shot 10: Completed response: {"completed_at":1784878000,"created_at":1784877826,"error":null,"expires_at":null,"id":"task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG","input_image_filename":["task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG-1.png","task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG-2.png","task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG-3.png"],"internal_progress":100,"internal_status":"completed","model":"agnes-video-v2.0","object":"video","perf_download_bytes":3077157,"perf_download_s":7.9634703500196,"perf_infer_s":167.87091730628,"perf_infer_t0":7526134.3147538,"perf_output_size":2651377,"perf_params":{"frame_rate":24,"height":448,"num_frames":305,"num_inference_steps":8,"seed":42,"width":832},"perf_upload_s":2.4653025455773,"progress":100,"prompt_id":"ca8e56c9-096f-4968-b116-345ba8573722","remixed_from_video_id":null,"request_params":{"background_image":null,"frame_rate":24,"global_prompt":"","height":448,"image":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG/2.png"],"image_list":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG/2.png"],"local_prompts":"","max_length":256,"mode":"keyframes","model":"agnes-video-v2.0","negative_prompt":"pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable tex
+  Shot 10: Got video URL: https://platform-outputs.agnes-ai.space/videos/agnes-video-v2.0/task_7a9DLFSRKW5C2cOwxzAsNNwa8dvA09DG.mp4
+Downloading generated video for shot 10...
+  Shot 11: Poll 21/90 - Status: completed, Progress: 100%
+  Shot 11: Completed response: {"completed_at":1784878009,"created_at":1784877827,"error":null,"expires_at":null,"id":"task_wynCWQqDidec9akkJcOyGKehCqtoMwdu","input_image_filename":["task_wynCWQqDidec9akkJcOyGKehCqtoMwdu-1.png","task_wynCWQqDidec9akkJcOyGKehCqtoMwdu-2.png","task_wynCWQqDidec9akkJcOyGKehCqtoMwdu-3.png"],"internal_progress":100,"internal_status":"completed","model":"agnes-video-v2.0","object":"video","perf_download_bytes":3026536,"perf_download_s":7.7623999482021,"perf_infer_s":175.75475736894,"perf_infer_t0":7362452.6983652,"perf_output_size":2197122,"perf_params":{"frame_rate":24,"height":448,"num_frames":353,"num_inference_steps":8,"seed":42,"width":832},"perf_upload_s":2.4712020261213,"progress":100,"prompt_id":"05a2df48-ee27-49f6-b255-892bf0522823","remixed_from_video_id":null,"request_params":{"background_image":null,"frame_rate":24,"global_prompt":"","height":448,"image":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_wynCWQqDidec9akkJcOyGKehCqtoMwdu/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_wynCWQqDidec9akkJcOyGKehCqtoMwdu/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_wynCWQqDidec9akkJcOyGKehCqtoMwdu/2.png"],"image_list":["https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_wynCWQqDidec9akkJcOyGKehCqtoMwdu/0.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_wynCWQqDidec9akkJcOyGKehCqtoMwdu/1.png","https://platform-outputs.agnes-ai.space/videos/video-queue/input/2026/07/24/task_wynCWQqDidec9akkJcOyGKehCqtoMwdu/2.png"],"local_prompts":"","max_length":256,"mode":"keyframes","model":"agnes-video-v2.0","negative_prompt":"pc game, console game, video game, cartoon, childish, ugly, subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance, text, watermarks, logos, readable signage, overlay, titles, has blurbox, has subtitles, artifacts around text, unreadable tex
+  Shot 11: Got video URL: https://platform-outputs.agnes-ai.space/videos/agnes-video-v2.0/task_wynCWQqDidec9akkJcOyGKehCqtoMwdu.mp4
+Downloading generated video for shot 11...
+Successfully generated shot 10
+Processing shot 13: 00:02:38.000 - 00:02:49.000 (duration=11.000s)
+Successfully generated shot 11
+First frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_12_last.jpg
+Middle frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_13_middle.jpg
+Last frame URL: https://aivideobucket.ldragon.xyz/wl7202607240618m2xo7e/ai_shot_frames/shot_13_last.jpg

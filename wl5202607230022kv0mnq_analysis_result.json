@@ -1,0 +1,466 @@
+{
+  "video_summary": "整体视频展示了《三国演义》中经典的“诸葛亮舌战群儒/骂死王朗”的桥段。故事发生在两军对垒的阵前，曹魏司徒王朗企图通过宣扬曹魏的合法性与军事优势劝降蜀汉丞相诸葛亮。然而，诸葛亮凭借雄辩的口才，历数汉朝衰落与奸臣篡逆的罪行，痛斥王朗作为两朝老臣不仅未能匡扶汉室反而助纣为虐，称其为“断脊之犬”、“厚颜无耻之人”。最终，王朗在诸葛亮的严词痛骂下急火攻心，吐血落马气绝身亡，蜀军士气大振，魏军大乱。",
+  "characters": [
+    {
+      "role_id": "R1",
+      "name": "诸葛亮",
+      "gender": "男",
+      "body_type": "中等身形",
+      "height": "中等偏高",
+      "permanent_features": "头戴青色纶巾，身穿八卦袍，手持羽扇，留着标志性的胡须，神态自若，目光犀利。",
+      "differentiation_labels": [
+        "羽扇",
+        "纶巾",
+        "八卦袍",
+        "儒雅睿智"
+      ],
+      "best_face_time": "00:02:18.000",
+      "face_position_x": 0.5,
+      "face_position_y": 0.35
+    },
+    {
+      "role_id": "R2",
+      "name": "王朗",
+      "gender": "男",
+      "body_type": "中等偏瘦",
+      "height": "中等",
+      "permanent_features": "白发苍苍，留着长长的白胡须，身穿蓝色官服，骑在马上。神情从最初的得意自满逐渐变为震惊、愤怒、痛苦直至绝望。",
+      "differentiation_labels": [
+        "白发",
+        "白须",
+        "骑马",
+        "年迈官服"
+      ],
+      "best_face_time": "00:00:01.500",
+      "face_position_x": 0.5,
+      "face_position_y": 0.25
+    },
+    {
+      "role_id": "R3",
+      "name": "曹真",
+      "gender": "男",
+      "body_type": "健壮",
+      "height": "高大",
+      "permanent_features": "身披重铠，戴着红色缨盔，留着络腮胡，面容严肃，骑马立于王朗身侧。",
+      "differentiation_labels": [
+        "重铠",
+        "红色盔缨",
+        "络腮胡"
+      ],
+      "best_face_time": "00:02:46.000",
+      "face_position_x": 0.7,
+      "face_position_y": 0.3
+    }
+  ],
+  "storyboards": [
+    {
+      "start_time": "00:00:00.000",
+      "end_time": "00:00:10.000",
+      "characters_present": [
+        "R1",
+        "R2"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R2",
+          "text": "来者可是诸葛孔明？"
+        },
+        {
+          "speaker": "R1",
+          "text": "正是。"
+        },
+        {
+          "speaker": "R2",
+          "text": "久闻公之大名，今日有幸相会。"
+        }
+      ],
+      "scene_description": "两军阵前，王朗骑马立于魏军阵前，大声向对面的蜀军高呼质问。诸葛亮端坐于四轮车上，羽扇轻摇，从容应对。",
+      "lighting_description": "明亮的户外自然光，晴空万里，光线均匀。",
+      "camera_movement": "在中景和特写之间切换，使用正反打镜头展现两人的初步交锋。",
+      "positive_prompt": "A close-up shot of an old Chinese strategist Wang Lang with white hair and beard on a horse, and then a close-up of Zhuge Liang sitting calmly on his wheelchair with a feather fan, historical Chinese drama style, sunny day.",
+      "negative_prompt": "modern clothing, sunglasses, plastic props, blurry, dark lighting"
+    },
+    {
+      "start_time": "00:00:10.000",
+      "end_time": "00:00:24.033",
+      "characters_present": [
+        "R1",
+        "R2",
+        "R3"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R2",
+          "text": "公既知天命，识时务，为何要兴无名之师，犯我疆界？"
+        },
+        {
+          "speaker": "R1",
+          "text": "我奉诏讨贼，何谓之无名？"
+        }
+      ],
+      "scene_description": "王朗面带得意之色，在马上指责蜀军侵略。诸葛亮则义正言辞地以“奉诏讨贼”反驳，神情威严。",
+      "lighting_description": "明亮的日光，背景是魏军的大旗在风中飘扬。",
+      "camera_movement": "镜头在王朗的侧面中景与诸葛亮的正面特写之间切换，强调两人的对立气场。",
+      "positive_prompt": "Wang Lang speaking on a horse with military flags behind him, Zhuge Liang replying with a serious expression, historical atmosphere, sharp focus.",
+      "negative_prompt": "low quality, shaking camera, interior lighting"
+    },
+    {
+      "start_time": "00:00:24.033",
+      "end_time": "00:00:35.467",
+      "characters_present": [
+        "R2",
+        "R3"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R2",
+          "text": "天数有变，神器更易，而归有德之人，此乃自然之理。"
+        }
+      ],
+      "scene_description": "王朗在马上侃侃而谈，挥舞着手臂，用宿命论和天意来论证大魏政权的合法性，神态傲慢。",
+      "lighting_description": "强烈的顶光，照亮王朗得意的面容和白发。",
+      "camera_movement": "从中景慢慢拉近至王朗的特写，捕捉其高傲和自信的微表情。",
+      "positive_prompt": "An old Chinese scholar-official speaking confidently on a horse, historical battlefield background, bright sunny day, cinematic composition.",
+      "negative_prompt": "sad expression, humble posture, nighttime"
+    },
+    {
+      "start_time": "00:00:35.467",
+      "end_time": "00:00:41.267",
+      "characters_present": [
+        "R1"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R1",
+          "text": "曹贼篡汉，霸占中原，何称有德之人？"
+        }
+      ],
+      "scene_description": "诸葛亮坐在轮椅上，眼神锐利，手中的羽扇猛地一挥，直斥曹魏政权为篡汉贼子。",
+      "lighting_description": "光线柔和，在诸葛亮一侧形成淡淡的阴影，凸显其立体而坚毅的面部轮廓。",
+      "camera_movement": "正面中特写，随着诸葛亮挥动羽扇的手势，镜头有微小的推移震动，增强语气力量。",
+      "positive_prompt": "Zhuge Liang looking angry and questioning, holding a feather fan, high-definition, deep eyes, professional cinematography.",
+      "negative_prompt": "smiling, friendly, casual outfit"
+    },
+    {
+      "start_time": "00:00:41.267",
+      "end_time": "00:00:54.200",
+      "characters_present": [
+        "R1",
+        "R2",
+        "R3"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R2",
+          "text": "自桓帝、灵帝以来，黄巾猖狂，天下纷争。社稷有累卵之危，生灵有倒悬之急。"
+        }
+      ],
+      "scene_description": "王朗不甘示弱，继续在马上大声辩驳，痛陈汉末乱世的悲惨景象，以此反衬曹操平定天下的功绩。",
+      "lighting_description": "自然日光，风吹动着两军的旌旗，营造出战场的肃杀感。",
+      "camera_movement": "侧面中景，将王朗与身后的武将曹真一同摄入画面，突显魏军的威仪。",
+      "positive_prompt": "Wang Lang gestures dramatically while speaking on horseback, wind blowing the banners behind him, historical war drama.",
+      "negative_prompt": "peaceful garden setting, modern technology"
+    },
+    {
+      "start_time": "00:00:54.200",
+      "end_time": "00:01:12.433",
+      "characters_present": [
+        "R1",
+        "R2"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R2",
+          "text": "我太祖武皇帝扫清六合，席卷八荒，万姓倾心，四方仰德。此非以权势取之，实乃天命所归也。我世祖文皇帝，神文圣武，继承大统，应天合人，法尧禅舜，处中国以治万邦，这岂非天心人意乎？"
+        }
+      ],
+      "scene_description": "王朗越说越激动，双手抱拳向天作揖，极力赞颂曹操、曹丕的功业，宣称魏国代汉是天命人心的必然结果。",
+      "lighting_description": "明亮的阳光直射，王朗面部因激动而微微泛红。",
+      "camera_movement": "中景，保持对王朗手势和身体语言的完整记录，偶尔切到诸葛亮冷眼静听的反应镜头。",
+      "positive_prompt": "An elder Chinese official on a horse gesturing with hands in respect, historical costume, cinematic lighting, bright atmosphere.",
+      "negative_prompt": "indoor studio look, bad acting, modern elements"
+    },
+    {
+      "start_time": "00:01:12.433",
+      "end_time": "00:01:25.000",
+      "characters_present": [
+        "R2"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R2",
+          "text": "今公蕴大才，抱大器，自比管仲、乐毅，何乃强要逆天理、背人情而行事？"
+        }
+      ],
+      "scene_description": "王朗语气转为柔和与劝诱，在马上对诸葛亮的才华表示虚伪的赞赏，企图从心理上瓦解诸葛亮的斗志。",
+      "lighting_description": "阳光略微西斜，战场上光影层次分明。",
+      "camera_movement": "特写镜头，紧紧锁住王朗劝降时伪善且得意的神情。",
+      "positive_prompt": "Close-up of Wang Lang speaking persuasion, detailed facial wrinkles and beard, 4k resolution, ancient drama movie scene.",
+      "negative_prompt": "cartoon, 3D render, low resolution"
+    },
+    {
+      "start_time": "00:01:25.000",
+      "end_time": "00:01:42.433",
+      "characters_present": [
+        "R1",
+        "R2"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R2",
+          "text": "岂不闻古人云：顺天者昌，逆天者亡。今我大魏带甲百万，良将千员。谅尔等腐草之荧光，如何比得上天空之皓月？"
+        }
+      ],
+      "scene_description": "王朗展示出傲慢的姿态，用极其轻蔑的词汇贬低蜀汉军队，神情自傲，身后的魏军士兵和将领严阵以待。",
+      "lighting_description": "逆光照射，王朗和战马的轮廓在阳光下显得很高大。",
+      "camera_movement": "低角度仰拍王朗，彰显其自以为是的压迫感，随后切入诸葛亮面无表情的特写。",
+      "positive_prompt": "Low-angle shot of Wang Lang on horse looking arrogant, military troops blurred in background, dramatic lighting.",
+      "negative_prompt": "gentle expression, smiling, high-angle shot"
+    },
+    {
+      "start_time": "00:01:42.433",
+      "end_time": "00:01:55.200",
+      "characters_present": [
+        "R2"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R2",
+          "text": "你若倒戈卸甲，以礼来降，仍不失封侯之位。国安民乐，岂不美哉！"
+        }
+      ],
+      "scene_description": "王朗伸出一只手做邀请状，抛出“封侯之位”的诱饵，以为自己已经胜券在握，脸上洋溢着得意的笑容。",
+      "lighting_description": "明朗的日光，战马偶尔不安地摆头。",
+      "camera_movement": "王朗的中特写，伴随着马匹微动的动态感，展现其劝降的自信。",
+      "positive_prompt": "Wang Lang with an inviting gesture, smiling confidently, historical drama aesthetic, highly detailed costume.",
+      "negative_prompt": "fearful look, monochrome, messy hair"
+    },
+    {
+      "start_time": "00:01:55.200",
+      "end_time": "00:02:11.133",
+      "characters_present": [
+        "R1"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R1",
+          "text": "我原以为，你身为汉朝老臣，来到阵前，面对两军将士，必有高论。没想到，竟说出如此粗鄙之语！"
+        }
+      ],
+      "scene_description": "诸葛亮突然发出一声蔑视的大笑，随后收起笑容，脸色一沉，指责王朗之语粗鄙不堪。反击正式开始。",
+      "lighting_description": "明亮的光线，诸葛亮面部表情变化清晰可见，充满戏剧张力。",
+      "camera_movement": "平拍中景拉近至面部特写，精准捕捉诸葛亮从不屑大笑到严肃痛斥的表情转变。",
+      "positive_prompt": "Zhuge Liang laughing mockingly, then turning serious and speaking with authority, hand holding a feather fan, historical background.",
+      "negative_prompt": "weak voice expression, crying, looking down"
+    },
+    {
+      "start_time": "00:02:11.133",
+      "end_time": "00:02:26.100",
+      "characters_present": [
+        "R1"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R1",
+          "text": "我有一言，请诸位静听。昔日桓帝、灵帝之时，汉统衰落，宦官酿祸；国乱岁凶，四方扰攘。黄巾之后，董卓、李傕、郭汜等接踵而起，劫持汉帝，残暴生灵。"
+        }
+      ],
+      "scene_description": "诸葛亮挥动羽扇，声音洪亮，字字珠心。他开始历数东汉末年的种种战乱与灾难，气势完全压倒了对方。",
+      "lighting_description": "侧逆光，在诸葛亮的轮廓边缘形成高光，使其看起来神圣且极具正义感。",
+      "camera_movement": "正面中景，镜头微微晃动，配合其演讲的气势。",
+      "positive_prompt": "Zhuge Liang speaking with passion, pointing with his hand, cinematic high-contrast lighting, ancient Chinese military camp scene.",
+      "negative_prompt": "smiling, indoor setting, soft pastel colors"
+    },
+    {
+      "start_time": "00:02:26.100",
+      "end_time": "00:02:43.633",
+      "characters_present": [
+        "R1",
+        "R2",
+        "R3"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R1",
+          "text": "因之庙堂之上，朽木为官，殿陛之间，禽兽食禄；以至狼心狗行之辈，汹汹当朝，奴颜婢膝之徒，纷纷秉政。以致社稷变为丘墟，苍生饱受涂炭之苦。"
+        }
+      ],
+      "scene_description": "诸葛亮词锋犀利，大骂朝中奸臣为“朽木”和“禽兽”。王朗在马上听得脸色阵红阵白，有些坐立难安。",
+      "lighting_description": "强烈的顶光，凸显两军对垒时的紧张空气。",
+      "camera_movement": "在诸葛亮慷慨陈词的特写与王朗在马上开始慌乱、面色凝重的反应镜头之间快速切换。",
+      "positive_prompt": "Zhuge Liang speaking sternly, close-up of Wang Lang looking disturbed and uneasy on his horse, intense scene.",
+      "negative_prompt": "calm dialogue, peaceful nature, abstract art"
+    },
+    {
+      "start_time": "00:02:43.633",
+      "end_time": "00:02:52.667",
+      "characters_present": [
+        "R1",
+        "R2",
+        "R3"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R1",
+          "text": "值此国难之际，王司徒又有何作为？王司徒之生平，我素有所知。"
+        }
+      ],
+      "scene_description": "诸葛亮将矛头直接对准王朗，开始揭露王朗的虚伪历史。王朗在马上面部肌肉抽搐，眼神中流露出不安。",
+      "lighting_description": "户外阳光明媚，但气氛由于诸葛亮的步步逼近而显得异常压抑。",
+      "camera_movement": "缓推镜头，拉近到诸葛亮的眼睛特写，然后切到王朗惊慌避开视线的特写。",
+      "positive_prompt": "Zhuge Liang looking directly and sharply at the camera, Wang Lang looking nervous and sweaty, high drama.",
+      "negative_prompt": "funny faces, high-tech, winter season"
+    },
+    {
+      "start_time": "00:02:52.667",
+      "00:03:04.267": "00:03:04.267",
+      "characters_present": [
+        "R1"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R1",
+          "text": "你世居东海之滨，初举孝廉入仕；理当匡君辅国，安汉兴刘；何期反助逆贼，同谋篡位！"
+        }
+      ],
+      "scene_description": "诸葛亮无情地揭穿王朗背叛汉室、同谋篡位的罪行。字字如重锤般砸在王朗心头。",
+      "lighting_description": "强光直射，阴影打在背景的蜀军大旗上，诸葛亮的身姿显得高大巍峨。",
+      "camera_movement": "从中景推至诸葛亮的侧面特写，强调其正义而坚定的谴责姿态。",
+      "positive_prompt": "Zhuge Liang speaking with ultimate authority and anger, detailed armor and robes, ancient battle atmosphere.",
+      "negative_prompt": "weak facial expression, green screen artifacts, modern buildings",
+      "end_time": "00:03:13.300"
+    },
+    {
+      "start_time": "00:03:13.300",
+      "end_time": "00:03:16.267",
+      "characters_present": [
+        "R1",
+        "R2"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R1",
+          "text": "罪恶深重，天地不容！"
+        },
+        {
+          "speaker": "R2",
+          "text": "你……诸葛村夫，你敢……"
+        },
+        {
+          "speaker": "R1",
+          "text": "住口！无耻老贼！"
+        }
+      ],
+      "scene_description": "王朗气急败坏，用手指着诸葛亮结结巴巴地反驳，却被诸葛亮一记如惊雷般的“住口”硬生生喝退，王朗脸色瞬间变得惨白。",
+      "lighting_description": "大太阳光，强烈的明暗对比增加了这一瞬间的爆发力。",
+      "camera_movement": "快速正反打特写。诸葛亮大喝的特写，紧接着王朗因惊吓而身体在马上猛地一震的特写。",
+      "positive_prompt": "Zhuge Liang shouting angrily, and Wang Lang looking extremely shocked and breath-taken on his horse, close-up details, high tension.",
+      "negative_prompt": "laughing, calm conversation, blurry background"
+    },
+    {
+      "start_time": "00:03:16.267",
+      "end_time": "00:03:35.533",
+      "characters_present": [
+        "R1",
+        "R2",
+        "R3"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R1",
+          "text": "岂不知天下之人，皆愿生啖你肉！安敢在此饶舌！今幸天意不绝炎汉，昭烈皇帝于西川继承大统。我今奉嗣君之旨，兴师讨贼。"
+        }
+      ],
+      "scene_description": "诸葛亮乘胜追击，痛骂王朗是人人得而诛之的汉奸，声明蜀汉才是顺应天意、继承大统的正统，自己是奉命讨贼的正义之师。",
+      "lighting_description": "强烈日光下，飞扬的尘土和飘舞的旗帜渲染了焦灼的战场氛围。",
+      "camera_movement": "镜头在诸葛亮的正面半身像与王朗在马上捂着胸口、呼吸急促的镜头之间切换。",
+      "positive_prompt": "Zhuge Liang speaking passionately with a feather fan, Wang Lang holding his chest in pain on a horse, dramatic narrative style.",
+      "negative_prompt": "peaceful interaction, water, nighttime, neon"
+    },
+    {
+      "start_time": "00:03:35.533",
+      "end_time": "00:03:46.667",
+      "characters_present": [
+        "R1",
+        "R2"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R1",
+          "text": "你既为谄谀之臣，只可潜身缩首，苟图衣食；怎敢在我军面前，妄称天数！皓首匹夫！苍髯老贼！"
+        }
+      ],
+      "scene_description": "诸葛亮连骂“皓首匹夫”、“苍髯老贼”，词锋达到了最凌厉的顶点。王朗气极，在马上摇摇欲坠。",
+      "lighting_description": "明亮且带有沙尘感的空气，体现战场的混乱与逼仄感。",
+      "camera_movement": "诸葛亮的超特写镜头，眼神中透露着不容置疑的正义与威严。",
+      "positive_prompt": "Zhuge Liang pointing with anger, yelling, extremely intense expression, historical masterwork, 8k resolution.",
+      "negative_prompt": "gentle voice, smile, modern wear"
+    },
+    {
+      "start_time": "00:03:46.667",
+      "end_time": "00:03:57.800",
+      "characters_present": [
+        "R1",
+        "R2"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R1",
+          "text": "你即日将命归九泉之下，届时，有何面目见汉朝二十四代先帝！"
+        },
+        {
+          "speaker": "R2",
+          "text": "我……我……我……"
+        }
+      ],
+      "scene_description": "诸葛亮指出王朗死后无颜见汉朝先帝，直击王朗残存的道德底线。王朗面色发灰，浑身颤抖，连话都说不完整。",
+      "lighting_description": "强烈的阳光从正上方投射，在两人脸上形成鲜明的阴影。",
+      "camera_movement": "王朗的近景特写，他张大嘴巴，呼吸困难，冷汗直冒，体现出极度心虚与愤怒的状态。",
+      "positive_prompt": "Wang Lang sweating and trembling on his horse, open mouth, trying to speak but choking, highly dramatic acting performance.",
+      "negative_prompt": "brave smile, victory pose, fantasy magic effects"
+    },
+    {
+      "start_time": "00:03:57.800",
+      "end_time": "00:04:16.267",
+      "characters_present": [
+        "R1",
+        "R2"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R1",
+          "text": "二臣贼子！你枉活七十有六，一生未立寸功，只会摇唇鼓舌，助曹为虐！一条断脊之犬，还敢在我军阵前狺狺狂吠！我从未见过有如此厚颜无耻之人！"
+        },
+        {
+          "speaker": "R2",
+          "text": "你……你……"
+        }
+      ],
+      "scene_description": "诸葛亮发出最后的致命一击，怒斥王朗为“断脊之犬”，并说出千古名句“厚颜无耻之人”。王朗在马上已经气得浑身颤抖，手足无措，几欲坠马。",
+      "lighting_description": "耀眼的阳光将气氛烘托到高潮，风声和战场背景音似乎在这一刻凝固。",
+      "camera_movement": "镜头由诸葛亮羽扇指点、大义凛然的正面特写，猛烈切至王朗痛苦万分、五官扭曲的特写。",
+      "positive_prompt": "Zhuge Liang screaming the final accusation with extreme power, Wang Lang on horse gasping for air, clutching his heart, theatrical masterpiece.",
+      "negative_prompt": "calmness, water, green plants, happy ending"
+    },
+    {
+      "start_time": "00:04:16.267",
+      "end_time": "00:04:55.033",
+      "characters_present": [
+        "R1",
+        "R2",
+        "R3"
+      ],
+      "dialogues": [
+        {
+          "speaker": "R2",
+          "text": "（惨叫）啊——！"
+        }
+      ],
+      "scene_description": "王朗狂呼一声，一口鲜血喷出，仰面跌落马下。曹真及两旁魏军将领惊慌失措地滚鞍下马抢救，但王朗已气绝身亡。诸葛亮在车上冷冷地看着这一幕。",
+      "lighting_description": "强光直射，随着王朗落马，扬起一地尘土。",
+      "camera_movement": "慢动作记录王朗惨叫、吐血、并从马背上重重摔落至地面的过程，随后切到魏军慌乱围拢的中景，最后以诸葛亮高傲冷漠的特写收尾。",
+      "positive_prompt": "Wang Lang falling off his horse backwards onto the dry ground, soldiers rushing to him in panic, Zhuge Liang watching coldly, slow motion, dramatic cinema look.",
+      "negative_prompt": "standing peacefully, modern ambulance, cartoon style"
+    }
+  ]
+}
