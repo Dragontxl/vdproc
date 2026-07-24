@@ -23,10 +23,16 @@ interface FileItem {
   contentType?: string;
 }
 
-export default function FileBrowser() {
+interface FileBrowserProps {
+  initialPrefix?: string;
+  rootPrefix?: string;
+  embedded?: boolean;
+}
+
+export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embedded = false }: FileBrowserProps = {}) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [currentPath, setCurrentPath] = useState('');
+  const [currentPath, setCurrentPath] = useState(initialPrefix);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [allSelected, setAllSelected] = useState(false);
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
@@ -71,18 +77,21 @@ export default function FileBrowser() {
   };
 
   useEffect(() => {
-    loadFiles();
-  }, []);
+    loadFiles(initialPrefix);
+  }, [initialPrefix]);
 
   const handleNavigate = (key: string) => {
     loadFiles(key);
   };
 
   const handleBack = () => {
-    if (!currentPath) return;
+    if (!currentPath || currentPath === rootPrefix) return;
     const parts = currentPath.split('/').filter(p => p);
     parts.pop();
-    const newPath = parts.length > 0 ? parts.join('/') + '/' : '';
+    let newPath = parts.length > 0 ? parts.join('/') + '/' : '';
+    if (rootPrefix && newPath.length < rootPrefix.length) {
+      newPath = rootPrefix;
+    }
     loadFiles(newPath);
   };
 
@@ -422,14 +431,29 @@ export default function FileBrowser() {
   };
 
   const breadcrumbItems = () => {
-    const items = [{ title: '根目录', onClick: () => loadFiles('') }];
-    if (currentPath) {
-      const parts = currentPath.split('/').filter(p => p);
-      let path = '';
-      parts.forEach(part => {
-        path += part + '/';
-        items.push({ title: part, onClick: () => loadFiles(path) });
-      });
+    const items: { title: string; onClick?: () => void }[] = [];
+    if (rootPrefix) {
+      const rootName = rootPrefix.replace(/\/$/, '').split('/').pop() || '根目录';
+      items.push({ title: rootName, onClick: () => loadFiles(rootPrefix) });
+      if (currentPath && currentPath !== rootPrefix && currentPath.startsWith(rootPrefix)) {
+        const relativePath = currentPath.replace(rootPrefix, '');
+        const parts = relativePath.split('/').filter(p => p);
+        let path = rootPrefix;
+        parts.forEach(part => {
+          path += part + '/';
+          items.push({ title: part, onClick: () => loadFiles(path) });
+        });
+      }
+    } else {
+      items.push({ title: '根目录', onClick: () => loadFiles('') });
+      if (currentPath) {
+        const parts = currentPath.split('/').filter(p => p);
+        let path = '';
+        parts.forEach(part => {
+          path += part + '/';
+          items.push({ title: part, onClick: () => loadFiles(path) });
+        });
+      }
     }
     return items;
   };
@@ -542,10 +566,10 @@ export default function FileBrowser() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div>
           <Breadcrumb items={breadcrumbItems()} style={{ marginBottom: 16 }} />
-          <h2>文件管理</h2>
+          {!embedded && <h2>文件管理</h2>}
         </div>
         <Space>
-          {currentPath && (
+          {currentPath && currentPath !== rootPrefix && (
             <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>
               返回上级
             </Button>
@@ -613,7 +637,7 @@ export default function FileBrowser() {
 
       <Card
         style={{
-          border: isDragOver ? '2px dashed #1890ff' : undefined,
+          border: isDragOver ? '2px dashed #1890ff' : (embedded ? 'none' : undefined),
           backgroundColor: isDragOver ? '#e6f7ff' : undefined,
           transition: 'all 0.3s ease',
         }}

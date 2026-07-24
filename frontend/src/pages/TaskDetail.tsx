@@ -15,6 +15,7 @@ import {
 } from '@ant-design/icons';
 import { taskApi } from '../api';
 import dayjs from 'dayjs';
+import FileBrowser from './FileBrowser';
 
 const { Option } = Select;
 
@@ -594,6 +595,14 @@ export default function TaskDetail() {
             />
           </Table>
         )}
+      </Card>
+
+      <Card title="文件管理" style={{ marginTop: 24 }}>
+        <FileBrowser
+          initialPrefix={`${task.id}/`}
+          rootPrefix={`${task.id}/`}
+          embedded={true}
+        />
       </Card>
     </div>
   );
