@@ -493,15 +493,7 @@ export default function TaskDetail() {
         {subtasks.length === 0 ? (
           <p>{selectedSubtaskPhase ? '该阶段暂无子任务' : '请选择阶段查看子任务'}</p>
         ) : (
-          <>
-          <style>{`
-            .subtask-table .ant-table-cell {
-              padding-top: 32px !important;
-              padding-bottom: 32px !important;
-            }
-          `}</style>
           <Table
-            className="subtask-table"
             dataSource={subtasks}
             rowKey={(record) => `${record.phase}-${record.subtask_index}`}
             loading={subtaskLoading}
@@ -577,7 +569,7 @@ export default function TaskDetail() {
                     placeholder="输入自定义提示词，留空使用默认"
                     value={customPrompts[key] || ''}
                     onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCustomPrompts(prev => ({ ...prev, [key]: e.target.value }))}
-                    autoSize={{ minRows: 2, maxRows: 4 }}
+                    autoSize={{ minRows: 6, maxRows: 12 }}
                   />
                 );
               }}
@@ -600,7 +592,6 @@ export default function TaskDetail() {
               )}
             />
           </Table>
-          </>
         )}
       </Card>
 
