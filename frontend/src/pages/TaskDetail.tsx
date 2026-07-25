@@ -500,16 +500,13 @@ export default function TaskDetail() {
             pagination={{ pageSize: 10 }}
           >
             <Table.Column
-              title="阶段"
-              dataIndex="phase"
-              key="phase"
-              width={120}
-              render={(phase) => <Tag color="blue">{phaseConfig[phase as TaskPhase]?.label || phase}</Tag>}
-            />
-            <Table.Column
-              title="子任务索引"
-              dataIndex="subtask_index"
-              key="subtask_index"
+              title="名称"
+              key="name"
+              width={140}
+              render={(_, record) => {
+                const label = phaseConfig[record.phase as TaskPhase]?.label || record.phase;
+                return <Tag color="blue">{label}-{record.subtask_index}</Tag>;
+              }}
             />
             <Table.Column
               title="类型"
