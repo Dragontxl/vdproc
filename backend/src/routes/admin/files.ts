@@ -132,6 +132,89 @@ fileRoutes.get('/download/:filename', async (c) => {
   }
 });
 
+fileRoutes.get('/preview/:filename', async (c) => {
+  const { R2 } = c.env as Bindings;
+  const filename = c.req.param('filename');
+  const prefix = c.req.query('prefix') || '';
+  
+  const key = prefix ? `${prefix}${filename}` : filename;
+
+  try {
+    const object = await R2.get(key);
+    
+    if (!object) {
+      return c.json({
+        code: 404,
+        data: null,
+        msg: '文件不存在',
+      }, 404);
+    }
+
+    const headers = new Headers();
+    
+    const ext = filename.toLowerCase().split('.').pop();
+    const contentTypes: Record<string, string> = {
+      'mp4': 'video/mp4',
+      'avi': 'video/x-msvideo',
+      'mov': 'video/quicktime',
+      'mkv': 'video/x-matroska',
+      'webm': 'video/webm',
+      'flv': 'video/x-flv',
+      'wmv': 'video/x-ms-wmv',
+    };
+    
+    const contentType = contentTypes[ext || ''] || object.httpMetadata?.contentType || 'application/octet-stream';
+    headers.set('Content-Type', contentType);
+    
+    const contentLength = object.size;
+    const range = c.req.header('Range');
+    
+    headers.set('Accept-Ranges', 'bytes');
+    
+    if (range) {
+      const match = range.match(/bytes=(\d+)-(\d*)/);
+      if (match) {
+        const start = parseInt(match[1], 10);
+        const end = match[2] ? parseInt(match[2], 10) : contentLength - 1;
+        
+        if (start >= contentLength) {
+          return new Response(null, {
+            status: 416,
+            headers: {
+              'Content-Range': `bytes */${contentLength}`,
+            },
+          });
+        }
+        
+        const chunkSize = end - start + 1;
+        const arrayBuffer = await object.arrayBuffer();
+        const chunk = arrayBuffer.slice(start, end + 1);
+        
+        headers.set('Content-Range', `bytes ${start}-${end}/${contentLength}`);
+        headers.set('Content-Length', chunkSize.toString());
+        
+        return new Response(chunk, {
+          status: 206,
+          headers,
+        });
+      }
+    }
+    
+    headers.set('Content-Length', contentLength.toString());
+    
+    return new Response(object.body, {
+      headers,
+    });
+  } catch (error) {
+    console.error('R2 preview error:', error);
+    return c.json({
+      code: 500,
+      data: null,
+      msg: '预览文件失败',
+    }, 500);
+  }
+});
+
 fileRoutes.delete('/:filename', async (c) => {
   const { R2 } = c.env as Bindings;
   const filename = c.req.param('filename');

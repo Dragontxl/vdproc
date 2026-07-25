@@ -15,8 +15,6 @@ on:
         options:
           - DETECT
           - ANALYZE
-          - SELECT_FACES
-          - GENERATE_CHARACTERS
           - CROP_SHOTS
           - CONVERT_FRAMES
           - GENERATE_SHOTS
@@ -28,8 +26,6 @@ on:
         options:
           - DETECT
           - ANALYZE
-          - SELECT_FACES
-          - GENERATE_CHARACTERS
           - CROP_SHOTS
           - CONVERT_FRAMES
           - GENERATE_SHOTS

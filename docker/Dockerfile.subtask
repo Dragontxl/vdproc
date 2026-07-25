@@ -20,7 +20,6 @@ RUN pip3 install --no-cache-dir \
 WORKDIR /scripts
 
 COPY scripts/convert-frames.sh /scripts/
-COPY scripts/generate-characters.sh /scripts/
 COPY scripts/generate-shots.sh /scripts/
 COPY scripts/img2img.sh /scripts/
 

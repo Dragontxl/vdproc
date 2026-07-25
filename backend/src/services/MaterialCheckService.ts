@@ -35,10 +35,8 @@ export class MaterialCheckService {
     const requirements: Record<TaskPhase, string[]> = {
       DETECT: ['video'],
       ANALYZE: ['video', 'shots'],
-      SELECT_FACES: ['video', 'shots'],
-      GENERATE_CHARACTERS: ['character_frames'],
       CROP_SHOTS: ['video', 'shot_details'],
-      CONVERT_FRAMES: ['shot_frames', 'character_avatars', 'shot_details'],
+      CONVERT_FRAMES: ['shot_frames', 'shot_details'],
       GENERATE_SHOTS: ['ai_shot_frames', 'shot_details'],
       COMPOSE: ['shot_videos'],
     };

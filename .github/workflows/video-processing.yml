@@ -2,7 +2,7 @@ name: Video Processing Workflow
 
 on:
   repository_dispatch:
-    types: [video-processing-detect, video-processing-analyze, video-processing-select-faces, video-processing-generate-characters, video-processing-crop-shots, video-processing-convert-frames, video-processing-generate-shots, video-processing-compose]
+    types: [video-processing-detect, video-processing-analyze, video-processing-crop-shots, video-processing-convert-frames, video-processing-generate-shots, video-processing-compose]
   workflow_dispatch:
     inputs:
       task_id:
@@ -15,8 +15,6 @@ on:
         options:
           - DETECT
           - ANALYZE
-          - SELECT_FACES
-          - GENERATE_CHARACTERS
           - CROP_SHOTS
           - CONVERT_FRAMES
           - GENERATE_SHOTS
@@ -28,8 +26,6 @@ on:
         options:
           - DETECT
           - ANALYZE
-          - SELECT_FACES
-          - GENERATE_CHARACTERS
           - CROP_SHOTS
           - CONVERT_FRAMES
           - GENERATE_SHOTS
@@ -66,12 +62,10 @@ jobs:
           declare -A phase_map=(
             ["DETECT"]=0
             ["ANALYZE"]=1
-            ["SELECT_FACES"]=2
-            ["GENERATE_CHARACTERS"]=3
-            ["CROP_SHOTS"]=4
-            ["CONVERT_FRAMES"]=5
-            ["GENERATE_SHOTS"]=6
-            ["COMPOSE"]=7
+            ["CROP_SHOTS"]=2
+            ["CONVERT_FRAMES"]=3
+            ["GENERATE_SHOTS"]=4
+            ["COMPOSE"]=5
           )
           
           start_phase=${{ inputs.start_phase || github.event.client_payload.start_phase || inputs.phase || github.event.client_payload.phase }}
@@ -171,72 +165,6 @@ jobs:
             -e AI_BASE_URL="$AI_BASE_URL" \
             ai-video-processor \
             bash /scripts/analyze-scene.sh
-
-      - name: Run face selection phase
-        if: ${{ steps.get_phase_order.outputs.select_faces >= steps.get_phase_order.outputs.start && steps.get_phase_order.outputs.select_faces <= steps.get_phase_order.outputs.end }}
-        env:
-          TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
-          GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
-          VIDEO_PATH: ${{ steps.parse_config.outputs.VIDEO_PATH }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
-          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-          CALLBACK_URL: ${{ secrets.CALLBACK_URL }}
-          CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
-          BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
-        run: |
-          docker run --rm \
-            -e TASK_ID="$TASK_ID" \
-            -e GH_ACCOUNT_ID="$GH_ACCOUNT_ID" \
-            -e VIDEO_PATH="$VIDEO_PATH" \
-            -e R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
-            -e R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
-            -e R2_ENDPOINT_URL="$R2_ENDPOINT_URL" \
-            -e R2_BUCKET_NAME="$R2_BUCKET_NAME" \
-            -e CALLBACK_URL="$CALLBACK_URL" \
-            -e CALLBACK_SECRET="$CALLBACK_SECRET" \
-            -e BACKEND_API_KEY="$BACKEND_API_KEY" \
-            ai-video-processor \
-            bash /scripts/select-faces.sh
-
-      - name: Run character generation phase
-        if: ${{ steps.get_phase_order.outputs.generate_characters >= steps.get_phase_order.outputs.start && steps.get_phase_order.outputs.generate_characters <= steps.get_phase_order.outputs.end }}
-        env:
-          TASK_ID: ${{ inputs.task_id || github.event.client_payload.task_id }}
-          GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
-          AI_ACCOUNT_ID: ${{ inputs.ai_account_id || github.event.client_payload.ai_account_id }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
-          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-          CALLBACK_URL: ${{ secrets.CALLBACK_URL }}
-          CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
-          BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
-          AI_API_KEY: ${{ inputs.ai_api_key || github.event.client_payload.ai_api_key || secrets.AI_API_KEY }}
-          AI_BASE_URL: ${{ inputs.ai_base_url || github.event.client_payload.ai_base_url || secrets.AI_BASE_URL }}
-          AI_ACCOUNTS: ${{ inputs.ai_accounts || github.event.client_payload.ai_accounts }}
-          COOLDOWN_SECONDS: ${{ inputs.cooldown_seconds || github.event.client_payload.cooldown_seconds || 1 }}
-          MAX_CONCURRENT: ${{ steps.parse_config.outputs.MAX_CONCURRENT }}
-        run: |
-          docker run --rm \
-            -e TASK_ID="$TASK_ID" \
-            -e GH_ACCOUNT_ID="$GH_ACCOUNT_ID" \
-            -e AI_ACCOUNT_ID="$AI_ACCOUNT_ID" \
-            -e R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
-            -e R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
-            -e R2_ENDPOINT_URL="$R2_ENDPOINT_URL" \
-            -e R2_BUCKET_NAME="$R2_BUCKET_NAME" \
-            -e CALLBACK_URL="$CALLBACK_URL" \
-            -e CALLBACK_SECRET="$CALLBACK_SECRET" \
-            -e BACKEND_API_KEY="$BACKEND_API_KEY" \
-            -e AI_API_KEY="$AI_API_KEY" \
-            -e AI_BASE_URL="$AI_BASE_URL" \
-            -e AI_ACCOUNTS="$AI_ACCOUNTS" \
-            -e COOLDOWN_SECONDS="$COOLDOWN_SECONDS" \
-            -e MAX_CONCURRENT="$MAX_CONCURRENT" \
-            ai-video-processor \
-            bash /scripts/generate-characters.sh
 
       - name: Run shot cropping phase
         if: ${{ steps.get_phase_order.outputs.crop_shots >= steps.get_phase_order.outputs.start && steps.get_phase_order.outputs.crop_shots <= steps.get_phase_order.outputs.end }}

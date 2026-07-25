@@ -34,14 +34,22 @@ echo "Found $SHOT_COUNT shots to generate"
 
 mkdir -p ./generated_shots
 
+echo "DEBUG: AI_ACCOUNTS raw value: ${AI_ACCOUNTS:0:200}"
+echo "DEBUG: AI_ACCOUNTS length: ${#AI_ACCOUNTS}"
+
 ACCOUNT_COUNT=0
 if [ -n "$AI_ACCOUNTS" ]; then
+    echo "DEBUG: AI_ACCOUNTS before filter: $AI_ACCOUNTS"
     AI_ACCOUNTS=$(echo "$AI_ACCOUNTS" | jq -c '[.[] | select(.api_type == "video")]')
     ACCOUNT_COUNT=$(echo "$AI_ACCOUNTS" | jq -r '. | length')
+    echo "DEBUG: AI_ACCOUNTS after filter: $AI_ACCOUNTS"
+    echo "DEBUG: ACCOUNT_COUNT after filter: $ACCOUNT_COUNT"
 fi
 
 if [ "$ACCOUNT_COUNT" -eq 0 ]; then
     echo "Error: No video-type AI accounts available"
+    echo "DEBUG: AI_API_KEY length: ${#AI_API_KEY}"
+    echo "DEBUG: AI_BASE_URL: $AI_BASE_URL"
     exit 1
 fi
 

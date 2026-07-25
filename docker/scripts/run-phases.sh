@@ -18,12 +18,10 @@ echo "AI_ACCOUNTS length: ${#AI_ACCOUNTS}"
 echo "PROMPT: ${PROMPT:0:50}..."
 echo "MAX_CONCURRENT: $MAX_CONCURRENT"
 
-PHASES=("DETECT" "ANALYZE" "SELECT_FACES" "GENERATE_CHARACTERS" "CROP_SHOTS" "CONVERT_FRAMES" "GENERATE_SHOTS" "COMPOSE")
+PHASES=("DETECT" "ANALYZE" "CROP_SHOTS" "CONVERT_FRAMES" "GENERATE_SHOTS" "COMPOSE")
 PHASE_SCRIPTS=(
   "/scripts/detect-shots.sh"
   "/scripts/analyze-scene.sh"
-  "/scripts/select-faces.sh"
-  "/scripts/generate-characters.sh"
   "/scripts/crop-shots.sh"
   "/scripts/convert-frames.sh"
   "/scripts/generate-shots.sh"

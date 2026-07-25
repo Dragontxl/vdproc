@@ -8,11 +8,13 @@ import {
   UploadOutlined, 
   ArrowLeftOutlined,
   PlusOutlined,
+  PlayCircleOutlined,
 } from '@ant-design/icons';
 import { fileApi } from '../api';
 import dayjs from 'dayjs';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import VideoPlayer from '../components/VideoPlayer';
 
 interface FileItem {
   name: string;
@@ -44,6 +46,10 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
   const [downloadProgress, setDownloadProgress] = useState<{ [key: string]: number }>({});
   const [downloadingFiles, setDownloadingFiles] = useState<Set<string>>(new Set());
+  const [isVideoPlayerOpen, setIsVideoPlayerOpen] = useState(false);
+  const [currentVideoUrl, setCurrentVideoUrl] = useState('');
+  const [currentVideoName, setCurrentVideoName] = useState('');
+  const [currentVideoPath, setCurrentVideoPath] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -119,6 +125,19 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
         return newProgress;
       });
     }
+  };
+
+  const handlePreviewVideo = (filename: string, key: string) => {
+    const videoUrl = fileApi.previewUrl(filename, currentPath);
+    setCurrentVideoUrl(videoUrl);
+    setCurrentVideoName(filename);
+    setCurrentVideoPath(key);
+    setIsVideoPlayerOpen(true);
+  };
+
+  const isVideoFile = (filename: string) => {
+    const ext = filename.toLowerCase().split('.').pop();
+    return ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv'].includes(ext || '');
   };
 
   const handleDelete = async (filename: string, key: string, isDirectory: boolean = false) => {
@@ -522,11 +541,16 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
     {
       title: '操作',
       key: 'action',
-      width: 150,
+      width: 200,
       render: (_: any, record: FileItem) => (
         <Space>
           {record.type === 'file' && (
             <>
+              {isVideoFile(record.name) && (
+                <Button size="small" icon={<PlayCircleOutlined />} onClick={() => handlePreviewVideo(record.name, record.key)}>
+                  播放
+                </Button>
+              )}
               <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload(record.name, record.key)} loading={downloadingFiles.has(record.key)}>
                 {downloadingFiles.has(record.key) ? `${downloadProgress[record.key]}%` : '下载'}
               </Button>
@@ -697,6 +721,14 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
           style={{ width: '100%' }}
         />
       </Modal>
+
+      <VideoPlayer
+        open={isVideoPlayerOpen}
+        onClose={() => setIsVideoPlayerOpen(false)}
+        videoUrl={currentVideoUrl}
+        videoName={currentVideoName}
+        filePath={currentVideoPath}
+      />
     </div>
   );
 }

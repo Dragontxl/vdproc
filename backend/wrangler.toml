@@ -16,6 +16,7 @@ GITHUB_REPO_OWNER = "Dragontxl"
 GITHUB_REPO_NAME = "vdproc"
 FRONTEND_URL = "${FRONTEND_URL}"
 ADMIN_URL = "${ADMIN_URL}"
+R2_PUBLIC_URL = "${R2_PUBLIC_URL}"
 
 [[env.production.d1_databases]]
 binding = "DB"

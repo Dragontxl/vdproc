@@ -1,0 +1,154 @@
+import { Hono } from 'hono';
+import { Bindings } from '../../types/env';
+
+const publicFileRoutes = new Hono();
+
+publicFileRoutes.get('/version/:filename', async (c) => {
+  const { R2 } = c.env as Bindings;
+  const filename = decodeURIComponent(c.req.param('filename'));
+  const prefix = c.req.query('prefix') || '';
+  
+  const key = prefix ? `${prefix.replace(/\/$/, '')}/${filename}` : filename;
+
+  try {
+    const object = await R2.get(key);
+    
+    if (!object) {
+      return c.json({
+        code: 404,
+        data: null,
+        msg: '文件不存在',
+      }, 404);
+    }
+
+    const lastModified = object.httpMetadata?.lastModified 
+      ? new Date(object.httpMetadata.lastModified).toISOString() 
+      : new Date().toISOString();
+    
+    const etag = object.httpMetadata?.etag || `"${lastModified}-${object.size}"`;
+    
+    return c.json({
+      code: 200,
+      data: {
+        key,
+        etag,
+        lastModified,
+        size: object.size,
+      },
+      msg: 'success',
+    });
+  } catch (error) {
+    console.error('R2 version check error:', error);
+    return c.json({
+      code: 500,
+      data: null,
+      msg: '获取文件版本失败',
+    }, 500);
+  }
+});
+
+publicFileRoutes.get('/preview/:filename', async (c) => {
+  const { R2, R2_PUBLIC_URL } = c.env as Bindings;
+  const filename = decodeURIComponent(c.req.param('filename'));
+  const prefix = c.req.query('prefix') || '';
+  
+  const key = prefix ? `${prefix}${filename}` : filename;
+
+  console.log('Preview request:', { filename, prefix, key, hasR2PublicUrl: !!R2_PUBLIC_URL });
+
+  if (R2_PUBLIC_URL) {
+    const publicUrl = `${R2_PUBLIC_URL}/${key}`;
+    console.log('Redirecting to R2 public URL:', publicUrl);
+    return c.redirect(publicUrl, 302);
+  }
+
+  try {
+    const object = await R2.get(key);
+    
+    if (!object) {
+      console.log('File not found in R2:', key);
+      return c.json({
+        code: 404,
+        data: null,
+        msg: `文件不存在: ${key}`,
+      }, 404);
+    }
+    
+    console.log('File found:', { key, size: object.size, contentType: object.httpMetadata?.contentType });
+
+    const headers = new Headers();
+    
+    const ext = filename.toLowerCase().split('.').pop();
+    const contentTypes: Record<string, string> = {
+      'mp4': 'video/mp4',
+      'avi': 'video/x-msvideo',
+      'mov': 'video/quicktime',
+      'mkv': 'video/x-matroska',
+      'webm': 'video/webm',
+      'flv': 'video/x-flv',
+      'wmv': 'video/x-ms-wmv',
+    };
+    
+    const contentType = contentTypes[ext || ''] || object.httpMetadata?.contentType || 'application/octet-stream';
+    headers.set('Content-Type', contentType);
+    
+    const contentLength = object.size;
+    const range = c.req.header('Range');
+    
+    headers.set('Accept-Ranges', 'bytes');
+    
+    headers.set('Cache-Control', 'public, max-age=3600');
+    
+    if (object.httpMetadata?.etag) {
+      headers.set('ETag', object.httpMetadata.etag);
+    }
+    
+    if (object.httpMetadata?.lastModified) {
+      headers.set('Last-Modified', new Date(object.httpMetadata.lastModified).toUTCString());
+    }
+    
+    if (range) {
+      const match = range.match(/bytes=(\d+)-(\d*)/);
+      if (match) {
+        const start = parseInt(match[1], 10);
+        const end = match[2] ? parseInt(match[2], 10) : contentLength - 1;
+        
+        if (start >= contentLength) {
+          return new Response(null, {
+            status: 416,
+            headers: {
+              'Content-Range': `bytes */${contentLength}`,
+            },
+          });
+        }
+        
+        const chunkSize = end - start + 1;
+        const arrayBuffer = await object.arrayBuffer();
+        const chunk = arrayBuffer.slice(start, end + 1);
+        
+        headers.set('Content-Range', `bytes ${start}-${end}/${contentLength}`);
+        headers.set('Content-Length', chunkSize.toString());
+        
+        return new Response(chunk, {
+          status: 206,
+          headers,
+        });
+      }
+    }
+    
+    headers.set('Content-Length', contentLength.toString());
+    
+    return new Response(object.body, {
+      headers,
+    });
+  } catch (error) {
+    console.error('R2 preview error:', error);
+    return c.json({
+      code: 500,
+      data: null,
+      msg: '预览文件失败',
+    }, 500);
+  }
+});
+
+export { publicFileRoutes };

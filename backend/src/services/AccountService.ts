@@ -250,7 +250,7 @@ export class AccountService {
       SELECT ga.*, 
              (SELECT COUNT(*) FROM tasks t 
               WHERE t.github_account_id = ga.id 
-                AND t.status IN ('DETECTING', 'ANALYZING', 'SELECTING_FACES', 'GENERATING_CHARACTERS', 'CROPPING_SHOTS', 'CONVERTING_FRAMES', 'GENERATING_SHOTS', 'COMPOSING')) as running_tasks
+                AND t.status IN ('DETECTING', 'ANALYZING', 'CROPPING_SHOTS', 'CONVERTING_FRAMES', 'GENERATING_SHOTS', 'COMPOSING')) as running_tasks
       FROM github_accounts ga
       WHERE is_active = TRUE 
         AND (is_limited IS NULL OR is_limited = FALSE)

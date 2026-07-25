@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://ai-video.ldragon.xyz';
+
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: `${backendUrl}/api/v1`,
   timeout: 600000,
   headers: {
     'Content-Type': 'application/json',
@@ -114,6 +116,21 @@ export const fileApi = {
       responseType: 'blob',
     });
     return response.data;
+  },
+  previewUrl: (filename: string, prefix?: string) => {
+    const r2PublicUrl = import.meta.env.VITE_R2_PUBLIC_URL || 'https://aivideobucket.ldragon.xyz';
+    const key = prefix ? `${prefix.replace(/\/$/, '')}/${filename}` : filename;
+    return `${r2PublicUrl}/${encodeURIComponent(key)}`;
+  },
+  
+  checkVersion: async (filename: string, prefix?: string) => {
+    const params = new URLSearchParams();
+    if (prefix) {
+      params.set('prefix', prefix.replace(/\/$/, '') + '/');
+    }
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://ai-video.ldragon.xyz';
+    const response = await fetch(`${backendUrl}/api/v1/files/version/${encodeURIComponent(filename)}?${params.toString()}`);
+    return response.json();
   },
   listAllFiles: async (prefix: string): Promise<{ key: string; name: string }[]> => {
     const result = await api.get('/admin/files', { params: { prefix, delimiter: '' } });

@@ -121,10 +121,6 @@ export default function Tasks() {
       DETECTED: { color: 'blue', text: '检测完成' },
       ANALYZING: { color: 'purple', text: '分析中' },
       ANALYZED: { color: 'purple', text: '分析完成' },
-      SELECTING_FACES: { color: 'cyan', text: '选帧中' },
-      FACES_SELECTED: { color: 'cyan', text: '选帧完成' },
-      GENERATING_CHARACTERS: { color: 'green', text: '生人设中' },
-      CHARACTERS_GENERATED: { color: 'green', text: '人设完成' },
       CROPPING_SHOTS: { color: 'orange', text: '裁切中' },
       SHOTS_CROPPED: { color: 'orange', text: '裁切完成' },
       CONVERTING_FRAMES: { color: 'red', text: '转化中' },
@@ -195,7 +191,7 @@ export default function Tasks() {
       title: '操作',
       key: 'action',
       render: (_: any, record: any) => {
-        const isRunning = ['DETECTING', 'ANALYZING', 'SELECTING_FACES', 'GENERATING_CHARACTERS', 'CROPPING_SHOTS', 'CONVERTING_FRAMES', 'GENERATING_SHOTS', 'COMPOSING'].includes(record.status);
+        const isRunning = ['DETECTING', 'ANALYZING', 'CROPPING_SHOTS', 'CONVERTING_FRAMES', 'GENERATING_SHOTS', 'COMPOSING'].includes(record.status);
         return (
           <Space>
             <Button size="small" icon={<EyeOutlined />} onClick={() => window.location.href = `/tasks/${record.id}`} />
@@ -239,8 +235,6 @@ export default function Tasks() {
             <Option value="PENDING">等待中</Option>
             <Option value="DETECTING">检测中</Option>
             <Option value="ANALYZING">分析中</Option>
-            <Option value="SELECTING_FACES">选帧中</Option>
-            <Option value="GENERATING_CHARACTERS">生人设中</Option>
             <Option value="CROPPING_SHOTS">裁切中</Option>
             <Option value="CONVERTING_FRAMES">转化中</Option>
             <Option value="GENERATING_SHOTS">生成分镜中</Option>

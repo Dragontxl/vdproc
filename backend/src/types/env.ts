@@ -9,4 +9,5 @@ export interface Bindings {
   ENVIRONMENT: 'development' | 'production';
   GITHUB_REPO_OWNER: string;
   GITHUB_REPO_NAME: string;
+  R2_PUBLIC_URL: string;
 }

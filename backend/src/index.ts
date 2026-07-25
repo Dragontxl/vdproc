@@ -4,6 +4,7 @@ import { prettyJSON } from 'hono/pretty-json';
 import { taskRoutes } from './routes/public/tasks';
 import { callbackRoutes } from './routes/public/callback';
 import { authRoutes } from './routes/public/auth';
+import { publicFileRoutes } from './routes/public/files';
 import { adminRoutes } from './routes/admin';
 import { authMiddleware } from './middleware/auth';
 import { loggerMiddleware } from './middleware/logger';
@@ -19,17 +20,24 @@ app.use('*', cors({
     const adminUrl = c.env.ADMIN_URL || 'https://ai-video-admin.ldragon.xyz';
     const allowedOrigins = [
       'http://localhost:3000',
+      'http://localhost:5173',
       frontendUrl,
       adminUrl,
+      'https://ai-video-admin.ldragon.xyz',
       'https://b4272ef7.ai-video-frontend-c9p.pages.dev',
       'https://main.ai-video-frontend-c9p.pages.dev',
+      'https://ea116b21.ai-video-frontend-c9p.pages.dev',
+      'https://c83edded.ai-video-frontend-c9p.pages.dev',
+      'https://37ff7eb2.ai-video-frontend-c9p.pages.dev',
+      'https://e4e4c262.ai-video-frontend-c9p.pages.dev',
+      'https://991baac5.ai-video-frontend-c9p.pages.dev',
     ];
-    if (allowedOrigins.includes(origin)) {
+    if (allowedOrigins.includes(origin || '')) {
       return origin;
     }
     return null;
   },
-  allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Callback-Signature'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Callback-Signature', 'Range'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   maxAge: 86400,
 }));
@@ -49,6 +57,7 @@ app.get('/health', (c) => {
 app.route('/api/v1/tasks', taskRoutes);
 app.route('/api/v1/callback', callbackRoutes);
 app.route('/api/v1/auth', authRoutes);
+app.route('/api/v1/files', publicFileRoutes);
 app.use('/api/v1/admin/*', authMiddleware);
 app.route('/api/v1/admin', adminRoutes);
 

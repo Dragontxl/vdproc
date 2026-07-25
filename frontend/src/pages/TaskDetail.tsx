@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider, Alert, Progress, Select, Table, Popconfirm, Input } from 'antd';
 import {
@@ -19,13 +19,11 @@ import FileBrowser from './FileBrowser';
 
 const { Option } = Select;
 
-type TaskPhase = 'DETECT' | 'ANALYZE' | 'SELECT_FACES' | 'GENERATE_CHARACTERS' | 'CROP_SHOTS' | 'CONVERT_FRAMES' | 'GENERATE_SHOTS' | 'COMPOSE';
+type TaskPhase = 'DETECT' | 'ANALYZE' | 'CROP_SHOTS' | 'CONVERT_FRAMES' | 'GENERATE_SHOTS' | 'COMPOSE';
 
 const phaseConfig: Record<TaskPhase, { label: string; description: string; icon: React.ReactNode }> = {
   DETECT: { label: '镜头检测', description: '使用PySceneDetect检测视频镜头边界', icon: <VideoCameraOutlined /> },
   ANALYZE: { label: '剧情分析', description: '使用Gemini分析剧情并生成分镜详情', icon: <RocketOutlined /> },
-  SELECT_FACES: { label: '最优帧选择', description: '筛选每个角色的最优正脸帧', icon: <CheckCircleOutlined /> },
-  GENERATE_CHARACTERS: { label: '人设图生成', description: '生成动画风格角色人设图', icon: <PlayCircleOutlined /> },
   CROP_SHOTS: { label: '分镜裁切', description: '裁切分镜片段并抽取首尾帧', icon: <VideoCameraOutlined /> },
   CONVERT_FRAMES: { label: '首尾帧转化', description: '将首尾帧转化为动画风格', icon: <PlayCircleOutlined /> },
   GENERATE_SHOTS: { label: '分镜生成', description: '生成完整分镜视频片段', icon: <PlayCircleOutlined /> },
@@ -38,10 +36,6 @@ const statusConfig: Record<string, { color: string; text: string }> = {
   DETECTED: { color: 'blue', text: '镜头检测完成' },
   ANALYZING: { color: 'purple', text: '剧情分析中' },
   ANALYZED: { color: 'purple', text: '剧情分析完成' },
-  SELECTING_FACES: { color: 'cyan', text: '最优帧选择中' },
-  FACES_SELECTED: { color: 'cyan', text: '最优帧选择完成' },
-  GENERATING_CHARACTERS: { color: 'green', text: '人设图生成中' },
-  CHARACTERS_GENERATED: { color: 'green', text: '人设图生成完成' },
   CROPPING_SHOTS: { color: 'orange', text: '分镜裁切中' },
   SHOTS_CROPPED: { color: 'orange', text: '分镜裁切完成' },
   CONVERTING_FRAMES: { color: 'red', text: '首尾帧转化中' },
@@ -58,7 +52,6 @@ export default function TaskDetail() {
   const { id } = useParams<{ id: string }>();
   const [task, setTask] = useState<any>(null);
   const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [phaseStatus, setPhaseStatus] = useState<Record<string, { ready: boolean; missing: string[]; available: string[] }>>({});
   const [startPhaseValue, setStartPhaseValue] = useState<TaskPhase>('DETECT');
   const [endPhaseValue, setEndPhaseValue] = useState<TaskPhase>('COMPOSE');
@@ -66,41 +59,91 @@ export default function TaskDetail() {
   const [selectedSubtaskPhase, setSelectedSubtaskPhase] = useState<TaskPhase | ''>('');
   const [subtaskLoading, setSubtaskLoading] = useState(false);
   const [customPrompts, setCustomPrompts] = useState<Record<string, string>>({});
+  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollPositionRef = useRef({ x: 0, y: 0 });
   
-  const subtaskPhases: TaskPhase[] = ['GENERATE_CHARACTERS', 'CONVERT_FRAMES', 'GENERATE_SHOTS'];
-  const allPhases: TaskPhase[] = ['DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
+  const subtaskPhases: TaskPhase[] = ['CONVERT_FRAMES', 'GENERATE_SHOTS'];
+  const allPhases: TaskPhase[] = ['DETECT', 'ANALYZE', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
 
   useEffect(() => {
     if (id) {
-      loadTask();
+      loadTask(true);
       loadLogs();
     }
 
     const interval = setInterval(() => {
       if (id) {
-        loadTask();
+        saveScrollPosition();
+        loadTask(false);
         loadLogs();
+        restoreScrollPosition();
       }
     }, 30000);
 
     return () => clearInterval(interval);
   }, [id]);
 
-  const loadTask = async () => {
-    setLoading(true);
+  const saveScrollPosition = () => {
+    if (containerRef.current) {
+      scrollPositionRef.current = {
+        x: containerRef.current.scrollLeft,
+        y: containerRef.current.scrollTop,
+      };
+    } else {
+      scrollPositionRef.current = {
+        x: window.scrollX,
+        y: window.scrollY,
+      };
+    }
+  };
+
+  const restoreScrollPosition = () => {
+    setTimeout(() => {
+      if (containerRef.current) {
+        containerRef.current.scrollLeft = scrollPositionRef.current.x;
+        containerRef.current.scrollTop = scrollPositionRef.current.y;
+      } else {
+        window.scrollTo(scrollPositionRef.current.x, scrollPositionRef.current.y);
+      }
+    }, 50);
+  };
+
+  const loadTask = async (showLoading: boolean = false) => {
     try {
       const result = await taskApi.get(id!);
-      setTask(result.data);
+      const newData = result.data;
+      
+      setTask((prev: any) => {
+        if (!prev) {
+          return newData;
+        }
+        
+        const changedFields: string[] = [];
+        for (const key of Object.keys(newData)) {
+          if (JSON.stringify(prev[key]) !== JSON.stringify(newData[key])) {
+            changedFields.push(key);
+          }
+        }
+        
+        if (changedFields.length === 0) {
+          return prev;
+        }
+        
+        return newData;
+      });
     } catch (error) {
-      message.error('加载任务详情失败');
-    } finally {
-      setLoading(false);
+      console.error('加载任务详情失败:', error);
     }
   };
 
   const loadLogs = async () => {
     try {
-      const response = await fetch(`/api/admin/tasks/${id}/logs`);
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://ai-video.ldragon.xyz';
+      const response = await fetch(`${backendUrl}/api/v1/admin/tasks/${id}/logs`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
       const result = await response.json();
       setLogs(result.data || []);
     } catch (error) {
@@ -243,26 +286,22 @@ export default function TaskDetail() {
   };
 
   const isPhaseCompleted = (currentPhase: string): boolean => {
-    const phases: TaskPhase[] = ['GENERATE_CHARACTERS', 'CONVERT_FRAMES', 'GENERATE_SHOTS'];
+    const phases: TaskPhase[] = ['CONVERT_FRAMES', 'GENERATE_SHOTS'];
     const currentIndex = phases.indexOf(currentPhase as TaskPhase);
     return currentIndex > -1;
   };
 
   const isPhaseRunning = () => {
-    const runningStatuses = ['DETECTING', 'ANALYZING', 'SELECTING_FACES', 'GENERATING_CHARACTERS', 'CROPPING_SHOTS', 'CONVERTING_FRAMES', 'GENERATING_SHOTS', 'COMPOSING'];
+    const runningStatuses = ['DETECTING', 'ANALYZING', 'CROPPING_SHOTS', 'CONVERTING_FRAMES', 'GENERATING_SHOTS', 'COMPOSING'];
     return runningStatuses.includes(task?.status || '');
   };
 
-  if (loading) {
+  if (!task) {
     return <Card loading />;
   }
 
-  if (!task) {
-    return <Card>任务不存在</Card>;
-  }
-
   return (
-    <div>
+    <div ref={containerRef}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
         <h2>任务详情</h2>
         <div>
@@ -377,7 +416,7 @@ export default function TaskDetail() {
         </div>
         
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          {(['DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'] as TaskPhase[]).map((phase) => {
+          {(['DETECT', 'ANALYZE', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'] as TaskPhase[]).map((phase) => {
             const config = phaseConfig[phase];
             const statusColor = getPhaseStatusColor(phase);
             const phaseState = phaseStatus[phase];
@@ -430,7 +469,7 @@ export default function TaskDetail() {
 
       <Card title="任务进度">
         <Timeline>
-          {(['DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'] as TaskPhase[]).map((phase) => {
+          {(['DETECT', 'ANALYZE', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'] as TaskPhase[]).map((phase) => {
             const config = phaseConfig[phase];
             const status = task?.status || '';
             const isRunning = status === `${phase}ING`;

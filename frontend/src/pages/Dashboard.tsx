@@ -34,12 +34,10 @@ export default function Dashboard() {
 
   const loadStats = async () => {
     try {
-      const [pending, detecting, analyzing, selectingFaces, generatingChars, croppingShots, convertingFrames, generatingShots, composing, completed, failed] = await Promise.all([
+      const [pending, detecting, analyzing, croppingShots, convertingFrames, generatingShots, composing, completed, failed] = await Promise.all([
         taskApi.list({ status: 'PENDING', limit: 100 }),
         taskApi.list({ status: 'DETECTING', limit: 100 }),
         taskApi.list({ status: 'ANALYZING', limit: 100 }),
-        taskApi.list({ status: 'SELECTING_FACES', limit: 100 }),
-        taskApi.list({ status: 'GENERATING_CHARACTERS', limit: 100 }),
         taskApi.list({ status: 'CROPPING_SHOTS', limit: 100 }),
         taskApi.list({ status: 'CONVERTING_FRAMES', limit: 100 }),
         taskApi.list({ status: 'GENERATING_SHOTS', limit: 100 }),
@@ -51,8 +49,6 @@ export default function Dashboard() {
       const processingCount = 
         (detecting.data?.length || 0) +
         (analyzing.data?.length || 0) +
-        (selectingFaces.data?.length || 0) +
-        (generatingChars.data?.length || 0) +
         (croppingShots.data?.length || 0) +
         (convertingFrames.data?.length || 0) +
         (generatingShots.data?.length || 0) +
@@ -86,10 +82,6 @@ export default function Dashboard() {
       DETECTED: { color: 'blue', text: '检测完成', icon: <CheckCircleOutlined /> },
       ANALYZING: { color: 'purple', text: '分析中', icon: <PlayCircleOutlined /> },
       ANALYZED: { color: 'purple', text: '分析完成', icon: <CheckCircleOutlined /> },
-      SELECTING_FACES: { color: 'cyan', text: '选帧中', icon: <PlayCircleOutlined /> },
-      FACES_SELECTED: { color: 'cyan', text: '选帧完成', icon: <CheckCircleOutlined /> },
-      GENERATING_CHARACTERS: { color: 'green', text: '生成人设中', icon: <PlayCircleOutlined /> },
-      CHARACTERS_GENERATED: { color: 'green', text: '人设完成', icon: <CheckCircleOutlined /> },
       CROPPING_SHOTS: { color: 'orange', text: '裁切中', icon: <PlayCircleOutlined /> },
       SHOTS_CROPPED: { color: 'orange', text: '裁切完成', icon: <CheckCircleOutlined /> },
       CONVERTING_FRAMES: { color: 'red', text: '转化中', icon: <PlayCircleOutlined /> },

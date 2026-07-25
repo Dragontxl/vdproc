@@ -145,6 +145,166 @@ def extract_srt_content(srt_path):
     log(f"SRT file not found: {srt_path}")
     return ""
 
+def parse_srt_file(srt_path):
+    """
+    Parse SRT file and extract subtitle entries with timestamps.
+    Returns list of {start_time, end_time, text}
+    """
+    if not os.path.exists(srt_path):
+        log(f"SRT file not found: {srt_path}")
+        return []
+    
+    content = read_file(srt_path)
+    entries = []
+    
+    lines = content.strip().split('\n')
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        # Skip empty lines
+        if not line:
+            i += 1
+            continue
+        
+        # Try to parse as timestamp line
+        timestamp_match = re.match(
+            r'(\d{2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[.,]\d{3})',
+            line
+        )
+        
+        if timestamp_match:
+            start_time = timestamp_match.group(1).replace(',', '.')
+            end_time = timestamp_match.group(2).replace(',', '.')
+            
+            # Collect text lines
+            text_lines = []
+            i += 1
+            while i < len(lines) and lines[i].strip():
+                text_lines.append(lines[i].strip())
+                i += 1
+            
+            text = ' '.join(text_lines)
+            if text:
+                entries.append({
+                    'start_time': start_time,
+                    'end_time': end_time,
+                    'start_seconds': parse_time_to_seconds(start_time),
+                    'text': text
+                })
+        else:
+            i += 1
+    
+    log(f"Parsed {len(entries)} SRT entries")
+    return entries
+
+def allocate_dialogues_from_srt(result_json, srt_path):
+    """
+    Post-processing: allocate dialogues from SRT to storyboards based on timestamps.
+    This ensures dialogues are correctly assigned to their respective scenes.
+    """
+    if not os.path.exists(srt_path):
+        log("No SRT file, skipping dialogue allocation")
+        return result_json
+    
+    storyboards = result_json.get('storyboards', [])
+    if not storyboards:
+        log("No storyboards found, skipping dialogue allocation")
+        return result_json
+    
+    srt_entries = parse_srt_file(srt_path)
+    if not srt_entries:
+        log("No SRT entries parsed, skipping dialogue allocation")
+        return result_json
+    
+    log(f"Allocating {len(srt_entries)} SRT entries to {len(storyboards)} storyboards")
+    
+    # Build character name -> role_id mapping
+    characters = result_json.get('characters', [])
+    name_to_role = {}
+    for char in characters:
+        if char.get('name') and char.get('role_id'):
+            name_to_role[char['name']] = char['role_id']
+            # Also add alternative names if available
+            if char.get('aliases'):
+                for alias in char['aliases']:
+                    name_to_role[alias] = char['role_id']
+    
+    def extract_speaker_and_text(srt_text):
+        """
+        Extract speaker name and dialogue text from SRT text.
+        SRT format often has: "Speaker Name: dialogue text"
+        """
+        # Common patterns for Chinese and English speaker labels
+        # Pattern: "Name: text" or "Name：text" (Chinese colon)
+        match = re.match(r'^([^:：]{1,20})[:：]\s*(.+)', srt_text)
+        if match:
+            speaker_name = match.group(1).strip()
+            text = match.group(2).strip()
+            # Check if speaker name is actually a character name
+            if speaker_name in name_to_role:
+                return speaker_name, text
+            # Also check if it's a known pattern like "旁白", "Narrator", etc.
+            if speaker_name in ['旁白', '解说', 'Narrator', '旁白：', '解说：']:
+                return 'NARRATOR', text
+            # If not a known character, treat the whole text as dialogue without speaker
+            return None, srt_text
+        return None, srt_text
+    
+    allocated_count = 0
+    
+    for shot_idx, shot in enumerate(storyboards):
+        shot_start = parse_time_to_seconds(shot.get('start_time', '00:00:00.000'))
+        shot_end = parse_time_to_seconds(shot.get('end_time', '00:00:00.000'))
+        
+        if shot_start is None or shot_end is None:
+            log(f"  Shot {shot_idx}: Invalid time range, skipping")
+            shot['dialogues'] = []
+            continue
+        
+        shot_dialogues = []
+        
+        # Find all SRT entries that fall within this shot's time range
+        for entry in srt_entries:
+            entry_start = entry.get('start_seconds', 0)
+            entry_text = entry.get('text', '')
+            
+            # Check if entry falls within shot's time range
+            # Use entry start time as the reference point
+            if shot_start <= entry_start < shot_end:
+                speaker_name, dialogue_text = extract_speaker_and_text(entry_text)
+                
+                dialogue_entry = {
+                    'speaker': 'NARRATOR',
+                    'text': dialogue_text
+                }
+                
+                if speaker_name and speaker_name in name_to_role:
+                    dialogue_entry['speaker'] = name_to_role[speaker_name]
+                elif speaker_name == 'NARRATOR':
+                    dialogue_entry['speaker'] = 'NARRATOR'
+                elif speaker_name:
+                    # Unknown speaker, try to match by character_present
+                    shot_chars = shot.get('characters_present', [])
+                    if len(shot_chars) == 1:
+                        dialogue_entry['speaker'] = shot_chars[0]
+                    # If multiple characters or unknown, leave as NARRATOR
+                
+                shot_dialogues.append(dialogue_entry)
+                allocated_count += 1
+        
+        # Update shot dialogues
+        if shot_dialogues:
+            log(f"  Shot {shot_idx} ({shot['start_time']}-{shot['end_time']}): allocated {len(shot_dialogues)} dialogues")
+        else:
+            log(f"  Shot {shot_idx} ({shot['start_time']}-{shot['end_time']}): no dialogues in SRT range")
+        
+        shot['dialogues'] = shot_dialogues
+    
+    log(f"Dialogue allocation complete: {allocated_count} dialogues allocated across {len(storyboards)} shots")
+    
+    return result_json
+
 def parse_time_to_seconds(time_str):
     try:
         parts = time_str.split(':')
@@ -647,6 +807,25 @@ JSON格式如下：
         
         log("Validating and fixing storyboard timestamps...")
         result_json = validate_and_fix_storyboards(result_json, video_duration, scenes_data)
+        
+        # Post-processing: allocate dialogues from SRT based on timestamps
+        if srt_local_path and os.path.exists(srt_local_path):
+            log("Allocating dialogues from SRT to storyboards...")
+            result_json = allocate_dialogues_from_srt(result_json, srt_local_path)
+            
+            # Validation: verify dialogue allocation
+            storyboards = result_json.get('storyboards', [])
+            total_dialogues = sum(len(s.get('dialogues', [])) for s in storyboards)
+            log(f"Validation: {len(storyboards)} storyboards, {total_dialogues} dialogues allocated")
+            for idx, shot in enumerate(storyboards):
+                dialogues = shot.get('dialogues', [])
+                log(f"  Shot {idx} ({shot.get('start_time', '?')}-{shot.get('end_time', '?')}): {len(dialogues)} dialogues")
+                for d in dialogues[:3]:  # Show first 3 dialogues per shot
+                    log(f"    [{d.get('speaker', '?')}]: {d.get('text', '?')[:60]}")
+                if len(dialogues) > 3:
+                    log(f"    ... and {len(dialogues) - 3} more")
+        else:
+            log("No SRT file found, keeping AI-extracted dialogues")
         
         output_path = "./analysis_result.json"
         with open(output_path, 'w', encoding='utf-8') as f:

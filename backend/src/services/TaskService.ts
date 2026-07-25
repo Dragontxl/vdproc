@@ -3,13 +3,11 @@ import { Task, TaskPhase, TaskStatus, Shot, Character, ShotDetail, CharacterFram
 import { CryptoService } from './CryptoService';
 import { MaterialCheckService } from './MaterialCheckService';
 
-const phaseOrder: TaskPhase[] = ['DETECT', 'ANALYZE', 'SELECT_FACES', 'GENERATE_CHARACTERS', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
+const phaseOrder: TaskPhase[] = ['DETECT', 'ANALYZE', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
 
 const phaseStatusMap: Record<TaskPhase, { running: TaskStatus; done: TaskStatus }> = {
   DETECT: { running: 'DETECTING', done: 'DETECTED' },
   ANALYZE: { running: 'ANALYZING', done: 'ANALYZED' },
-  SELECT_FACES: { running: 'SELECTING_FACES', done: 'FACES_SELECTED' },
-  GENERATE_CHARACTERS: { running: 'GENERATING_CHARACTERS', done: 'CHARACTERS_GENERATED' },
   CROP_SHOTS: { running: 'CROPPING_SHOTS', done: 'SHOTS_CROPPED' },
   CONVERT_FRAMES: { running: 'CONVERTING_FRAMES', done: 'FRAMES_CONVERTED' },
   GENERATE_SHOTS: { running: 'GENERATING_SHOTS', done: 'SHOTS_GENERATED' },
@@ -18,7 +16,6 @@ const phaseStatusMap: Record<TaskPhase, { running: TaskStatus; done: TaskStatus 
 
 const phasesRequiringAI: Partial<Record<TaskPhase, string>> = {
   ANALYZE: 'text',
-  GENERATE_CHARACTERS: 'image',
   CONVERT_FRAMES: 'image',
   GENERATE_SHOTS: 'video',
 };
@@ -234,8 +231,25 @@ export class TaskService {
           }
         }
 
-        await this.dispatchGitHubWorkflow(taskId, phase, ghAccountId, aiAccountId);
+        await this.env.DB.prepare(`
+        UPDATE phase_subtasks SET status = 'PENDING', output_path = '', error_msg = '', retry_count = 0, started_at = NULL, completed_at = NULL 
+        WHERE task_id = ? AND phase = ?
+      `).bind(taskId, phase).run();
+      
+      await this.dispatchGitHubWorkflow(taskId, phase, ghAccountId, aiAccountId);
       } else {
+        for (let p of this.getPhaseOrder()) {
+          const phaseIndex = this.getPhaseOrder().indexOf(p);
+          const startIndex = this.getPhaseOrder().indexOf(effectiveStartPhase as TaskPhase);
+          const endIndex = this.getPhaseOrder().indexOf(effectiveEndPhase as TaskPhase);
+          if (phaseIndex >= startIndex && phaseIndex <= endIndex) {
+            await this.env.DB.prepare(`
+              UPDATE phase_subtasks SET status = 'PENDING', output_path = '', error_msg = '', retry_count = 0, started_at = NULL, completed_at = NULL 
+              WHERE task_id = ? AND phase = ?
+            `).bind(taskId, p).run();
+          }
+        }
+        
         await this.dispatchRangeWorkflow(taskId, effectiveStartPhase, effectiveEndPhase, ghAccountId);
       }
       
@@ -977,9 +991,7 @@ export class TaskService {
     for (const subtask of subtasks as any[]) {
       if (!subtask.original_prompt) {
         let originalPrompt = '';
-        if (subtask.phase === 'GENERATE_CHARACTERS') {
-          originalPrompt = 'American animation style character design, white background, full body portrait, professional character sheet, clean line art, vibrant colors, high quality, anime style, based on the provided reference image';
-        } else if (subtask.phase === 'CONVERT_FRAMES') {
+        if (subtask.phase === 'CONVERT_FRAMES') {
           originalPrompt = taskPrompt || '修改为美式动画风格，保留原始图片的元素和内容, 只改变风格。';
         } else if (subtask.phase === 'GENERATE_SHOTS') {
           const sd = shotData[subtask.subtask_index];
