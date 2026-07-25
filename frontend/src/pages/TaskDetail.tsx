@@ -493,7 +493,15 @@ export default function TaskDetail() {
         {subtasks.length === 0 ? (
           <p>{selectedSubtaskPhase ? '该阶段暂无子任务' : '请选择阶段查看子任务'}</p>
         ) : (
+          <>
+          <style>{`
+            .subtask-table .ant-table-cell {
+              padding-top: 32px !important;
+              padding-bottom: 32px !important;
+            }
+          `}</style>
           <Table
+            className="subtask-table"
             dataSource={subtasks}
             rowKey={(record) => `${record.phase}-${record.subtask_index}`}
             loading={subtaskLoading}
@@ -592,6 +600,7 @@ export default function TaskDetail() {
               )}
             />
           </Table>
+          </>
         )}
       </Card>
 
