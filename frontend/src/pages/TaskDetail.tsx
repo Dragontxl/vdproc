@@ -503,6 +503,7 @@ export default function TaskDetail() {
               title="阶段"
               dataIndex="phase"
               key="phase"
+              width={120}
               render={(phase) => <Tag color="blue">{phaseConfig[phase as TaskPhase]?.label || phase}</Tag>}
             />
             <Table.Column
@@ -537,14 +538,14 @@ export default function TaskDetail() {
               dataIndex="input_path"
               key="input_path"
               ellipsis
-              width={300}
+              width={150}
             />
             <Table.Column
               title="输出路径"
               dataIndex="output_path"
               key="output_path"
               ellipsis
-              width={300}
+              width={150}
             />
             <Table.Column
               title="重试次数"
@@ -557,13 +558,13 @@ export default function TaskDetail() {
               dataIndex="error_msg"
               key="error_msg"
               ellipsis
-              width={200}
+              width={100}
             />
             <Table.Column
               title="自定义提示词"
               dataIndex="custom_prompt"
               key="custom_prompt"
-              width={250}
+              width={650}
               render={(_, record) => {
                 const key = `${record.phase}-${record.subtask_index}`;
                 return (
