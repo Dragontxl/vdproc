@@ -54,6 +54,10 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
   const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState('');
   const [currentImageName, setCurrentImageName] = useState('');
+  const [isJsonPreviewOpen, setIsJsonPreviewOpen] = useState(false);
+  const [currentJsonContent, setCurrentJsonContent] = useState('');
+  const [currentJsonName, setCurrentJsonName] = useState('');
+  const [jsonLoading, setJsonLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -154,6 +158,33 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
     setCurrentImageUrl(imageUrl);
     setCurrentImageName(filename);
     setIsImagePreviewOpen(true);
+  };
+
+  const isJsonFile = (filename: string) => {
+    return filename.toLowerCase().endsWith('.json');
+  };
+
+  const handlePreviewJson = async (filename: string, key: string) => {
+    setIsJsonPreviewOpen(true);
+    setCurrentJsonName(filename);
+    setJsonLoading(true);
+    setCurrentJsonContent('');
+    try {
+      const blob = await fileApi.downloadAsBlob(filename, key.substring(0, key.lastIndexOf('/') + 1));
+      const text = await blob.text();
+      try {
+        const parsed = JSON.parse(text);
+        setCurrentJsonContent(JSON.stringify(parsed, null, 2));
+      } catch {
+        setCurrentJsonContent(text);
+      }
+    } catch (error) {
+      console.error('Failed to load JSON:', error);
+      message.error('加载 JSON 文件失败');
+      setIsJsonPreviewOpen(false);
+    } finally {
+      setJsonLoading(false);
+    }
   };
 
   const handleDelete = async (filename: string, key: string, isDirectory: boolean = false) => {
@@ -572,6 +603,11 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
                   预览
                 </Button>
               )}
+              {isJsonFile(record.name) && (
+                <Button size="small" icon={<EyeOutlined />} onClick={() => handlePreviewJson(record.name, record.key)}>
+                  预览
+                </Button>
+              )}
               <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload(record.name, record.key)} loading={downloadingFiles.has(record.key)}>
                 {downloadingFiles.has(record.key) ? `${downloadProgress[record.key]}%` : '下载'}
               </Button>
@@ -766,6 +802,37 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
             alt={currentImageName}
             style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }}
           />
+        </div>
+      </Modal>
+
+      <Modal
+        title={currentJsonName}
+        open={isJsonPreviewOpen}
+        onCancel={() => setIsJsonPreviewOpen(false)}
+        footer={null}
+        width={900}
+        centered
+        destroyOnClose
+      >
+        <div style={{ maxHeight: '70vh', overflow: 'auto' }}>
+          {jsonLoading ? (
+            <p style={{ textAlign: 'center', padding: '40px' }}>加载中...</p>
+          ) : (
+            <pre
+              style={{
+                background: '#f5f5f5',
+                padding: '16px',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                margin: 0,
+              }}
+            >
+              {currentJsonContent}
+            </pre>
+          )}
         </div>
       </Modal>
     </div>
