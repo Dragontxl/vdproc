@@ -13,6 +13,48 @@ import 'dayjs/plugin/utc';
 
 const dayjsUtc = (time: string) => dayjs.utc(time).local();
 
+const phaseStatusMap: Record<string, string> = {
+  DETECT: 'DETECTING',
+  ANALYZE: 'ANALYZING',
+  CROP_SHOTS: 'CROPPING_SHOTS',
+  CONVERT_FRAMES: 'CONVERTING_FRAMES',
+  GENERATE_SHOTS: 'GENERATING_SHOTS',
+  COMPOSE: 'COMPOSING',
+};
+
+const terminalStatuses = ['COMPLETED', 'FAILED', 'CANCELLED', 'PENDING'];
+
+const getDerivedStatus = (task: any): string => {
+  if (!task) return 'PENDING';
+  if (terminalStatuses.includes(task.status)) {
+    return task.status;
+  }
+  return phaseStatusMap[task.current_phase] || task.status || 'PENDING';
+};
+
+const isProcessingStatus = (status: string): boolean => {
+  return [
+    'DETECTING', 'DETECTED',
+    'ANALYZING', 'ANALYZED',
+    'CROPPING_SHOTS', 'SHOTS_CROPPED',
+    'CONVERTING_FRAMES', 'FRAMES_CONVERTED',
+    'GENERATING_SHOTS', 'SHOTS_GENERATED',
+    'COMPOSING',
+  ].includes(status);
+};
+
+const isPendingStatus = (status: string): boolean => {
+  return status === 'PENDING';
+};
+
+const isCompletedStatus = (status: string): boolean => {
+  return status === 'COMPLETED';
+};
+
+const isFailedStatus = (status: string): boolean => {
+  return status === 'FAILED';
+};
+
 export default function Dashboard() {
   const [stats, setStats] = useState({
     total: 0,
@@ -23,60 +65,40 @@ export default function Dashboard() {
   });
   const [recentTasks, setRecentTasks] = useState([]);
 
+  const computeStats = (tasks: any[]) => {
+    let pending = 0, processing = 0, completed = 0, failed = 0;
+    for (const task of tasks) {
+      const derived = getDerivedStatus(task);
+      if (isPendingStatus(derived)) pending++;
+      else if (isProcessingStatus(derived)) processing++;
+      else if (isCompletedStatus(derived)) completed++;
+      else if (isFailedStatus(derived)) failed++;
+    }
+    return {
+      total: tasks.length,
+      pending,
+      processing,
+      completed,
+      failed,
+    };
+  };
+
   useEffect(() => {
-    loadStats();
-    loadRecentTasks();
+    const loadAll = async () => {
+      try {
+        const result = await taskApi.list({ page: 1, limit: 1000 });
+        const tasks = result.data || [];
+        setStats(computeStats(tasks));
+        setRecentTasks(tasks.slice(0, 5));
+      } catch (error) {
+        console.error('Failed to load dashboard data:', error);
+      }
+    };
 
-    const interval = setInterval(() => {
-      loadStats();
-      loadRecentTasks();
-    }, 10000);
-
+    loadAll();
+    const interval = setInterval(loadAll, 10000);
     return () => clearInterval(interval);
   }, []);
-
-  const loadStats = async () => {
-    try {
-      const [pending, detecting, analyzing, croppingShots, convertingFrames, generatingShots, composing, completed, failed] = await Promise.all([
-        taskApi.list({ status: 'PENDING', limit: 100 }),
-        taskApi.list({ status: 'DETECTING', limit: 100 }),
-        taskApi.list({ status: 'ANALYZING', limit: 100 }),
-        taskApi.list({ status: 'CROPPING_SHOTS', limit: 100 }),
-        taskApi.list({ status: 'CONVERTING_FRAMES', limit: 100 }),
-        taskApi.list({ status: 'GENERATING_SHOTS', limit: 100 }),
-        taskApi.list({ status: 'COMPOSING', limit: 100 }),
-        taskApi.list({ status: 'COMPLETED', limit: 100 }),
-        taskApi.list({ status: 'FAILED', limit: 100 }),
-      ]);
-
-      const processingCount = 
-        (detecting.data?.length || 0) +
-        (analyzing.data?.length || 0) +
-        (croppingShots.data?.length || 0) +
-        (convertingFrames.data?.length || 0) +
-        (generatingShots.data?.length || 0) +
-        (composing.data?.length || 0);
-
-      setStats({
-        total: pending.data?.length || 0 + processingCount + (completed.data?.length || 0) + (failed.data?.length || 0),
-        pending: pending.data?.length || 0,
-        processing: processingCount,
-        completed: completed.data?.length || 0,
-        failed: failed.data?.length || 0,
-      });
-    } catch (error) {
-      console.error('Failed to load stats:', error);
-    }
-  };
-
-  const loadRecentTasks = async () => {
-    try {
-      const result = await taskApi.list({ page: 1, limit: 5 });
-      setRecentTasks(result.data || []);
-    } catch (error) {
-      console.error('Failed to load recent tasks:', error);
-    }
-  };
 
   const getStatusTag = (status: string) => {
     const statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }> = {
@@ -89,7 +111,7 @@ export default function Dashboard() {
       SHOTS_CROPPED: { color: 'orange', text: '裁切完成', icon: <CheckCircleOutlined /> },
       CONVERTING_FRAMES: { color: 'red', text: '转化中', icon: <PlayCircleOutlined /> },
       FRAMES_CONVERTED: { color: 'red', text: '转化完成', icon: <CheckCircleOutlined /> },
-      GENERATING_SHOTS: { color: 'pink', text: '生成分镜中', icon: <PlayCircleOutlined /> },
+      GENERATING_SHOTS: { color: 'pink', text: '分镜生成中', icon: <PlayCircleOutlined /> },
       SHOTS_GENERATED: { color: 'pink', text: '分镜完成', icon: <CheckCircleOutlined /> },
       COMPOSING: { color: 'yellow', text: '合成中', icon: <PlayCircleOutlined /> },
       COMPLETED: { color: 'success', text: '已完成', icon: <CheckCircleOutlined /> },
@@ -123,7 +145,7 @@ export default function Dashboard() {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (status: string) => getStatusTag(status),
+      render: (_: string, record: any) => getStatusTag(getDerivedStatus(record)),
     },
     {
       title: '进度',
