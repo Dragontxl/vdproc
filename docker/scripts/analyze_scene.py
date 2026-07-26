@@ -644,7 +644,7 @@ def main():
         log(f"  AI_BASE_URL: {AI_BASE_URL}")
         log(f"  VIDEO_PATH: {VIDEO_PATH}")
         log(f"  R2_BUCKET_NAME: {R2_BUCKET_NAME}")
-        log(f"  PRIMARY_MODEL: {PRIMARY_MODEL}")
+        log(f"  MODEL_PRIORITY_LIST: {MODEL_PRIORITY_LIST}")
         
         genai.configure(api_key=AI_API_KEY)
         log("Google GenerativeAI configured")
