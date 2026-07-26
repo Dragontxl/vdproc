@@ -270,22 +270,39 @@ export default function TaskDetail() {
     }
   };
 
+  const getDerivedStatus = (task: any): string => {
+    const terminalStatuses = ['COMPLETED', 'FAILED', 'CANCELLED', 'PENDING'];
+    if (terminalStatuses.includes(task?.status)) {
+      return task.status;
+    }
+    const phaseStatusMap: Record<string, string> = {
+      DETECT: 'DETECTING',
+      ANALYZE: 'ANALYZING',
+      CROP_SHOTS: 'CROPPING_SHOTS',
+      CONVERT_FRAMES: 'CONVERTING_FRAMES',
+      GENERATE_SHOTS: 'GENERATING_SHOTS',
+      COMPOSE: 'COMPOSING',
+    };
+    return phaseStatusMap[task?.current_phase] || task?.status || 'PENDING';
+  };
+
   const getStatusTag = (status: string) => {
     const config = statusConfig[status] || { color: 'default', text: status };
     return <Tag color={config.color}>{config.text}</Tag>;
   };
 
   const getPhaseStatusColor = (phase: TaskPhase) => {
-    const status = task?.status || '';
+    const derivedStatus = getDerivedStatus(task);
     const currentPhase = task?.current_phase || '';
+    
+    if (derivedStatus === 'COMPLETED') return 'success';
+    if (derivedStatus === 'FAILED') return 'error';
     
     const runningStatus = `${phase}ING`;
     const doneStatus = `${phase}ED`;
     
-    if (status === 'COMPLETED') return 'success';
-    if (status === 'FAILED') return 'error';
-    if (status === runningStatus) return 'processing';
-    if (status === doneStatus) return 'success';
+    if (derivedStatus === runningStatus) return 'processing';
+    if (derivedStatus === doneStatus) return 'success';
     
     const phaseOrder: TaskPhase[] = ['DETECT', 'ANALYZE', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
     const currentIdx = phaseOrder.indexOf(currentPhase as TaskPhase);
@@ -299,7 +316,7 @@ export default function TaskDetail() {
 
   const isPhaseRunning = () => {
     const runningStatuses = ['DETECTING', 'ANALYZING', 'CROPPING_SHOTS', 'CONVERTING_FRAMES', 'GENERATING_SHOTS', 'COMPOSING'];
-    return runningStatuses.includes(task?.status || '');
+    return runningStatuses.includes(getDerivedStatus(task));
   };
 
   if (!task) {
@@ -316,12 +333,12 @@ export default function TaskDetail() {
               启动任务
             </Button>
           )}
-          {task.status !== 'COMPLETED' && task.status !== 'CANCELLED' && (
+          {getDerivedStatus(task) !== 'COMPLETED' && getDerivedStatus(task) !== 'CANCELLED' && (
             <Button icon={<StopOutlined />} onClick={handleCancel} style={{ marginLeft: 8 }}>
               取消任务
             </Button>
           )}
-          {task.status === 'FAILED' && (
+          {getDerivedStatus(task) === 'FAILED' && (
             <Button icon={<RotateLeftOutlined />} onClick={handleRetry} style={{ marginLeft: 8 }}>
               重试任务
             </Button>
@@ -341,18 +358,18 @@ export default function TaskDetail() {
         {task.status_message && (
           <Alert
             message={task.status_message}
-            type={task.status === 'FAILED' ? 'error' : 'info'}
+            type={getDerivedStatus(task) === 'FAILED' ? 'error' : 'info'}
             showIcon
             style={{ marginBottom: 16 }}
           />
         )}
-        {task.progress > 0 && task.status !== 'COMPLETED' && task.status !== 'FAILED' && (
+        {task.progress > 0 && getDerivedStatus(task) !== 'COMPLETED' && getDerivedStatus(task) !== 'FAILED' && (
           <Progress percent={task.progress} status="active" style={{ marginBottom: 16 }} />
         )}
         <Descriptions bordered column={2}>
           <Descriptions.Item label="任务ID">{task.id}</Descriptions.Item>
           <Descriptions.Item label="标题">{task.title}</Descriptions.Item>
-          <Descriptions.Item label="状态">{getStatusTag(task.status)}</Descriptions.Item>
+          <Descriptions.Item label="状态">{getStatusTag(getDerivedStatus(task))}</Descriptions.Item>
           <Descriptions.Item label="当前阶段">
             {phaseConfig[task.current_phase as TaskPhase]?.label || task.current_phase || '-'}
           </Descriptions.Item>
@@ -477,7 +494,7 @@ export default function TaskDetail() {
         <Timeline>
           {(['DETECT', 'ANALYZE', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'] as TaskPhase[]).map((phase) => {
             const config = phaseConfig[phase];
-            const status = task?.status || '';
+            const derivedStatus = getDerivedStatus(task);
             const currentPhase = task?.current_phase || '';
             
             const phaseOrder: TaskPhase[] = ['DETECT', 'ANALYZE', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
@@ -487,11 +504,11 @@ export default function TaskDetail() {
             let isDone = false;
             let isRunning = false;
             
-            if (status === 'COMPLETED') {
+            if (derivedStatus === 'COMPLETED') {
               isDone = true;
-            } else if (status === `${phase}ED`) {
+            } else if (derivedStatus === `${phase}ED`) {
               isDone = true;
-            } else if (status === `${phase}ING`) {
+            } else if (derivedStatus === `${phase}ING`) {
               isRunning = true;
             } else if (currentIdx > phaseIdx) {
               isDone = true;

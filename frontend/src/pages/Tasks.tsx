@@ -117,6 +117,22 @@ export default function Tasks() {
     }
   };
 
+  const getDerivedStatus = (task: any): string => {
+    const terminalStatuses = ['COMPLETED', 'FAILED', 'CANCELLED', 'PENDING'];
+    if (terminalStatuses.includes(task?.status)) {
+      return task.status;
+    }
+    const phaseStatusMap: Record<string, string> = {
+      DETECT: 'DETECTING',
+      ANALYZE: 'ANALYZING',
+      CROP_SHOTS: 'CROPPING_SHOTS',
+      CONVERT_FRAMES: 'CONVERTING_FRAMES',
+      GENERATE_SHOTS: 'GENERATING_SHOTS',
+      COMPOSE: 'COMPOSING',
+    };
+    return phaseStatusMap[task?.current_phase] || task?.status || 'PENDING';
+  };
+
   const getStatusTag = (status: string) => {
     const statusConfig: Record<string, { color: string; text: string }> = {
       PENDING: { color: 'default', text: '等待中' },
@@ -158,7 +174,7 @@ export default function Tasks() {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (status: string) => getStatusTag(status),
+      render: (_: string, record: any) => getStatusTag(getDerivedStatus(record)),
       width: 100,
     },
     {
@@ -194,17 +210,18 @@ export default function Tasks() {
       title: '操作',
       key: 'action',
       render: (_: any, record: any) => {
-        const isRunning = ['DETECTING', 'ANALYZING', 'CROPPING_SHOTS', 'CONVERTING_FRAMES', 'GENERATING_SHOTS', 'COMPOSING'].includes(record.status);
+        const derivedStatus = getDerivedStatus(record);
+        const isRunning = ['DETECTING', 'ANALYZING', 'CROPPING_SHOTS', 'CONVERTING_FRAMES', 'GENERATING_SHOTS', 'COMPOSING'].includes(derivedStatus);
         return (
           <Space>
             <Button size="small" icon={<EyeOutlined />} onClick={() => window.location.href = `/tasks/${record.id}`} />
-            {record.status === 'PENDING' && (
+            {derivedStatus === 'PENDING' && (
               <Button size="small" icon={<PlayCircleOutlined />} onClick={() => handleStart(record.id)} />
             )}
-            {record.status !== 'COMPLETED' && record.status !== 'CANCELLED' && (
+            {derivedStatus !== 'COMPLETED' && derivedStatus !== 'CANCELLED' && (
               <Button size="small" icon={<StopOutlined />} onClick={() => handleCancel(record.id)} />
             )}
-            {record.status === 'FAILED' && (
+            {derivedStatus === 'FAILED' && (
               <Button size="small" icon={<RotateLeftOutlined />} onClick={() => handleRetry(record.id)} />
             )}
             {isRunning && (
