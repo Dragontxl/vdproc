@@ -2,7 +2,7 @@ name: Subtask Processing Workflow
 
 on:
   repository_dispatch:
-    types: [video-processing-subtask-convert-frames, video-processing-subtask-generate-shots]
+    types: [video-processing-subtask-convert-frames, video-processing-subtask-generate-shots, video-processing-subtask-batch]
   workflow_dispatch:
     inputs:
       task_id:
@@ -28,9 +28,9 @@ on:
 jobs:
   process:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     concurrency:
-      group: ${{ inputs.task_id || github.event.client_payload.task_id }}-subtask-${{ inputs.phase || github.event.client_payload.phase }}-${{ inputs.subtask_index || github.event.client_payload.subtask_index }}
+      group: ${{ github.event.client_payload.task_id || inputs.task_id }}-subtask-batch
       cancel-in-progress: false
 
     steps:
@@ -63,38 +63,154 @@ jobs:
           PHASE: ${{ inputs.phase || github.event.client_payload.phase }}
           SUBTASK_INDEX: ${{ inputs.subtask_index || github.event.client_payload.subtask_index }}
           CONFIG_JSON: ${{ inputs.config || github.event.client_payload.config || '{}' }}
+          IS_BATCH: ${{ github.event.action == 'video-processing-subtask-batch' }}
+          SUBTASKS_JSON: ${{ github.event.client_payload.subtasks || '[]' }}
         run: |
+          if [ "$IS_BATCH" = "true" ]; then
+            echo "Running in batch mode"
+            echo "SUBTASKS<<EOF"
+            echo "$SUBTASKS_JSON"
+            echo "EOF"
+            echo "IS_BATCH=true" >> $GITHUB_OUTPUT
+          else
+            VIDEO_PATH=$(echo "$CONFIG_JSON" | jq -r '.video_path // ""')
+            FPS=$(echo "$CONFIG_JSON" | jq -r '.fps // 30')
+            PROMPT=$(echo "$CONFIG_JSON" | jq -r '.prompt // ""')
+            CUSTOM_PROMPT=$(echo "$CONFIG_JSON" | jq -r '.custom_prompt // ""')
+            OUTPUT_FPS=$(echo "$CONFIG_JSON" | jq -r '.output_fps // 24')
+            MAX_CONCURRENT=$(echo "$CONFIG_JSON" | jq -r '.max_concurrent // 3')
+            SUBTASK_TYPE=$(echo "$CONFIG_JSON" | jq -r '.subtask_type // ""')
+            INPUT_PATH=$(echo "$CONFIG_JSON" | jq -r '.input_path // ""')
+            METADATA=$(echo "$CONFIG_JSON" | jq -r '.metadata // ""')
+            
+            {
+              echo "TASK_ID=$TASK_ID"
+              echo "PHASE=$PHASE"
+              echo "SUBTASK_INDEX=$SUBTASK_INDEX"
+              echo "VIDEO_PATH=$VIDEO_PATH"
+              echo "FPS=$FPS"
+              echo "PROMPT<<EOF"
+              echo "$PROMPT"
+              echo "EOF"
+              echo "CUSTOM_PROMPT<<EOF"
+              echo "$CUSTOM_PROMPT"
+              echo "EOF"
+              echo "OUTPUT_FPS=$OUTPUT_FPS"
+              echo "MAX_CONCURRENT=$MAX_CONCURRENT"
+              echo "SUBTASK_TYPE=$SUBTASK_TYPE"
+              echo "INPUT_PATH=$INPUT_PATH"
+              echo "METADATA=$METADATA"
+              echo "IS_BATCH=false"
+            } >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run batch subtasks
+        if: steps.parse_subtask.outputs.IS_BATCH == 'true'
+        env:
+          TASK_ID: ${{ github.event.client_payload.task_id }}
+          GH_ACCOUNT_ID: ${{ github.event.client_payload.gh_account_id }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          CALLBACK_URL: ${{ secrets.CALLBACK_URL }}
+          CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
+          BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
+          AI_API_KEY: ${{ github.event.client_payload.ai_api_key || secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ github.event.client_payload.ai_base_url || secrets.AI_BASE_URL }}
+          AI_ACCOUNTS: ${{ github.event.client_payload.ai_accounts }}
+        run: |
+          CONFIG_JSON="${{ github.event.client_payload.config }}"
           VIDEO_PATH=$(echo "$CONFIG_JSON" | jq -r '.video_path // ""')
           FPS=$(echo "$CONFIG_JSON" | jq -r '.fps // 30')
           PROMPT=$(echo "$CONFIG_JSON" | jq -r '.prompt // ""')
-          CUSTOM_PROMPT=$(echo "$CONFIG_JSON" | jq -r '.custom_prompt // ""')
           OUTPUT_FPS=$(echo "$CONFIG_JSON" | jq -r '.output_fps // 24')
           MAX_CONCURRENT=$(echo "$CONFIG_JSON" | jq -r '.max_concurrent // 3')
-          SUBTASK_TYPE=$(echo "$CONFIG_JSON" | jq -r '.subtask_type // ""')
-          INPUT_PATH=$(echo "$CONFIG_JSON" | jq -r '.input_path // ""')
-          METADATA=$(echo "$CONFIG_JSON" | jq -r '.metadata // ""')
           
-          {
-            echo "TASK_ID=$TASK_ID"
-            echo "PHASE=$PHASE"
-            echo "SUBTASK_INDEX=$SUBTASK_INDEX"
-            echo "VIDEO_PATH=$VIDEO_PATH"
-            echo "FPS=$FPS"
-            echo "PROMPT<<EOF"
-            echo "$PROMPT"
-            echo "EOF"
-            echo "CUSTOM_PROMPT<<EOF"
-            echo "$CUSTOM_PROMPT"
-            echo "EOF"
-            echo "OUTPUT_FPS=$OUTPUT_FPS"
-            echo "MAX_CONCURRENT=$MAX_CONCURRENT"
-            echo "SUBTASK_TYPE=$SUBTASK_TYPE"
-            echo "INPUT_PATH=$INPUT_PATH"
-            echo "METADATA=$METADATA"
-          } >> $GITHUB_OUTPUT
+          SUBTASKS_JSON="${{ github.event.client_payload.subtasks }}"
+          SUBTASK_COUNT=$(echo "$SUBTASKS_JSON" | jq 'length')
+          
+          echo "=== Batch Processing ==="
+          echo "Total subtasks: $SUBTASK_COUNT"
+          
+          FAILED_COUNT=0
+          COMPLETED_COUNT=0
+          
+          for i in $(seq 0 $((SUBTASK_COUNT - 1))); do
+            SUBTASK=$(echo "$SUBTASKS_JSON" | jq ".[$i]")
+            PHASE=$(echo "$SUBTASK" | jq -r '.phase')
+            SUBTASK_INDEX=$(echo "$SUBTASK" | jq -r '.subtask_index')
+            SUBTASK_TYPE=$(echo "$SUBTASK" | jq -r '.subtask_type')
+            INPUT_PATH=$(echo "$SUBTASK" | jq -r '.input_path')
+            METADATA=$(echo "$SUBTASK" | jq -r '.metadata')
+            CUSTOM_PROMPT=$(echo "$SUBTASK" | jq -r '.custom_prompt')
+            
+            echo ""
+            echo "--- Processing subtask $((i + 1))/$SUBTASK_COUNT: $PHASE-$SUBTASK_INDEX ---"
+            
+            if [ "$PHASE" = "CONVERT_FRAMES" ]; then
+              SCRIPT="/scripts/convert-frames.sh"
+            elif [ "$PHASE" = "GENERATE_SHOTS" ]; then
+              SCRIPT="/scripts/generate-shots.sh"
+            else
+              echo "Unknown phase: $PHASE, skipping"
+              continue
+            fi
+            
+            docker run --rm \
+              -e TASK_ID="$TASK_ID" \
+              -e SUBTASK_INDEX="$SUBTASK_INDEX" \
+              -e SUBTASK_TYPE="$SUBTASK_TYPE" \
+              -e INPUT_PATH="$INPUT_PATH" \
+              -e METADATA="$METADATA" \
+              -e VIDEO_PATH="$VIDEO_PATH" \
+              -e PROMPT="$PROMPT" \
+              -e CUSTOM_PROMPT="$CUSTOM_PROMPT" \
+              -e OUTPUT_FPS="$OUTPUT_FPS" \
+              -e GH_ACCOUNT_ID="$GH_ACCOUNT_ID" \
+              -e R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+              -e R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+              -e R2_ENDPOINT_URL="$R2_ENDPOINT_URL" \
+              -e R2_BUCKET_NAME="$R2_BUCKET_NAME" \
+              -e CALLBACK_URL="$CALLBACK_URL" \
+              -e CALLBACK_SECRET="$CALLBACK_SECRET" \
+              -e BACKEND_API_KEY="$BACKEND_API_KEY" \
+              -e AI_API_KEY="$AI_API_KEY" \
+              -e AI_BASE_URL="$AI_BASE_URL" \
+              -e AI_ACCOUNTS="$AI_ACCOUNTS" \
+              -e MAX_CONCURRENT="$MAX_CONCURRENT" \
+              -e PHASE="$PHASE" \
+              ai-video-processor-subtask \
+              bash "$SCRIPT"
+            
+            EXIT_CODE=$?
+            if [ $EXIT_CODE -eq 0 ]; then
+              COMPLETED_COUNT=$((COMPLETED_COUNT + 1))
+              echo "✓ Subtask $PHASE-$SUBTASK_INDEX completed successfully"
+              curl -s --connect-timeout 10 --max-time 30 -X POST "$CALLBACK_URL/subtask/update" \
+                -H "Content-Type: application/json" \
+                -H "X-Callback-Signature: $CALLBACK_SECRET" \
+                -d "{\"task_id\":\"$TASK_ID\",\"phase\":\"$PHASE\",\"subtask_index\":$SUBTASK_INDEX,\"status\":\"COMPLETED\"}"
+            else
+              FAILED_COUNT=$((FAILED_COUNT + 1))
+              echo "✗ Subtask $PHASE-$SUBTASK_INDEX failed with exit code $EXIT_CODE"
+              curl -s --connect-timeout 10 --max-time 30 -X POST "$CALLBACK_URL/subtask/update" \
+                -H "Content-Type: application/json" \
+                -H "X-Callback-Signature: $CALLBACK_SECRET" \
+                -d "{\"task_id\":\"$TASK_ID\",\"phase\":\"$PHASE\",\"subtask_index\":$SUBTASK_INDEX,\"status\":\"FAILED\"}"
+            fi
+          done
+          
+          echo ""
+          echo "=== Batch Summary ==="
+          echo "Total: $SUBTASK_COUNT | Completed: $COMPLETED_COUNT | Failed: $FAILED_COUNT"
+          
+          if [ $FAILED_COUNT -gt 0 ]; then
+            exit 1
+          fi
 
       - name: Run frame conversion subtask
-        if: ${{ steps.parse_subtask.outputs.PHASE == 'CONVERT_FRAMES' }}
+        if: ${{ steps.parse_subtask.outputs.IS_BATCH != 'true' && steps.parse_subtask.outputs.PHASE == 'CONVERT_FRAMES' }}
         env:
           TASK_ID: ${{ steps.parse_subtask.outputs.TASK_ID }}
           SUBTASK_INDEX: ${{ steps.parse_subtask.outputs.SUBTASK_INDEX }}
@@ -142,7 +258,7 @@ jobs:
             bash /scripts/convert-frames.sh
 
       - name: Run shot generation subtask
-        if: ${{ steps.parse_subtask.outputs.PHASE == 'GENERATE_SHOTS' }}
+        if: ${{ steps.parse_subtask.outputs.IS_BATCH != 'true' && steps.parse_subtask.outputs.PHASE == 'GENERATE_SHOTS' }}
         env:
           TASK_ID: ${{ steps.parse_subtask.outputs.TASK_ID }}
           SUBTASK_INDEX: ${{ steps.parse_subtask.outputs.SUBTASK_INDEX }}
@@ -190,7 +306,7 @@ jobs:
             bash /scripts/generate-shots.sh
 
       - name: Notify subtask completion
-        if: always()
+        if: ${{ steps.parse_subtask.outputs.IS_BATCH != 'true' }}
         env:
           TASK_ID: ${{ steps.parse_subtask.outputs.TASK_ID }}
           PHASE: ${{ steps.parse_subtask.outputs.PHASE }}

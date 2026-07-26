@@ -1230,6 +1230,152 @@ export class TaskService {
     return { success: true, message: 'Subtask dispatched successfully' };
   }
 
+  async batchRunSubtasks(
+    taskId: string,
+    subtasks: { phase: string; subtask_index: number }[],
+    customPrompts: Record<string, string>
+  ) {
+    const task = await this.getTask(taskId);
+    if (!task || !task.github_account_id) {
+      throw new Error('Task or GitHub account not found');
+    }
+
+    const ghAccountId = task.github_account_id;
+
+    const validatedSubtasks: Array<{
+      phase: string;
+      subtask_index: number;
+      subtask_type: string;
+      input_path: string;
+      metadata: string;
+      custom_prompt: string;
+    }> = [];
+
+    for (const st of subtasks) {
+      const subtaskResult = await this.env.DB.prepare(`
+        SELECT * FROM phase_subtasks WHERE id = (SELECT MAX(id) FROM phase_subtasks WHERE task_id = ? AND phase = ? AND subtask_index = ?)
+      `).bind(taskId, st.phase, st.subtask_index).first();
+
+      if (!subtaskResult) {
+        console.warn(`Subtask not found: ${st.phase}-${st.subtask_index}, skipping`);
+        continue;
+      }
+
+      const subtask = subtaskResult as any;
+      const key = `${st.phase}-${st.subtask_index}`;
+      const customPrompt = customPrompts[key] || '';
+
+      validatedSubtasks.push({
+        phase: st.phase,
+        subtask_index: st.subtask_index,
+        subtask_type: subtask.subtask_type,
+        input_path: subtask.input_path,
+        metadata: subtask.metadata,
+        custom_prompt: customPrompt,
+      });
+
+      await this.updatePhaseSubtaskStatus(taskId, st.phase, st.subtask_index, 'PROCESSING');
+    }
+
+    if (validatedSubtasks.length === 0) {
+      throw new Error('No valid subtasks found');
+    }
+
+    const phases = [...new Set(validatedSubtasks.map((s) => s.phase))];
+    const maxPhase = phases.reduce((a, b) => phasesRequiringAI[a as TaskPhase] && !phasesRequiringAI[b as TaskPhase] ? a : b);
+    const requiredApiType = phasesRequiringAI[maxPhase as TaskPhase];
+
+    const maxConcurrentConfigResult = await this.env.DB.prepare(`
+      SELECT value FROM system_config WHERE key = 'max_concurrent_jobs_per_github_account'
+    `).first();
+    const maxConcurrent = maxConcurrentConfigResult ? parseInt((maxConcurrentConfigResult as { value: string }).value) : 2;
+
+    let aiApiKey = '';
+    let aiBaseUrl = '';
+    let aiAccountsJson = '';
+
+    if (requiredApiType) {
+      const result = await this.getDecryptedAIAccounts(requiredApiType, maxConcurrent, ghAccountId);
+      aiAccountsJson = result.aiAccountsJson;
+      aiApiKey = result.aiApiKey;
+      aiBaseUrl = result.aiBaseUrl;
+    }
+
+    const owner = this.env.GITHUB_REPO_OWNER;
+    const repo = this.env.GITHUB_REPO_NAME;
+
+    const ghAccountResult = await this.env.DB.prepare(`
+      SELECT token_encrypted FROM github_accounts WHERE id = ?
+    `).bind(ghAccountId).first();
+
+    if (!ghAccountResult) {
+      throw new Error('GitHub account not found');
+    }
+
+    const storedToken = (ghAccountResult as { token_encrypted: string }).token_encrypted;
+    let ghApiKey = storedToken;
+    if (!storedToken.startsWith('ghp_') && !storedToken.startsWith('github_pat_')) {
+      try {
+        ghApiKey = await this.cryptoService.decrypt(storedToken);
+      } catch {
+        ghApiKey = storedToken;
+      }
+    }
+
+    const authHeader = ghApiKey.startsWith('ghp_')
+      ? `token ${ghApiKey}`
+      : `Bearer ${ghApiKey}`;
+
+    const subtasksData = JSON.stringify(validatedSubtasks);
+    const configData = JSON.stringify({
+      video_path: task.video_path,
+      fps: task.fps,
+      prompt: task.prompt,
+      output_fps: task.output_fps,
+      max_concurrent: maxConcurrent,
+    });
+
+    const payload = {
+      event_type: 'video-processing-subtask-batch',
+      client_payload: {
+        task_id: taskId,
+        gh_account_id: ghAccountId,
+        subtasks: subtasksData,
+        config: configData,
+        ai_api_key: aiApiKey,
+        ai_base_url: aiBaseUrl,
+        ai_accounts: aiAccountsJson,
+      },
+    };
+
+    console.log('batchRunSubtasks: dispatching batch workflow for', validatedSubtasks.length, 'subtasks');
+    console.log('batchRunSubtasks: phases:', phases.join(', '));
+
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/dispatches`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader,
+        'User-Agent': 'AI-Video-Processor',
+        'Accept': 'application/vnd.github.v3+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+      body: JSON.stringify(payload),
+      redirect: 'follow',
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to dispatch batch workflow: ${response.status} ${errorText}`);
+    }
+
+    return {
+      success: true,
+      message: `Batch of ${validatedSubtasks.length} subtasks dispatched successfully`,
+      subtasks_count: validatedSubtasks.length,
+    };
+  }
+
   private async lockAIAccounts(apiType?: string, limit?: number, ghAccountId?: string): Promise<any[]> {
     const lockTime = new Date(Date.now() + 3600 * 1000);
     const typeCondition = apiType ? ' AND ai_accounts.api_type = ?' : '';

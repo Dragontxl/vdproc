@@ -53,6 +53,8 @@ export const taskApi = {
   getPhaseOrder: () => api.get('/admin/tasks/phase-order'),
   getSubtasks: (id: string, phase?: string) => api.get(`/admin/tasks/${id}/subtasks`, { params: phase ? { phase } : {} }),
   runSubtask: (id: string, phase: string, index: number, data?: { custom_prompt?: string }) => api.post(`/admin/tasks/${id}/subtasks/${phase}/${index}/run`, data),
+  batchRunSubtasks: (id: string, subtasks: { phase: string; subtask_index: number }[], customPrompts: Record<string, string>) =>
+    api.post(`/admin/tasks/${id}/subtasks/batch-run`, { subtasks, custom_prompts: customPrompts }),
   createSubtask: (id: string, data: { phase: string; subtask_index: number; subtask_type: string; input_path?: string; metadata?: string }) => api.post(`/admin/tasks/${id}/subtasks`, data),
 };
 

@@ -62,6 +62,8 @@ export default function TaskDetail() {
   const [selectedSubtaskPhase, setSelectedSubtaskPhase] = useState<TaskPhase | ''>('');
   const [subtaskLoading, setSubtaskLoading] = useState(false);
   const [customPrompts, setCustomPrompts] = useState<Record<string, string>>({});
+  const [selectedSubtaskKeys, setSelectedSubtaskKeys] = useState<React.Key[]>([]);
+  const [batchRunning, setBatchRunning] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef({ x: 0, y: 0 });
   
@@ -193,6 +195,42 @@ export default function TaskDetail() {
     } catch (error: any) {
       const msg = error.response?.data?.msg || '启动子任务失败';
       message.error(msg);
+    }
+  };
+
+  const handleSubtaskSelect = (keys: React.Key[]) => {
+    setSelectedSubtaskKeys(keys);
+  };
+
+  const handleBatchRunSubtasks = async () => {
+    if (selectedSubtaskKeys.length === 0) {
+      message.warning('请先选择要执行的子任务');
+      return;
+    }
+
+    setBatchRunning(true);
+    try {
+      const subtaskIds = selectedSubtaskKeys.map((key) => {
+        const [phase, index] = String(key).split('-');
+        return { phase, subtask_index: parseInt(index) };
+      });
+
+      const customPromptsData: Record<string, string> = {};
+      for (const [key, value] of Object.entries(customPrompts)) {
+        if (value?.trim()) {
+          customPromptsData[key] = value.trim();
+        }
+      }
+
+      await taskApi.batchRunSubtasks(id!, subtaskIds, customPromptsData);
+      message.success(`已启动 ${subtaskIds.length} 个子任务的批量执行`);
+      setSelectedSubtaskKeys([]);
+      loadSubtasks(selectedSubtaskPhase as TaskPhase);
+    } catch (error: any) {
+      const msg = error.response?.data?.msg || '批量执行失败';
+      message.error(msg);
+    } finally {
+      setBatchRunning(false);
     }
   };
 
@@ -547,12 +585,13 @@ export default function TaskDetail() {
       </Card>
 
       <Card title="子任务管理" style={{ marginTop: 24 }}>
-        <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <span style={{ fontWeight: 'bold' }}>选择阶段查看子任务：</span>
           <Select
             value={selectedSubtaskPhase || undefined}
             onChange={(value) => {
               setSelectedSubtaskPhase(value as TaskPhase);
+              setSelectedSubtaskKeys([]);
               if (value) {
                 loadSubtasks(value as TaskPhase);
               } else {
@@ -569,6 +608,16 @@ export default function TaskDetail() {
           <Button type="primary" onClick={() => loadSubtasks(selectedSubtaskPhase as TaskPhase)} disabled={!selectedSubtaskPhase}>
             刷新
           </Button>
+          <div style={{ flex: 1 }} />
+          <Button
+            type="primary"
+            icon={<PlayCircleOutlined />}
+            onClick={handleBatchRunSubtasks}
+            disabled={selectedSubtaskKeys.length === 0}
+            loading={batchRunning}
+          >
+            批量执行 {selectedSubtaskKeys.length > 0 ? `(${selectedSubtaskKeys.length})` : ''}
+          </Button>
         </div>
 
         {subtasks.length === 0 ? (
@@ -579,6 +628,14 @@ export default function TaskDetail() {
             rowKey={(record) => `${record.phase}-${record.subtask_index}`}
             loading={subtaskLoading}
             pagination={{ pageSize: 10 }}
+            rowSelection={{
+              type: 'checkbox',
+              selectedRowKeys: selectedSubtaskKeys,
+              onChange: handleSubtaskSelect,
+              getCheckboxProps: (record) => ({
+                disabled: record.status === 'PROCESSING',
+              }),
+            }}
           >
             <Table.Column
               title="名称"

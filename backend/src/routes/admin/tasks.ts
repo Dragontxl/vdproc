@@ -158,6 +158,37 @@ taskRoutes.post('/:id/subtasks/:phase/:index/run', async (c) => {
   }
 });
 
+taskRoutes.post('/:id/subtasks/batch-run', async (c) => {
+  const { id } = c.req.param();
+  const body = await c.req.json().catch(() => ({}));
+  const { subtasks, custom_prompts } = body;
+  
+  if (!subtasks || !Array.isArray(subtasks) || subtasks.length === 0) {
+    return c.json({
+      code: 400,
+      data: null,
+      msg: '请提供要执行的子任务列表',
+    }, 400);
+  }
+  
+  const taskService = new TaskService(c.env as Bindings);
+  
+  try {
+    const result = await taskService.batchRunSubtasks(id, subtasks, custom_prompts || {});
+    return c.json({
+      code: 200,
+      data: result,
+      msg: `已启动 ${subtasks.length} 个子任务的批量执行`,
+    });
+  } catch (error) {
+    return c.json({
+      code: 500,
+      data: null,
+      msg: (error as Error).message,
+    }, 500);
+  }
+});
+
 taskRoutes.post('/:id/subtasks', async (c) => {
   const { id } = c.req.param();
   const body = await c.req.json().catch(() => ({}));
