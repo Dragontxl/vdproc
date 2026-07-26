@@ -31,6 +31,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: ai-video-admin
+          projectName: ai-video-frontend
           directory: frontend/dist
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
