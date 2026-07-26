@@ -20,20 +20,8 @@ RUN apt-get update && apt-get install -y \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --no-cache-dir \
-    scenedetect \
-    av \
-    opencv-python-headless \
-    numpy \
-    torch \
-    torchvision \
-    insightface \
-    Pillow \
-    httpx \
-    pydantic \
-    requests \
-    google-generativeai \
-    scikit-learn
+COPY requirements.txt /tmp/requirements.txt
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
 RUN mkdir -p /root/.insightface/models
 RUN curl -sL https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip -o /tmp/buffalo_l.zip \

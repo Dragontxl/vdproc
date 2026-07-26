@@ -41,8 +41,14 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build Docker image
-        run: |
-          docker build --no-cache -t ai-video-processor-subtask -f docker/Dockerfile.subtask ./docker
+        uses: docker/build-push-action@v5
+        with:
+          context: ./docker
+          file: ./docker/Dockerfile.subtask
+          tags: ai-video-processor-subtask
+          load: true
+          cache-from: type=gha,ref=ai-video-processor-subtask
+          cache-to: type=gha,ref=ai-video-processor-subtask,mode=max
 
       - name: Parse subtask data
         id: parse_subtask

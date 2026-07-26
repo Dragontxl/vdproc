@@ -1,0 +1,13 @@
+scenedetect
+av
+opencv-python-headless
+numpy
+torch
+torchvision
+insightface
+Pillow
+httpx
+pydantic
+requests
+google-generativeai
+scikit-learn
