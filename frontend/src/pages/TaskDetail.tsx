@@ -279,16 +279,19 @@ export default function TaskDetail() {
     const runningStatus = `${phase}ING`;
     const doneStatus = `${phase}ED`;
     
-    if (status === runningStatus) return 'processing';
-    if (status === doneStatus || (currentPhase !== phase && isPhaseCompleted(currentPhase))) return 'success';
     if (status === 'COMPLETED') return 'success';
+    if (status === 'FAILED') return 'error';
+    if (status === runningStatus) return 'processing';
+    if (status === doneStatus) return 'success';
+    
+    const phaseOrder: TaskPhase[] = ['DETECT', 'ANALYZE', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
+    const currentIdx = phaseOrder.indexOf(currentPhase as TaskPhase);
+    const phaseIdx = phaseOrder.indexOf(phase);
+    
+    if (currentIdx > phaseIdx) return 'success';
+    if (currentIdx === phaseIdx) return 'processing';
+    
     return 'default';
-  };
-
-  const isPhaseCompleted = (currentPhase: string): boolean => {
-    const phases: TaskPhase[] = ['CONVERT_FRAMES', 'GENERATE_SHOTS'];
-    const currentIndex = phases.indexOf(currentPhase as TaskPhase);
-    return currentIndex > -1;
   };
 
   const isPhaseRunning = () => {
@@ -472,8 +475,27 @@ export default function TaskDetail() {
           {(['DETECT', 'ANALYZE', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'] as TaskPhase[]).map((phase) => {
             const config = phaseConfig[phase];
             const status = task?.status || '';
-            const isRunning = status === `${phase}ING`;
-            const isDone = status === `${phase}ED` || status === 'COMPLETED';
+            const currentPhase = task?.current_phase || '';
+            
+            const phaseOrder: TaskPhase[] = ['DETECT', 'ANALYZE', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
+            const currentIdx = phaseOrder.indexOf(currentPhase as TaskPhase);
+            const phaseIdx = phaseOrder.indexOf(phase);
+            
+            let isDone = false;
+            let isRunning = false;
+            
+            if (status === 'COMPLETED') {
+              isDone = true;
+            } else if (status === `${phase}ED`) {
+              isDone = true;
+            } else if (status === `${phase}ING`) {
+              isRunning = true;
+            } else if (currentIdx > phaseIdx) {
+              isDone = true;
+            } else if (currentIdx === phaseIdx) {
+              isRunning = true;
+            }
+            
             const color = isRunning ? 'blue' : isDone ? 'green' : '';
             
             return (
