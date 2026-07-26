@@ -17,6 +17,48 @@ echo "AI_BASE_URL: $AI_BASE_URL"
 echo "AI_ACCOUNTS length: ${#AI_ACCOUNTS}"
 echo "PROMPT: ${PROMPT:0:50}..."
 echo "MAX_CONCURRENT: $MAX_CONCURRENT"
+echo "CALLBACK_URL: $CALLBACK_URL"
+
+notify_phase() {
+  local phase="$1"
+  local status="$2"
+  local processed="${3:-0}"
+  local total="${4:-0}"
+  
+  if [ -z "$CALLBACK_URL" ] || [ -z "$CALLBACK_SECRET" ]; then
+    echo "Warning: CALLBACK_URL or CALLBACK_SECRET not set, skipping notification"
+    return
+  fi
+  
+  echo "Notifying phase $phase status=$status processed=$processed total=$total"
+  
+  local max_retries=3
+  local retry_delay=5
+  
+  for attempt in $(seq 1 $max_retries); do
+    local response=$(curl -s --connect-timeout 10 --max-time 30 -w "\n%{http_code}" -X POST "$CALLBACK_URL/progress" \
+      -H "Content-Type: application/json" \
+      -H "X-Callback-Signature: $CALLBACK_SECRET" \
+      -d "{\"task_id\":\"$TASK_ID\",\"phase\":\"$phase\",\"processed_count\":$processed,\"total_count\":$total,\"message\":\"$phase phase $status\"}")
+    
+    local http_code=$(echo "$response" | tail -n1)
+    local body=$(echo "$response" | head -n -1)
+    
+    echo "Callback attempt $attempt: HTTP=$http_code, body=$body"
+    
+    if [ "$http_code" -eq 200 ]; then
+      echo "Phase $phase notification successful"
+      return 0
+    fi
+    
+    if [ "$attempt" -lt "$max_retries" ]; then
+      sleep $retry_delay
+    fi
+  done
+  
+  echo "Warning: Failed to notify phase $phase after $max_retries attempts"
+  return 1
+}
 
 PHASES=("DETECT" "ANALYZE" "CROP_SHOTS" "CONVERT_FRAMES" "GENERATE_SHOTS" "COMPOSE")
 PHASE_SCRIPTS=(
@@ -69,14 +111,19 @@ for ((i=start_idx; i<=end_idx; i++)); do
   echo "=== Executing phase $((i+1))/${#PHASES[@]}: $phase ==="
   echo "========================================"
   
-  bash "$script"
+  notify_phase "$phase" "started" 0 0
   
-  if [ $? -ne 0 ]; then
-    echo "ERROR: Phase $phase failed"
+  bash "$script"
+  script_exit_code=$?
+  
+  if [ $script_exit_code -ne 0 ]; then
+    echo "ERROR: Phase $phase failed with exit code $script_exit_code"
+    notify_phase "$phase" "failed" 0 0
     exit 1
   fi
   
   echo "=== Phase $phase completed successfully ==="
+  notify_phase "$phase" "completed" 0 0
 done
 
 echo "========================================"

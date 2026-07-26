@@ -605,9 +605,9 @@ export class TaskService {
     const progress = Math.round(((phaseIndex / phasesCount) * 100) + ((phaseProgress / 100) * (100 / phasesCount)));
 
     await this.env.DB.prepare(`
-      UPDATE tasks SET progress = ?, processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+      UPDATE tasks SET progress = ?, current_phase = ?, processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ?
-    `).bind(progress, processedCount, totalCount, taskId).run();
+    `).bind(progress, phase, processedCount, totalCount, taskId).run();
 
     if (failedCount) {
       await this.env.DB.prepare(`
@@ -621,7 +621,7 @@ export class TaskService {
       `).bind(message, taskId).run();
     }
 
-    console.log('updateTaskProgress: Progress updated for task', taskId);
+    console.log('updateTaskProgress: Progress updated for task', taskId, 'phase:', phase, 'progress:', progress);
     return { success: true, taskId, progress };
   }
 
