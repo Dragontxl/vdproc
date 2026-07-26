@@ -600,15 +600,26 @@ export class TaskService {
 
     const phaseIndex = phaseOrder.indexOf(phase as TaskPhase);
     const phasesCount = phaseOrder.length;
-    const phaseProgress = totalCount > 0 ? Math.round((processedCount / totalCount) * 100) : 0;
-    
-    const progress = Math.round(((phaseIndex / phasesCount) * 100) + ((phaseProgress / 100) * (100 / phasesCount)));
     const runningStatus = phaseStatusMap[phase as TaskPhase]?.running || phaseStatusMap[phaseOrder[0]].running;
 
-    await this.env.DB.prepare(`
-      UPDATE tasks SET progress = ?, current_phase = ?, status = ?, processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-      WHERE id = ?
-    `).bind(progress, phase, runningStatus, processedCount, totalCount, taskId).run();
+    if (totalCount > 0) {
+      const phaseProgress = Math.round((processedCount / totalCount) * 100);
+      const progress = Math.round(((phaseIndex / phasesCount) * 100) + ((phaseProgress / 100) * (100 / phasesCount)));
+
+      await this.env.DB.prepare(`
+        UPDATE tasks SET progress = ?, current_phase = ?, status = ?, processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id = ?
+      `).bind(progress, phase, runningStatus, processedCount, totalCount, taskId).run();
+      console.log('updateTaskProgress: Progress updated for task', taskId, 'phase:', phase, 'progress:', progress);
+    } else {
+      const progress = Math.round((phaseIndex / phasesCount) * 100);
+
+      await this.env.DB.prepare(`
+        UPDATE tasks SET progress = ?, current_phase = ?, status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id = ?
+      `).bind(progress, phase, runningStatus, taskId).run();
+      console.log('updateTaskProgress: Phase only updated for task', taskId, 'phase:', phase, 'progress:', progress);
+    }
 
     if (failedCount) {
       await this.env.DB.prepare(`
@@ -622,8 +633,7 @@ export class TaskService {
       `).bind(message, taskId).run();
     }
 
-    console.log('updateTaskProgress: Progress updated for task', taskId, 'phase:', phase, 'progress:', progress);
-    return { success: true, taskId, progress };
+    return { success: true, taskId };
   }
 
   async handleTaskComplete(body: any) {

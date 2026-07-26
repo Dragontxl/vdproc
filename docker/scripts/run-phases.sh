@@ -123,7 +123,7 @@ for ((i=start_idx; i<=end_idx; i++)); do
   fi
   
   echo "=== Phase $phase completed successfully ==="
-  notify_phase "$phase" "completed" 0 0
+  notify_phase "$phase" "completed" 1 1
 done
 
 echo "========================================"
