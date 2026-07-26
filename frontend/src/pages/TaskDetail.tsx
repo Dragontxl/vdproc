@@ -570,20 +570,6 @@ export default function TaskDetail() {
               )}
             />
             <Table.Column
-              title="输入路径"
-              dataIndex="input_path"
-              key="input_path"
-              ellipsis
-              width={150}
-            />
-            <Table.Column
-              title="输出路径"
-              dataIndex="output_path"
-              key="output_path"
-              ellipsis
-              width={150}
-            />
-            <Table.Column
               title="重试次数"
               dataIndex="retry_count"
               key="retry_count"
