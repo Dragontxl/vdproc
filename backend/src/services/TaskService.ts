@@ -27,6 +27,13 @@ export class TaskService {
     this.cryptoService = new CryptoService(env);
   }
 
+  /**
+   * 返回任务阶段的顺序数组（供路由层与范围执行逻辑使用）
+   */
+  getPhaseOrder(): TaskPhase[] {
+    return phaseOrder;
+  }
+
   async createTask(data: {
     title: string;
     videoPath: string;
