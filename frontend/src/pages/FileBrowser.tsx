@@ -820,7 +820,8 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
           ) : (
             <pre
               style={{
-                background: '#f5f5f5',
+                background: '#1e1e1e',
+                color: '#d4d4d4',
                 padding: '16px',
                 borderRadius: '8px',
                 fontSize: '13px',
