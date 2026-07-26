@@ -8,6 +8,9 @@ import {
 } from '@ant-design/icons';
 import { configApi } from '../api';
 import dayjs from 'dayjs';
+import 'dayjs/plugin/utc';
+
+const dayjsUtc = (time: string) => dayjs.utc(time).local();
 
 export default function Metrics() {
   const [metrics, setMetrics] = useState([]);
@@ -67,7 +70,7 @@ export default function Metrics() {
       title: '更新时间',
       dataIndex: 'updated_at',
       key: 'updated_at',
-      render: (time: string) => dayjs(time).format('MM-DD HH:mm'),
+      render: (time: string) => dayjsUtc(time).format('MM-DD HH:mm'),
     },
   ];
 

@@ -11,6 +11,9 @@ import {
 } from '@ant-design/icons';
 import { taskApi } from '../api';
 import dayjs from 'dayjs';
+import 'dayjs/plugin/utc';
+
+const dayjsUtc = (time: string) => dayjs.utc(time).local();
 
 const { Option } = Select;
 
@@ -184,7 +187,7 @@ export default function Tasks() {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      render: (time: string) => dayjs(time).format('MM-DD HH:mm'),
+      render: (time: string) => dayjsUtc(time).format('MM-DD HH:mm'),
       width: 120,
     },
     {

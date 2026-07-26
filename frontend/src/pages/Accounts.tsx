@@ -3,6 +3,9 @@ import { Card, Table, Tag, Button, Modal, Form, Input, InputNumber, Switch, Spac
 import { PlusOutlined, DeleteOutlined, EditOutlined, HeartOutlined, LinkOutlined, SwapOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { accountApi } from '../api';
 import dayjs from 'dayjs';
+import 'dayjs/plugin/utc';
+
+const dayjsUtc = (time: string) => dayjs.utc(time).local();
 
 const { TabPane } = Tabs;
 
@@ -229,7 +232,7 @@ export default function Accounts() {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      render: (time: string) => dayjs(time).format('MM-DD'),
+      render: (time: string) => dayjsUtc(time).format('MM-DD'),
     },
     {
       title: '操作',
@@ -295,7 +298,7 @@ export default function Accounts() {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      render: (time: string) => dayjs(time).format('MM-DD'),
+      render: (time: string) => dayjsUtc(time).format('MM-DD'),
     },
     {
       title: '操作',

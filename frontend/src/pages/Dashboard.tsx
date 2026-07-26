@@ -9,6 +9,9 @@ import {
 } from '@ant-design/icons';
 import { taskApi } from '../api';
 import dayjs from 'dayjs';
+import 'dayjs/plugin/utc';
+
+const dayjsUtc = (time: string) => dayjs.utc(time).local();
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -135,7 +138,7 @@ export default function Dashboard() {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      render: (time: string) => dayjs(time).format('MM-DD HH:mm'),
+      render: (time: string) => dayjsUtc(time).format('MM-DD HH:mm'),
     },
     {
       title: '操作',

@@ -13,6 +13,9 @@ import {
 } from '@ant-design/icons';
 import { fileApi } from '../api';
 import dayjs from 'dayjs';
+import 'dayjs/plugin/utc';
+
+const dayjsUtc = (time: string) => dayjs.utc(time).local();
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import VideoPlayer from '../components/VideoPlayer';
@@ -583,7 +586,7 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
       dataIndex: 'lastModified',
       key: 'lastModified',
       width: 150,
-      render: (time: string) => time ? dayjs(time).format('YYYY-MM-DD HH:mm') : '-',
+      render: (time: string) => time ? dayjsUtc(time).format('YYYY-MM-DD HH:mm') : '-',
     },
     {
       title: '操作',

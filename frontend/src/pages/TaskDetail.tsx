@@ -15,6 +15,9 @@ import {
 } from '@ant-design/icons';
 import { taskApi } from '../api';
 import dayjs from 'dayjs';
+import 'dayjs/plugin/utc';
+
+const dayjsUtc = (time: string) => dayjs.utc(time).local();
 import FileBrowser from './FileBrowser';
 
 const { Option } = Select;
@@ -371,10 +374,10 @@ export default function TaskDetail() {
           <Descriptions.Item label="已处理">{task.processed_frames}</Descriptions.Item>
           <Descriptions.Item label="失败帧数">{task.failed_frames}</Descriptions.Item>
           <Descriptions.Item label="重试次数">{task.retry_count}/{task.max_retries}</Descriptions.Item>
-          <Descriptions.Item label="创建时间">{dayjs(task.created_at).format('YYYY-MM-DD HH:mm:ss')}</Descriptions.Item>
-          <Descriptions.Item label="更新时间">{dayjs(task.updated_at).format('YYYY-MM-DD HH:mm:ss')}</Descriptions.Item>
-          <Descriptions.Item label="开始时间">{task.started_at ? dayjs(task.started_at).format('YYYY-MM-DD HH:mm:ss') : '-'}</Descriptions.Item>
-          <Descriptions.Item label="完成时间">{task.completed_at ? dayjs(task.completed_at).format('YYYY-MM-DD HH:mm:ss') : '-'}</Descriptions.Item>
+          <Descriptions.Item label="创建时间">{dayjsUtc(task.created_at).format('YYYY-MM-DD HH:mm:ss')}</Descriptions.Item>
+          <Descriptions.Item label="更新时间">{dayjsUtc(task.updated_at).format('YYYY-MM-DD HH:mm:ss')}</Descriptions.Item>
+          <Descriptions.Item label="开始时间">{task.started_at ? dayjsUtc(task.started_at).format('YYYY-MM-DD HH:mm:ss') : '-'}</Descriptions.Item>
+          <Descriptions.Item label="完成时间">{task.completed_at ? dayjsUtc(task.completed_at).format('YYYY-MM-DD HH:mm:ss') : '-'}</Descriptions.Item>
           <Descriptions.Item label="错误信息" span={2}>{task.error_msg || '-'}</Descriptions.Item>
         </Descriptions>
       </Card>
@@ -518,7 +521,7 @@ export default function TaskDetail() {
                   <strong>{log.phase}</strong> - {log.message}
                 </div>
                 <div style={{ color: '#999', fontSize: '12px' }}>
-                  {dayjs(log.created_at).format('YYYY-MM-DD HH:mm:ss')}
+                  {dayjsUtc(log.created_at).format('YYYY-MM-DD HH:mm:ss')}
                 </div>
               </Timeline.Item>
             ))}
