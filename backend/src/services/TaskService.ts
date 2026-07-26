@@ -240,8 +240,8 @@ export class TaskService {
 
         await this.env.DB.prepare(`
         UPDATE phase_subtasks SET status = 'PENDING', output_path = '', error_msg = '', retry_count = 0, started_at = NULL, completed_at = NULL 
-        WHERE task_id = ? AND phase = ?
-      `).bind(taskId, phase).run();
+        WHERE task_id = ? AND phase = ? AND id IN (SELECT MAX(id) FROM phase_subtasks WHERE task_id = ? AND phase = ? GROUP BY subtask_index)
+      `).bind(taskId, phase, taskId, phase).run();
       
       await this.dispatchGitHubWorkflow(taskId, phase, ghAccountId, aiAccountId);
       } else {
@@ -252,8 +252,8 @@ export class TaskService {
           if (phaseIndex >= startIndex && phaseIndex <= endIndex) {
             await this.env.DB.prepare(`
               UPDATE phase_subtasks SET status = 'PENDING', output_path = '', error_msg = '', retry_count = 0, started_at = NULL, completed_at = NULL 
-              WHERE task_id = ? AND phase = ?
-            `).bind(taskId, p).run();
+              WHERE task_id = ? AND phase = ? AND id IN (SELECT MAX(id) FROM phase_subtasks WHERE task_id = ? AND phase = ? GROUP BY subtask_index)
+            `).bind(taskId, p, taskId, p).run();
           }
         }
         
@@ -843,13 +843,15 @@ export class TaskService {
   }
 
   async getPhaseSubtasks(taskId: string, phase?: string) {
-    let query = 'SELECT * FROM phase_subtasks WHERE task_id = ?';
+    let query = 'SELECT * FROM phase_subtasks WHERE id IN (SELECT MAX(id) FROM phase_subtasks WHERE task_id = ?';
     const params: (string | number)[] = [taskId];
     
     if (phase) {
       query += ' AND phase = ?';
       params.push(phase);
     }
+    
+    query += ' GROUP BY phase, subtask_index)';
     
     query += ' ORDER BY phase, subtask_index';
     
@@ -1080,7 +1082,11 @@ export class TaskService {
 
   async createPhaseSubtask(taskId: string, phase: string, subtaskIndex: number, subtaskType: string, inputPath?: string, metadata?: string) {
     await this.env.DB.prepare(`
-      INSERT OR IGNORE INTO phase_subtasks (task_id, phase, subtask_index, subtask_type, input_path, metadata)
+      DELETE FROM phase_subtasks WHERE task_id = ? AND phase = ? AND subtask_index = ?
+    `).bind(taskId, phase, subtaskIndex).run();
+
+    await this.env.DB.prepare(`
+      INSERT INTO phase_subtasks (task_id, phase, subtask_index, subtask_type, input_path, metadata)
       VALUES (?, ?, ?, ?, ?, ?)
     `).bind(taskId, phase, subtaskIndex, subtaskType, inputPath || '', metadata || '').run();
   }
@@ -1091,7 +1097,7 @@ export class TaskService {
         completed_at = CASE WHEN status = 'COMPLETED' THEN STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') ELSE completed_at END,
         started_at = CASE WHEN status = 'PROCESSING' THEN STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') ELSE started_at END,
         retry_count = CASE WHEN status = 'FAILED' THEN retry_count + 1 ELSE retry_count END
-      WHERE task_id = ? AND phase = ? AND subtask_index = ?
+      WHERE id = (SELECT MAX(id) FROM phase_subtasks WHERE task_id = ? AND phase = ? AND subtask_index = ?)
     `).bind(status, outputPath || '', errorMsg || '', taskId, phase, subtaskIndex).run();
 
     if (status === 'COMPLETED' || status === 'FAILED') {
@@ -1105,7 +1111,7 @@ export class TaskService {
 
   async runSubtask(taskId: string, phase: string, subtaskIndex: number, customPrompt?: string) {
     const subtaskResult = await this.env.DB.prepare(`
-      SELECT * FROM phase_subtasks WHERE task_id = ? AND phase = ? AND subtask_index = ?
+      SELECT * FROM phase_subtasks WHERE id = (SELECT MAX(id) FROM phase_subtasks WHERE task_id = ? AND phase = ? AND subtask_index = ?)
     `).bind(taskId, phase, subtaskIndex).first();
     
     if (!subtaskResult) {
