@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Card, Table, Tag, Button, Modal, message, Upload, Popconfirm, Space, Breadcrumb, Empty, Checkbox, Input, Progress } from 'antd';
+import { Card, Table, Tag, Button, Modal, message, Upload, Popconfirm, Space, Breadcrumb, Empty, Checkbox, Input, Progress, Image } from 'antd';
 import { 
   FolderOutlined, 
   FileOutlined, 
@@ -9,6 +9,7 @@ import {
   ArrowLeftOutlined,
   PlusOutlined,
   PlayCircleOutlined,
+  EyeOutlined,
 } from '@ant-design/icons';
 import { fileApi } from '../api';
 import dayjs from 'dayjs';
@@ -50,6 +51,9 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
   const [currentVideoUrl, setCurrentVideoUrl] = useState('');
   const [currentVideoName, setCurrentVideoName] = useState('');
   const [currentVideoPath, setCurrentVideoPath] = useState('');
+  const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
+  const [currentImageUrl, setCurrentImageUrl] = useState('');
+  const [currentImageName, setCurrentImageName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -138,6 +142,18 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
   const isVideoFile = (filename: string) => {
     const ext = filename.toLowerCase().split('.').pop();
     return ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv'].includes(ext || '');
+  };
+
+  const isImageFile = (filename: string) => {
+    const ext = filename.toLowerCase().split('.').pop();
+    return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext || '');
+  };
+
+  const handlePreviewImage = (filename: string) => {
+    const imageUrl = fileApi.previewUrl(filename, currentPath);
+    setCurrentImageUrl(imageUrl);
+    setCurrentImageName(filename);
+    setIsImagePreviewOpen(true);
   };
 
   const handleDelete = async (filename: string, key: string, isDirectory: boolean = false) => {
@@ -551,6 +567,11 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
                   播放
                 </Button>
               )}
+              {isImageFile(record.name) && (
+                <Button size="small" icon={<EyeOutlined />} onClick={() => handlePreviewImage(record.name)}>
+                  预览
+                </Button>
+              )}
               <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload(record.name, record.key)} loading={downloadingFiles.has(record.key)}>
                 {downloadingFiles.has(record.key) ? `${downloadProgress[record.key]}%` : '下载'}
               </Button>
@@ -729,6 +750,24 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
         videoName={currentVideoName}
         filePath={currentVideoPath}
       />
+
+      <Modal
+        title={currentImageName}
+        open={isImagePreviewOpen}
+        onCancel={() => setIsImagePreviewOpen(false)}
+        footer={null}
+        width={720}
+        centered
+        destroyOnClose
+      >
+        <div style={{ display: 'flex', justifyContent: 'center', maxHeight: '70vh', overflow: 'auto' }}>
+          <Image
+            src={currentImageUrl}
+            alt={currentImageName}
+            style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }}
+          />
+        </div>
+      </Modal>
     </div>
   );
 }
