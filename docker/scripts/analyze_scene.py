@@ -17,8 +17,12 @@ R2_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY')
 R2_ENDPOINT_URL = os.environ.get('R2_ENDPOINT_URL')
 R2_BUCKET_NAME = os.environ.get('R2_BUCKET_NAME')
 
-PRIMARY_MODEL = "models/gemini-3.5-flash"
-FALLBACK_MODEL = "models/gemini-3.1-flash-lite"
+MODEL_PRIORITY_LIST = [
+    "models/gemini-3.6-flash",
+    "models/gemini-3.5-flash",
+    "models/gemini-3.1-flash-lite",
+]
+MAX_RETRIES_PER_MODEL = 3
 
 WORK_DIR = f"/tmp/{TASK_ID}"
 
@@ -88,8 +92,13 @@ def upload_video_to_gemini(video_path):
     log(f"Video processing completed, file URI: {video_file.uri}")
     return video_file
 
-def call_gemini_api(video_file, prompt_text, model_name=PRIMARY_MODEL, attempt=1):
-    log(f"Calling Gemini API (attempt {attempt}, model: {model_name})...")
+def call_gemini_api(video_file, prompt_text, model_index=0, retry_count=0):
+    if model_index >= len(MODEL_PRIORITY_LIST):
+        log("All models exhausted, returning None")
+        return None
+
+    model_name = MODEL_PRIORITY_LIST[model_index]
+    log(f"Calling Gemini API (model: {model_name}, retry: {retry_count + 1}/{MAX_RETRIES_PER_MODEL})...")
     log(f"Prompt text length: {len(prompt_text)} chars")
     
     try:
@@ -106,7 +115,7 @@ def call_gemini_api(video_file, prompt_text, model_name=PRIMARY_MODEL, attempt=1
             else:
                 log("API response is empty or whitespace only")
         
-        log(f"No valid response found")
+        log("No valid response found")
         if response.candidates:
             log(f"Candidates: {json.dumps(response.candidates[:1], default=str)[:2000]}")
         if hasattr(response, 'usage_metadata'):
@@ -117,10 +126,17 @@ def call_gemini_api(video_file, prompt_text, model_name=PRIMARY_MODEL, attempt=1
         log(f"API call exception: {e}")
         log(f"Exception type: {type(e).__name__}")
         
-        if model_name == PRIMARY_MODEL and attempt <= 3:
-            log(f"Retrying with fallback model: {FALLBACK_MODEL}")
-            return call_gemini_api(video_file, prompt_text, FALLBACK_MODEL, attempt + 1)
-        return None
+        if retry_count + 1 < MAX_RETRIES_PER_MODEL:
+            log(f"Retrying same model ({retry_count + 2}/{MAX_RETRIES_PER_MODEL})...")
+            return call_gemini_api(video_file, prompt_text, model_index, retry_count + 1)
+        else:
+            next_index = model_index + 1
+            if next_index < len(MODEL_PRIORITY_LIST):
+                log(f"Model {model_name} exhausted {MAX_RETRIES_PER_MODEL} retries, switching to next model: {MODEL_PRIORITY_LIST[next_index]}")
+                return call_gemini_api(video_file, prompt_text, next_index, 0)
+            else:
+                log("All models exhausted with retries, returning None")
+                return None
 
 def extract_scene_content(scenes_path):
     if os.path.exists(scenes_path):
