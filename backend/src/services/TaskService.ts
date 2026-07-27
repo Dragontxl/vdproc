@@ -1121,32 +1121,39 @@ export class TaskService {
     }
   }
 
-  async runSubtask(taskId: string, phase: string, subtaskIndex: number, customPrompt?: string) {
-    const subtaskResult = await this.env.DB.prepare(`
-      SELECT * FROM phase_subtasks WHERE id = (SELECT MAX(id) FROM phase_subtasks WHERE task_id = ? AND phase = ? AND subtask_index = ?)
-    `).bind(taskId, phase, subtaskIndex).first();
+  async prepareSubtask(taskId: string, phase: string, subtaskIndex: number, customPrompt?: string) {
+    const batchResults = await this.env.DB.batch([
+      this.env.DB.prepare(`
+        SELECT * FROM phase_subtasks WHERE id = (SELECT MAX(id) FROM phase_subtasks WHERE task_id = ? AND phase = ? AND subtask_index = ?)
+      `).bind(taskId, phase, subtaskIndex),
+      this.env.DB.prepare(`
+        SELECT id, github_account_id, video_path, fps, prompt, output_fps FROM tasks WHERE id = ?
+      `).bind(taskId),
+      this.env.DB.prepare(`
+        SELECT value FROM system_config WHERE key = 'max_concurrent_jobs_per_github_account'
+      `),
+    ]);
+    
+    const subtaskResult = batchResults[0].results?.[0];
+    const taskResult = batchResults[1].results?.[0];
+    const maxConcurrentConfigResult = batchResults[2].results?.[0];
     
     if (!subtaskResult) {
       throw new Error('Subtask not found');
     }
     
-    const subtask = subtaskResult as any;
-    
-    await this.updatePhaseSubtaskStatus(taskId, phase, subtaskIndex, 'PROCESSING');
-    
-    const task = await this.getTask(taskId);
-    if (!task || !task.github_account_id) {
+    if (!taskResult || !taskResult.github_account_id) {
       throw new Error('Task or GitHub account not found');
     }
     
-    let aiAccountsJson = '';
+    const subtask = subtaskResult as any;
+    const task = taskResult as any;
     const ghAccountId = task.github_account_id;
-    
-    const maxConcurrentConfigResult = await this.env.DB.prepare(`
-      SELECT value FROM system_config WHERE key = 'max_concurrent_jobs_per_github_account'
-    `).first();
     const maxConcurrent = maxConcurrentConfigResult ? parseInt((maxConcurrentConfigResult as { value: string }).value) : 2;
     
+    await this.updatePhaseSubtaskStatus(taskId, phase, subtaskIndex, 'PROCESSING');
+    
+    let aiAccountsJson = '';
     let aiApiKey = '';
     let aiBaseUrl = '';
     
@@ -1157,30 +1164,6 @@ export class TaskService {
       aiApiKey = result.aiApiKey;
       aiBaseUrl = result.aiBaseUrl;
     }
-    
-    const subtaskData = {
-      task_id: taskId,
-      phase: phase,
-      subtask_index: subtaskIndex,
-      gh_account_id: ghAccountId,
-      ai_api_key: aiApiKey,
-      ai_base_url: aiBaseUrl,
-      ai_accounts: aiAccountsJson,
-      config: JSON.stringify({
-        video_path: task.video_path,
-        fps: task.fps,
-        prompt: task.prompt,
-        custom_prompt: customPrompt,
-        output_fps: task.output_fps,
-        max_concurrent: maxConcurrent,
-        subtask_type: subtask.subtask_type,
-        input_path: subtask.input_path,
-        metadata: subtask.metadata,
-      }),
-    };
-    
-    const owner = this.env.GITHUB_REPO_OWNER;
-    const repo = this.env.GITHUB_REPO_NAME;
     
     const ghAccountResult = await this.env.DB.prepare(`
       SELECT token_encrypted FROM github_accounts WHERE id = ?
@@ -1204,27 +1187,73 @@ export class TaskService {
       ? `token ${ghApiKey}`
       : `Bearer ${ghApiKey}`;
     
-    const payload = {
-      event_type: `video-processing-subtask-${phase.toLowerCase().replace(/_/g, '-')}`,
-      client_payload: subtaskData,
+    const subtaskData = {
+      task_id: taskId,
+      phase: phase,
+      subtask_index: subtaskIndex,
+      gh_account_id: ghAccountId,
+      ai_api_key: aiApiKey,
+      ai_base_url: aiBaseUrl,
+      ai_accounts: aiAccountsJson,
+      config: JSON.stringify({
+        video_path: task.video_path,
+        fps: task.fps,
+        prompt: task.prompt,
+        custom_prompt: customPrompt,
+        output_fps: task.output_fps,
+        max_concurrent: maxConcurrent,
+        subtask_type: subtask.subtask_type,
+        input_path: subtask.input_path,
+        metadata: subtask.metadata,
+      }),
     };
     
-    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/dispatches`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader,
-        'User-Agent': 'AI-Video-Processor',
-        'Accept': 'application/vnd.github.v3+json',
-        'X-GitHub-Api-Version': '2022-11-28',
+    return {
+      githubPayload: {
+        event_type: `video-processing-subtask-${phase.toLowerCase().replace(/_/g, '-')}`,
+        client_payload: subtaskData,
+        auth_header: authHeader,
       },
-      body: JSON.stringify(payload),
-      redirect: 'follow',
-    });
+    };
+  }
+  
+  async dispatchGitHubWorkflowAsync(taskId: string, phase: string, payload: any) {
+    try {
+      const owner = this.env.GITHUB_REPO_OWNER;
+      const repo = this.env.GITHUB_REPO_NAME;
+      
+      const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/dispatches`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': payload.auth_header,
+          'User-Agent': 'AI-Video-Processor',
+          'Accept': 'application/vnd.github.v3+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+        body: JSON.stringify({
+          event_type: payload.event_type,
+          client_payload: payload.client_payload,
+        }),
+        redirect: 'follow',
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Failed to dispatch subtask workflow for ${taskId}-${phase}: ${response.status} ${errorText}`);
+      } else {
+        console.log(`Subtask workflow dispatched successfully for ${taskId}-${phase}`);
+      }
+    } catch (error) {
+      console.error(`Error dispatching subtask workflow for ${taskId}-${phase}:`, error);
+    }
+  }
+  
+  async runSubtask(taskId: string, phase: string, subtaskIndex: number, customPrompt?: string) {
+    const result = await this.prepareSubtask(taskId, phase, subtaskIndex, customPrompt);
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to dispatch subtask workflow: ${response.status} ${errorText}`);
+    if (result.githubPayload) {
+      await this.dispatchGitHubWorkflowAsync(taskId, phase, result.githubPayload);
     }
     
     return { success: true, message: 'Subtask dispatched successfully' };

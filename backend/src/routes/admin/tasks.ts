@@ -143,10 +143,17 @@ taskRoutes.post('/:id/subtasks/:phase/:index/run', async (c) => {
   const taskService = new TaskService(c.env as Bindings);
   
   try {
-    const result = await taskService.runSubtask(id, phase, parseInt(index), custom_prompt);
+    const result = await taskService.prepareSubtask(id, phase, parseInt(index), custom_prompt);
+    
+    if (result.githubPayload) {
+      c.executionCtx.waitUntil(
+        taskService.dispatchGitHubWorkflowAsync(id, phase, result.githubPayload)
+      );
+    }
+    
     return c.json({
       code: 200,
-      data: result,
+      data: { success: true, message: '子任务启动成功' },
       msg: '子任务启动成功',
     });
   } catch (error) {
