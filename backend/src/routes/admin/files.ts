@@ -3,6 +3,47 @@ import { Bindings } from '../../types/env';
 
 const fileRoutes = new Hono();
 
+async function purgeCloudflareCache(c: any, keys: string[]) {
+  const { R2_PUBLIC_URL, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID } = c.env as Bindings;
+
+  if (!CLOUDFLARE_API_TOKEN || !CLOUDFLARE_ZONE_ID || !R2_PUBLIC_URL) {
+    console.log('Cloudflare purge configuration not set, skipping cache purge');
+    return;
+  }
+
+  try {
+    const purgeUrls = keys.map(key => {
+      if (key.startsWith('http')) {
+        return key;
+      }
+      return `${R2_PUBLIC_URL}/${key}`;
+    });
+
+    console.log('Purging Cloudflare cache for URLs:', purgeUrls);
+
+    const response = await fetch(`https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        files: purgeUrls,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      console.log('Cloudflare cache purge successful:', result);
+    } else {
+      console.error('Cloudflare cache purge failed:', result);
+    }
+  } catch (error) {
+    console.error('Cloudflare cache purge error:', error);
+  }
+}
+
 fileRoutes.get('/', async (c) => {
   const { R2 } = c.env as Bindings;
   const prefix = c.req.query('prefix') || '';
@@ -413,6 +454,8 @@ fileRoutes.post('/upload', async (c) => {
       },
     });
 
+    purgeCloudflareCache(c, [key]);
+
     return c.json({
       code: 200,
       data: {
@@ -493,6 +536,11 @@ fileRoutes.post('/batch-upload', async (c) => {
     }
 
     const successCount = results.filter(r => r.success).length;
+    const successKeys = results.filter(r => r.success).map(r => r.key);
+    
+    if (successKeys.length > 0) {
+      purgeCloudflareCache(c, successKeys);
+    }
     
     return c.json({
       code: 200,
@@ -737,6 +785,8 @@ fileRoutes.post('/multipart/complete', async (c) => {
       .run();
 
     console.log(`Multipart upload completed: key=${key}, size=${totalSize}`);
+
+    purgeCloudflareCache(c, [key]);
 
     return c.json({
       code: 200,
