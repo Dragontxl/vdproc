@@ -216,15 +216,6 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
         if num_frames < 9:
             num_frames = 9
 
-    base64_images = []
-    for img in image_urls:
-        if img.startswith('data:'):
-            base64_images.append(img)
-        elif img.startswith('http'):
-            base64_images.append(img)
-        else:
-            base64_images.append(f'data:image/jpeg;base64,{img}')
-
     request_body = {
         'model': 'agnes-video-v2.0',
         'prompt': full_prompt,
@@ -234,7 +225,7 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
         'width': 832,
         'height': 448,
         'extra_body': {
-            'image': base64_images,
+            'image': image_urls,
             'mode': 'keyframes'
         }
     }
@@ -444,32 +435,17 @@ def process_shot(shot_index):
     print(f"Processing shot {shot_index}: {start_time} - {end_time} (duration={duration:.3f}s)")
     notify_subtask_python("create", shot_index)
 
-    r2_public_url = os.environ.get('R2_PUBLIC_URL', 'https://aivideobucket.ldragon.xyz')
-    
-    first_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_{shot_index}_first.jpg"
-    last_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_{shot_index}_last.jpg"
+    callback_url = os.environ.get('CALLBACK_URL', '')
+    if callback_url:
+        first_frame_url = f"{callback_url.rstrip('/')}/files/preview/shot_{shot_index}_first.jpg?prefix={task_id}/ai_shot_frames/&no_cache=1"
+        last_frame_url = f"{callback_url.rstrip('/')}/files/preview/shot_{shot_index}_last.jpg?prefix={task_id}/ai_shot_frames/&no_cache=1"
+    else:
+        r2_public_url = os.environ.get('R2_PUBLIC_URL', 'https://aivideobucket.ldragon.xyz')
+        first_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_{shot_index}_first.jpg"
+        last_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_{shot_index}_last.jpg"
 
     print(f"First frame URL: {first_frame_url}")
     print(f"Last frame URL: {last_frame_url}")
-
-    def download_and_encode_image(url):
-        try:
-            req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache'})
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                image_data = resp.read()
-            import base64
-            return base64.b64encode(image_data).decode('utf-8')
-        except Exception as e:
-            print(f"  Shot {shot_index}: Error downloading image {url}: {str(e)}")
-            return None
-
-    first_frame_base64 = download_and_encode_image(first_frame_url)
-    last_frame_base64 = download_and_encode_image(last_frame_url)
-    
-    if not first_frame_base64 or not last_frame_base64:
-        print(f"  Shot {shot_index}: Failed to download one or both frame images")
-        notify_subtask_python("update", shot_index, "FAILED", "", "Failed to download frame images")
-        return (shot_index, False)
 
     characters_present = shot.get('characters_present', [])
     dialogues = shot.get('dialogues', [])
@@ -540,7 +516,7 @@ def process_shot(shot_index):
 
     notify_subtask_python("update", shot_index, "PROCESSING")
     
-    video_url = generate_video(accounts if accounts else None, account_index, [first_frame_base64, last_frame_base64], main_prompt, shot_index, duration, output_fps)
+    video_url = generate_video(accounts if accounts else None, account_index, [first_frame_url, last_frame_url], main_prompt, shot_index, duration, output_fps)
 
     if video_url:
         print(f"Downloading generated video for shot {shot_index}...")

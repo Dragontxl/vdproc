@@ -97,7 +97,14 @@ publicFileRoutes.get('/preview/:filename', async (c) => {
     
     headers.set('Accept-Ranges', 'bytes');
     
-    headers.set('Cache-Control', 'public, max-age=3600');
+    const noCache = c.req.query('no_cache');
+    if (noCache) {
+      headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      headers.set('Pragma', 'no-cache');
+      headers.set('Expires', '0');
+    } else {
+      headers.set('Cache-Control', 'public, max-age=3600');
+    }
     
     if (object.httpMetadata?.etag) {
       headers.set('ETag', object.httpMetadata.etag);

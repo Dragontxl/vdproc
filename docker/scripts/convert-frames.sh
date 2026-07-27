@@ -180,17 +180,14 @@ process_frame() {
 
     echo "Processing shot $shot_index, ${frame_type} frame..."
 
-    R2_PUBLIC_URL="${R2_PUBLIC_URL:-https://aivideobucket.ldragon.xyz}"
-    INPUT_IMAGE_URL="${R2_PUBLIC_URL}/${FRAME_KEY}"
+    if [ -n "$CALLBACK_URL" ]; then
+        INPUT_IMAGE_URL="${CALLBACK_URL%/}/files/preview/shot_${shot_index}_${frame_type}.jpg?prefix=${TASK_ID}/shot_frames/&no_cache=1"
+    else
+        R2_PUBLIC_URL="${R2_PUBLIC_URL:-https://aivideobucket.ldragon.xyz}"
+        INPUT_IMAGE_URL="${R2_PUBLIC_URL}/${FRAME_KEY}"
+    fi
 
     echo "  Input image URL: $INPUT_IMAGE_URL"
-
-    INPUT_IMAGE_BASE64=$(curl -s -H "Cache-Control: no-cache" "$INPUT_IMAGE_URL" | base64 -w 0)
-    if [ -z "$INPUT_IMAGE_BASE64" ]; then
-        echo "Error: Failed to download or encode image for shot $shot_index, ${frame_type} frame"
-        echo "${shot_index}_${frame_type}:FAILED" >> "./frame_results.txt"
-        return 1
-    fi
 
     local account_index=$(acquire_ai_account "$ai_accounts" "$work_dir" "$shot_index" "$frame_type")
     
@@ -228,7 +225,7 @@ process_frame() {
     for attempt in $(seq 1 $MAX_RETRIES); do
         echo "  Shot $shot_index ${frame_type}: Attempt $attempt/$MAX_RETRIES..."
 
-        IMAGE_ARRAY="[\"data:image/jpeg;base64,$INPUT_IMAGE_BASE64\"]"
+        IMAGE_ARRAY="[\"$INPUT_IMAGE_URL\"]"
 
         RESPONSE=$(curl -s -X POST \
             --connect-timeout 30 \
