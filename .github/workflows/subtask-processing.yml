@@ -211,6 +211,7 @@ jobs:
 
       - name: Run frame conversion subtask
         if: ${{ steps.parse_subtask.outputs.IS_BATCH != 'true' && steps.parse_subtask.outputs.PHASE == 'CONVERT_FRAMES' }}
+        id: convert_task
         env:
           TASK_ID: ${{ steps.parse_subtask.outputs.TASK_ID }}
           SUBTASK_INDEX: ${{ steps.parse_subtask.outputs.SUBTASK_INDEX }}
@@ -259,6 +260,7 @@ jobs:
 
       - name: Run shot generation subtask
         if: ${{ steps.parse_subtask.outputs.IS_BATCH != 'true' && steps.parse_subtask.outputs.PHASE == 'GENERATE_SHOTS' }}
+        id: generate_task
         env:
           TASK_ID: ${{ steps.parse_subtask.outputs.TASK_ID }}
           SUBTASK_INDEX: ${{ steps.parse_subtask.outputs.SUBTASK_INDEX }}
@@ -306,7 +308,7 @@ jobs:
             bash /scripts/generate-shots.sh
 
       - name: Notify subtask completion
-        if: ${{ steps.parse_subtask.outputs.IS_BATCH != 'true' }}
+        if: ${{ always() && steps.parse_subtask.outputs.IS_BATCH != 'true' }}
         env:
           TASK_ID: ${{ steps.parse_subtask.outputs.TASK_ID }}
           PHASE: ${{ steps.parse_subtask.outputs.PHASE }}
