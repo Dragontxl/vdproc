@@ -435,9 +435,12 @@ def process_shot(shot_index):
     print(f"Processing shot {shot_index}: {start_time} - {end_time} (duration={duration:.3f}s)")
     notify_subtask_python("create", shot_index)
 
-    r2_public_url = os.environ.get('R2_PUBLIC_URL', 'https://aivideobucket.ldragon.xyz')
-    first_frame_url = f"{r2_public_url}/{task_id}/shot_frames/shot_{shot_index}_first.jpg"
-    last_frame_url = f"{r2_public_url}/{task_id}/shot_frames/shot_{shot_index}_last.jpg"
+    import time
+    callback_url = os.environ.get('CALLBACK_URL', 'https://ai-video.ldragon.xyz/api/v1/callback')
+    api_base = callback_url.replace('/api/v1/callback', '') if '/api/v1/callback' in callback_url else callback_url
+    cache_buster = int(time.time())
+    first_frame_url = f"{api_base}/api/v1/files/preview/shot_{shot_index}_first.jpg?prefix={task_id}/ai_shot_frames/&no_cache=true&t={cache_buster}"
+    last_frame_url = f"{api_base}/api/v1/files/preview/shot_{shot_index}_last.jpg?prefix={task_id}/ai_shot_frames/&no_cache=true&t={cache_buster}"
 
     print(f"First frame URL: {first_frame_url}")
     print(f"Last frame URL: {last_frame_url}")
