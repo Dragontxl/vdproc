@@ -119,15 +119,15 @@ jobs:
           AI_API_KEY: ${{ github.event.client_payload.ai_api_key || secrets.AI_API_KEY }}
           AI_BASE_URL: ${{ github.event.client_payload.ai_base_url || secrets.AI_BASE_URL }}
           AI_ACCOUNTS: ${{ github.event.client_payload.ai_accounts }}
+          CONFIG_JSON: ${{ github.event.client_payload.config || '{}' }}
+          SUBTASKS_JSON: ${{ github.event.client_payload.subtasks || '[]' }}
         run: |
-          CONFIG_JSON="${{ github.event.client_payload.config }}"
           VIDEO_PATH=$(echo "$CONFIG_JSON" | jq -r '.video_path // ""')
           FPS=$(echo "$CONFIG_JSON" | jq -r '.fps // 30')
           PROMPT=$(echo "$CONFIG_JSON" | jq -r '.prompt // ""')
           OUTPUT_FPS=$(echo "$CONFIG_JSON" | jq -r '.output_fps // 24')
           MAX_CONCURRENT=$(echo "$CONFIG_JSON" | jq -r '.max_concurrent // 3')
-          
-          SUBTASKS_JSON="${{ github.event.client_payload.subtasks }}"
+
           SUBTASK_COUNT=$(echo "$SUBTASKS_JSON" | jq 'length')
           
           echo "=== Batch Processing ==="
