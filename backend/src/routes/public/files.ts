@@ -158,4 +158,73 @@ publicFileRoutes.get('/preview/:filename', async (c) => {
   }
 });
 
+publicFileRoutes.get('/nocache/*', async (c) => {
+  const { R2 } = c.env as Bindings;
+  const key = decodeURIComponent(c.req.param('*'));
+
+  console.log('No-cache file request:', { key });
+
+  try {
+    const object = await R2.get(key);
+    
+    if (!object) {
+      console.log('File not found in R2:', key);
+      return c.json({
+        code: 404,
+        data: null,
+        msg: `文件不存在: ${key}`,
+      }, 404);
+    }
+    
+    console.log('File found:', { key, size: object.size, contentType: object.httpMetadata?.contentType });
+
+    const headers = new Headers();
+    
+    const filename = key.split('/').pop() || '';
+    const ext = filename.toLowerCase().split('.').pop();
+    const contentTypes: Record<string, string> = {
+      'mp4': 'video/mp4',
+      'avi': 'video/x-msvideo',
+      'mov': 'video/quicktime',
+      'mkv': 'video/x-matroska',
+      'webm': 'video/webm',
+      'flv': 'video/x-flv',
+      'wmv': 'video/x-ms-wmv',
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+    };
+    
+    const contentType = contentTypes[ext || ''] || object.httpMetadata?.contentType || 'application/octet-stream';
+    headers.set('Content-Type', contentType);
+    
+    headers.set('Content-Length', object.size.toString());
+    headers.set('Accept-Ranges', 'bytes');
+    
+    headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    headers.set('Pragma', 'no-cache');
+    headers.set('Expires', '0');
+    
+    if (object.httpMetadata?.etag) {
+      headers.set('ETag', object.httpMetadata.etag);
+    }
+    
+    if (object.httpMetadata?.lastModified) {
+      headers.set('Last-Modified', new Date(object.httpMetadata.lastModified).toUTCString());
+    }
+    
+    return new Response(object.body, {
+      headers,
+    });
+  } catch (error) {
+    console.error('R2 no-cache error:', error);
+    return c.json({
+      code: 500,
+      data: null,
+      msg: '获取文件失败',
+    }, 500);
+  }
+});
+
 export { publicFileRoutes };

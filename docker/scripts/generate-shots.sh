@@ -437,8 +437,8 @@ def process_shot(shot_index):
 
     callback_url = os.environ.get('CALLBACK_URL', '')
     if callback_url:
-        first_frame_url = f"{callback_url.rstrip('/')}/files/preview/shot_{shot_index}_first.jpg?prefix={task_id}/ai_shot_frames/&no_cache=1"
-        last_frame_url = f"{callback_url.rstrip('/')}/files/preview/shot_{shot_index}_last.jpg?prefix={task_id}/ai_shot_frames/&no_cache=1"
+        first_frame_url = f"{callback_url.rstrip('/')}/files/nocache/{task_id}/ai_shot_frames/shot_{shot_index}_first.jpg"
+        last_frame_url = f"{callback_url.rstrip('/')}/files/nocache/{task_id}/ai_shot_frames/shot_{shot_index}_last.jpg"
     else:
         r2_public_url = os.environ.get('R2_PUBLIC_URL', 'https://aivideobucket.ldragon.xyz')
         first_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_{shot_index}_first.jpg"

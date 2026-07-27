@@ -181,7 +181,7 @@ process_frame() {
     echo "Processing shot $shot_index, ${frame_type} frame..."
 
     if [ -n "$CALLBACK_URL" ]; then
-        INPUT_IMAGE_URL="${CALLBACK_URL%/}/files/preview/shot_${shot_index}_${frame_type}.jpg?prefix=${TASK_ID}/shot_frames/&no_cache=1"
+        INPUT_IMAGE_URL="${CALLBACK_URL%/}/files/nocache/${FRAME_KEY}"
     else
         R2_PUBLIC_URL="${R2_PUBLIC_URL:-https://aivideobucket.ldragon.xyz}"
         INPUT_IMAGE_URL="${R2_PUBLIC_URL}/${FRAME_KEY}"
