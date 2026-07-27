@@ -180,12 +180,8 @@ process_frame() {
 
     echo "Processing shot $shot_index, ${frame_type} frame..."
 
-    if [ -n "$CALLBACK_URL" ]; then
-        INPUT_IMAGE_URL="${CALLBACK_URL%/}/files/nocache/${FRAME_KEY}"
-    else
-        R2_PUBLIC_URL="${R2_PUBLIC_URL:-https://aivideobucket.ldragon.xyz}"
-        INPUT_IMAGE_URL="${R2_PUBLIC_URL}/${FRAME_KEY}"
-    fi
+    R2_PUBLIC_URL="${R2_PUBLIC_URL:-https://aivideobucket.ldragon.xyz}"
+    INPUT_IMAGE_URL="${R2_PUBLIC_URL}/${FRAME_KEY}"
 
     echo "  Input image URL: $INPUT_IMAGE_URL"
 

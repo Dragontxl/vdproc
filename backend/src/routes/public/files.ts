@@ -158,6 +158,98 @@ publicFileRoutes.get('/preview/:filename', async (c) => {
   }
 });
 
+publicFileRoutes.post('/purge', async (c) => {
+  const { R2_PUBLIC_URL, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID } = c.env as Bindings;
+
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return c.json({
+      code: 401,
+      data: null,
+      msg: 'Unauthorized',
+    }, 401);
+  }
+
+  const apiKey = authHeader.slice(7);
+  const { ADMIN_API_KEY } = c.env as Bindings;
+  if (apiKey !== ADMIN_API_KEY) {
+    return c.json({
+      code: 403,
+      data: null,
+      msg: 'Forbidden',
+    }, 403);
+  }
+
+  try {
+    const body = await c.req.json();
+    const { keys } = body;
+
+    if (!keys || !Array.isArray(keys) || keys.length === 0) {
+      return c.json({
+        code: 400,
+        data: null,
+        msg: 'Missing or invalid keys parameter',
+      }, 400);
+    }
+
+    if (!CLOUDFLARE_API_TOKEN || !CLOUDFLARE_ZONE_ID || !R2_PUBLIC_URL) {
+      return c.json({
+        code: 500,
+        data: null,
+        msg: 'Cloudflare purge configuration not set',
+      }, 500);
+    }
+
+    const purgeUrls = keys.map(key => {
+      if (key.startsWith('http')) {
+        return key;
+      }
+      return `${R2_PUBLIC_URL}/${key}`;
+    });
+
+    console.log('Purging Cloudflare cache for URLs:', purgeUrls);
+
+    const response = await fetch(`https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        files: purgeUrls,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      console.log('Cloudflare cache purge successful:', result);
+      return c.json({
+        code: 200,
+        data: {
+          purgedUrls: purgeUrls,
+          result,
+        },
+        msg: 'Cache purge successful',
+      });
+    } else {
+      console.error('Cloudflare cache purge failed:', result);
+      return c.json({
+        code: 500,
+        data: null,
+        msg: `Cache purge failed: ${result.errors?.map((e: any) => e.message).join(', ')}`,
+      }, 500);
+    }
+  } catch (error) {
+    console.error('Cloudflare cache purge error:', error);
+    return c.json({
+      code: 500,
+      data: null,
+      msg: 'Cache purge error',
+    }, 500);
+  }
+});
+
 publicFileRoutes.get('/nocache/*', async (c) => {
   const { R2 } = c.env as Bindings;
   const key = decodeURIComponent(c.req.param('*'));
