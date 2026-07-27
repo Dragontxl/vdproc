@@ -455,23 +455,32 @@ def process_shot(shot_index):
     global_characters = result.get('characters', [])
     char_map = {c.get('role_id'): c for c in global_characters}
 
+    first_keyframe_chars = shot.get('first_keyframe_characters', [])
+    last_keyframe_chars = shot.get('last_keyframe_characters', [])
+    
+    first_positions = {c.get('role_id'): (c.get('x', 0.5), c.get('y', 0.3)) for c in first_keyframe_chars}
+    last_positions = {c.get('role_id'): (c.get('x', 0.5), c.get('y', 0.3)) for c in last_keyframe_chars}
+
     character_descriptions = []
     for role_id in characters_present:
         char = char_map.get(role_id)
         if char:
             char_name = char.get('name', '')
-            gender = char.get('gender', '')
-            features = char.get('permanent_features', '')
-            if char_name and gender and features:
-                character_descriptions.append(f"{char_name}是{gender}，{features}")
-            elif char_name and features:
-                character_descriptions.append(f"{char_name}，{features}")
-            elif gender and features:
-                character_descriptions.append(f"{gender}，{features}")
-            elif features:
-                character_descriptions.append(features)
-            elif char_name:
-                character_descriptions.append(char_name)
+            if char_name:
+                if role_id in first_positions:
+                    x, y = first_positions[role_id]
+                    x_desc = "左侧" if x < 0.3 else ("右侧" if x > 0.7 else "中央")
+                    y_desc = "上方" if y < 0.3 else ("下方" if y > 0.7 else "中间")
+                    character_descriptions.append(f"{char_name}在首帧位于画面{x_desc}{y_desc}")
+                elif role_id in last_positions:
+                    x, y = last_positions[role_id]
+                    x_desc = "左侧" if x < 0.3 else ("右侧" if x > 0.7 else "中央")
+                    y_desc = "上方" if y < 0.3 else ("下方" if y > 0.7 else "中间")
+                    character_descriptions.append(f"{char_name}在尾帧位于画面{x_desc}{y_desc}")
+                else:
+                    character_descriptions.append(char_name)
+            else:
+                character_descriptions.append(role_id)
         else:
             character_descriptions.append(role_id)
 

@@ -704,7 +704,7 @@ def main():
 分析要求：
 1. 总结整体视频的核心内容，包括故事主题、主要角色关系、关键情节发展
 2. 严格按照提供的场景切分结果（scenes）进行分镜划分，每个场景作为一个分镜
-3. 分镜时长约束：每个分镜时长必须不少于3秒且不超过15秒。如果场景时长超过15秒，需要将其拆分为多个分镜；如果场景时长小于3秒，需要将其合并到相邻的分镜中
+3. 分镜时长约束：每个分镜时长必须不超过15秒。如果场景时长超过15秒，需要将其拆分为多个分镜。
 4. 输出全局角色档案，包括：
    - role_id（R1, R2, R3...）
    - name（角色中文名字，如诸葛亮、王朗）
@@ -723,6 +723,8 @@ def main():
    - 运镜描述
    - 正向prompt（用于AI生成）
    - 反向prompt（用于排除不想要的元素）
+   - first_keyframe_characters：首帧（start_time+0.150s）中关键人物的坐标，数组形式，每个元素包含 role_id、x、y，x和y为归一化0-1值，0为最左侧/最顶部，1为最右侧/最底部
+   - last_keyframe_characters：尾帧（end_time-0.150s）中关键人物的坐标，数组形式，每个元素包含 role_id、x、y，x和y为归一化0-1值，0为最左侧/最顶部，1为最右侧/最底部
 
 请严格按照以下JSON格式输出，必须包含 video_summary、characters 和 storyboards 三个顶层键。
 
@@ -769,7 +771,21 @@ JSON格式如下：
       "lighting_description": "光影描述",
       "camera_movement": "运镜描述",
       "positive_prompt": "AI生成正向prompt",
-      "negative_prompt": "AI生成反向prompt"
+      "negative_prompt": "AI生成反向prompt",
+      "first_keyframe_characters": [
+        {{
+          "role_id": "R1",
+          "x": 0.5,
+          "y": 0.3
+        }}
+      ],
+      "last_keyframe_characters": [
+        {{
+          "role_id": "R1",
+          "x": 0.5,
+          "y": 0.3
+        }}
+      ]
     }}
   ]
 }}

@@ -101,8 +101,8 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
         fi
     fi
     
-    echo "Extracting first frame (0.3s after start)..."
-    FIRST_FRAME_SECONDS=$(awk "BEGIN {print $START_SECONDS + 0.3}")
+    echo "Extracting first frame (0.150s after start)..."
+    FIRST_FRAME_SECONDS=$(awk "BEGIN {print $START_SECONDS + 0.150}")
     if awk "BEGIN {exit !($FIRST_FRAME_SECONDS >= $END_SECONDS)}"; then
         echo "Warning: first frame time ($FIRST_FRAME_SECONDS) exceeds end_time, using start_time instead..."
         FIRST_FRAME_SECONDS="$START_SECONDS"
@@ -115,11 +115,16 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
     
     ffmpeg -ss "$FIRST_FRAME_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_first.jpg"
     
-    echo "Extracting last frame (0.5s before end)..."
-    LAST_FRAME_SECONDS=$(awk "BEGIN {print $END_SECONDS - 0.5}")
+    echo "Extracting last frame (0.150s before end)..."
+    LAST_FRAME_SECONDS=$(awk "BEGIN {print $END_SECONDS - 0.150}")
     if awk "BEGIN {exit !($LAST_FRAME_SECONDS < $START_SECONDS)}"; then
         LAST_FRAME_SECONDS="$START_SECONDS"
     fi
+    if awk "BEGIN {exit !($FIRST_FRAME_SECONDS >= $LAST_FRAME_SECONDS)}"; then
+        echo "Warning: first frame time ($FIRST_FRAME_SECONDS) >= last frame time ($LAST_FRAME_SECONDS), adjusting last frame..."
+        LAST_FRAME_SECONDS=$(awk "BEGIN {print $FIRST_FRAME_SECONDS + 0.050}")
+    fi
+    
     LAST_FRAME_HOURS=$(printf "%02d" $(awk "BEGIN {print int($LAST_FRAME_SECONDS / 3600)}"))
     LAST_FRAME_MINS=$(printf "%02d" $(awk "BEGIN {print int(($LAST_FRAME_SECONDS % 3600) / 60)}"))
     LAST_FRAME_SECS=$(printf "%06.3f" $(awk "BEGIN {print $LAST_FRAME_SECONDS % 60}"))
