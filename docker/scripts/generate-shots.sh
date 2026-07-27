@@ -436,8 +436,8 @@ def process_shot(shot_index):
     notify_subtask_python("create", shot_index)
 
     r2_public_url = os.environ.get('R2_PUBLIC_URL', 'https://aivideobucket.ldragon.xyz')
-    first_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_{shot_index}_first.jpg"
-    last_frame_url = f"{r2_public_url}/{task_id}/ai_shot_frames/shot_{shot_index}_last.jpg"
+    first_frame_url = f"{r2_public_url}/{task_id}/shot_frames/shot_{shot_index}_first.jpg"
+    last_frame_url = f"{r2_public_url}/{task_id}/shot_frames/shot_{shot_index}_last.jpg"
 
     print(f"First frame URL: {first_frame_url}")
     print(f"Last frame URL: {last_frame_url}")
