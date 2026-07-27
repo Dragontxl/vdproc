@@ -54,9 +54,10 @@ publicFileRoutes.get('/preview/:filename', async (c) => {
   
   const key = prefix ? `${prefix}${filename}` : filename;
 
-  console.log('Preview request:', { filename, prefix, key, hasR2PublicUrl: !!R2_PUBLIC_URL });
+  const noCache = c.req.query('no_cache');
+  console.log('Preview request:', { filename, prefix, key, hasR2PublicUrl: !!R2_PUBLIC_URL, noCache });
 
-  if (R2_PUBLIC_URL) {
+  if (R2_PUBLIC_URL && !noCache) {
     const publicUrl = `${R2_PUBLIC_URL}/${key}`;
     console.log('Redirecting to R2 public URL:', publicUrl);
     return c.redirect(publicUrl, 302);
@@ -97,7 +98,6 @@ publicFileRoutes.get('/preview/:filename', async (c) => {
     
     headers.set('Accept-Ranges', 'bytes');
     
-    const noCache = c.req.query('no_cache');
     if (noCache) {
       headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
       headers.set('Pragma', 'no-cache');
