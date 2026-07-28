@@ -656,6 +656,12 @@ export default function TaskDetail() {
               title="状态"
               dataIndex="status"
               key="status"
+              sorter={(a, b) => {
+                const order = ['PROCESSING', 'PENDING', 'FAILED', 'COMPLETED'];
+                const idxA = order.indexOf(a.status);
+                const idxB = order.indexOf(b.status);
+                return idxA - idxB;
+              }}
               render={(status) => (
                 <Tag color={
                   status === 'COMPLETED' ? 'green' :
