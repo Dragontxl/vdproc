@@ -56,6 +56,8 @@ export default function Tasks() {
         prompt: values.prompt,
         output_fps: values.outputFps,
         priority: values.priority,
+        analyze_dialogue_language: values.analyzeDialogueLanguage || null,
+        analyze_dialogue_style: values.analyzeDialogueStyle || null,
       });
       message.success('任务创建成功');
       setIsModalOpen(false);
@@ -287,6 +289,24 @@ export default function Tasks() {
           </Form.Item>
           <Form.Item name="prompt" label="提示词" initialValue="修改为美式动画风格，保留原始图片的元素和内容, 只改变风格。">
             <Input.TextArea placeholder="AI生成提示词" rows={3} />
+          </Form.Item>
+          <Form.Item name="analyzeDialogueLanguage" label="分析阶段-对话语言">
+            <Select allowClear placeholder="不设置则由 AI 自行处理">
+              <Option value="chinese">中文</Option>
+              <Option value="english">英文</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="analyzeDialogueStyle" label="分析阶段-对话文风">
+            <Select allowClear placeholder="不设置则由 AI 自行处理">
+              <Option value="plain">平实朴素</Option>
+              <Option value="ornate">华丽典雅</Option>
+              <Option value="fresh">清新自然</Option>
+              <Option value="solemn">厚重沉稳</Option>
+              <Option value="humorous">幽默诙谐</Option>
+              <Option value="sharp">犀利尖锐</Option>
+              <Option value="gentle">温婉细腻</Option>
+              <Option value="restrained">冷峻克制</Option>
+            </Select>
           </Form.Item>
           <Form.Item name="fps" label="抽帧帧率" initialValue={24}>
             <InputNumber min={1} max={120} />

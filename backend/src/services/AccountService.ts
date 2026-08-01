@@ -12,7 +12,7 @@ type D1ResultType = {
 export class AccountService {
   private cryptoService: CryptoService;
 
-  constructor(private env: Bindings) {
+  constructor(public env: Bindings) {
     this.cryptoService = new CryptoService(env);
   }
 

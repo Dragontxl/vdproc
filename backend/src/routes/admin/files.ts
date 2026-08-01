@@ -32,7 +32,7 @@ async function purgeCloudflareCache(c: any, keys: string[]) {
       }),
     });
 
-    const result = await response.json();
+    const result = await response.json() as any;
 
     if (result.success) {
       console.log('Cloudflare cache purge successful:', result);
@@ -85,7 +85,7 @@ fileRoutes.get('/', async (c) => {
           }
           
           folderTruncated = folderObjects.truncated;
-          folderCursor = folderObjects.cursor;
+          folderCursor = (folderObjects as any).cursor;
         }
         
         files.push({
@@ -124,7 +124,7 @@ fileRoutes.get('/', async (c) => {
         files,
         prefix,
         isTruncated: objects.truncated,
-        cursor: objects.cursor,
+        cursor: (objects as any).cursor,
       },
       msg: 'success',
     });
@@ -279,7 +279,7 @@ fileRoutes.delete('/:filename', async (c) => {
         });
 
         truncated = objects.truncated;
-        cursor = objects.cursor;
+        cursor = (objects as any).cursor;
 
         if (objects.objects) {
           for (const obj of objects.objects) {
@@ -299,7 +299,7 @@ fileRoutes.delete('/:filename', async (c) => {
                 limit: 1000,
               });
               subTruncated = subObjects.truncated;
-              subCursor = subObjects.cursor;
+              subCursor = (subObjects as any).cursor;
               if (subObjects.objects) {
                 for (const obj of subObjects.objects) {
                   await R2.delete(obj.key);
@@ -433,7 +433,7 @@ fileRoutes.post('/upload', async (c) => {
   
   try {
     const formData = await c.req.formData();
-    const file = formData.get('file') as File;
+    const file = formData.get('file') as unknown as File;
     const prefix = (formData.get('prefix') as string) || '';
     
     if (!file) {
@@ -488,7 +488,7 @@ fileRoutes.post('/batch-upload', async (c) => {
   
   try {
     const formData = await c.req.formData();
-    const files = formData.getAll('files') as File[];
+    const files = formData.getAll('files') as unknown as File[];
     const prefix = (formData.get('prefix') as string) || '';
     
     if (files.length === 0) {
@@ -611,7 +611,7 @@ fileRoutes.post('/multipart/upload', async (c) => {
     const uploadId = formData.get('uploadId') as string;
     const partNumberStr = formData.get('partNumber') as string;
     const key = formData.get('key') as string;
-    const file = formData.get('file') as File;
+    const file = formData.get('file') as unknown as File;
     
     if (!uploadId) {
       return c.json({

@@ -35,6 +35,7 @@ export async function scheduled(event: ScheduledEvent, env: Bindings) {
   switch (event.cron) {
     case '*/5 * * * *':
       await processPendingTasks(taskService, configService, accountService);
+      await taskService.cleanupTimedOutSubtasks();
       break;
     
     case '*/30 * * * *':

@@ -21,11 +21,12 @@ publicFileRoutes.get('/version/:filename', async (c) => {
       }, 404);
     }
 
-    const lastModified = object.httpMetadata?.lastModified 
-      ? new Date(object.httpMetadata.lastModified).toISOString() 
+    const md = object.httpMetadata as any;
+    const lastModified = md?.lastModified 
+      ? new Date(md.lastModified).toISOString() 
       : new Date().toISOString();
     
-    const etag = object.httpMetadata?.etag || `"${lastModified}-${object.size}"`;
+    const etag = md?.etag || `"${lastModified}-${object.size}"`;
     
     return c.json({
       code: 200,
@@ -106,12 +107,12 @@ publicFileRoutes.get('/preview/:filename', async (c) => {
       headers.set('Cache-Control', 'public, max-age=3600');
     }
     
-    if (object.httpMetadata?.etag) {
-      headers.set('ETag', object.httpMetadata.etag);
+    if ((object.httpMetadata as any)?.etag) {
+      headers.set('ETag', (object.httpMetadata as any).etag);
     }
     
-    if (object.httpMetadata?.lastModified) {
-      headers.set('Last-Modified', new Date(object.httpMetadata.lastModified).toUTCString());
+    if ((object.httpMetadata as any)?.lastModified) {
+      headers.set('Last-Modified', new Date((object.httpMetadata as any).lastModified).toUTCString());
     }
     
     if (range) {
@@ -220,7 +221,7 @@ publicFileRoutes.post('/purge', async (c) => {
       }),
     });
 
-    const result = await response.json();
+    const result = await response.json() as any;
 
     if (result.success) {
       console.log('Cloudflare cache purge successful:', result);
@@ -252,7 +253,7 @@ publicFileRoutes.post('/purge', async (c) => {
 
 publicFileRoutes.get('/nocache/*', async (c) => {
   const { R2 } = c.env as Bindings;
-  const key = decodeURIComponent(c.req.param('*'));
+  const key = decodeURIComponent(c.req.param('*') || '');
 
   console.log('No-cache file request:', { key });
 
@@ -298,12 +299,12 @@ publicFileRoutes.get('/nocache/*', async (c) => {
     headers.set('Pragma', 'no-cache');
     headers.set('Expires', '0');
     
-    if (object.httpMetadata?.etag) {
-      headers.set('ETag', object.httpMetadata.etag);
+    if ((object.httpMetadata as any)?.etag) {
+      headers.set('ETag', (object.httpMetadata as any).etag);
     }
     
-    if (object.httpMetadata?.lastModified) {
-      headers.set('Last-Modified', new Date(object.httpMetadata.lastModified).toUTCString());
+    if ((object.httpMetadata as any)?.lastModified) {
+      headers.set('Last-Modified', new Date((object.httpMetadata as any).lastModified).toUTCString());
     }
     
     return new Response(object.body, {

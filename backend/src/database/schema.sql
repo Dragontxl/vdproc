@@ -30,8 +30,15 @@ CREATE TABLE IF NOT EXISTS tasks (
     error_stack TEXT,
     tags TEXT,
     priority INTEGER DEFAULT 0,
-    status_message TEXT
+    status_message TEXT,
+    analyze_dialogue_language TEXT,
+    analyze_dialogue_style TEXT
 );
+
+-- Migration: add analyze_dialogue_language and analyze_dialogue_style columns to existing tasks table
+-- Re-run this section after schema change if the table already exists (D1 does not support IF NOT EXISTS on ADD COLUMN)
+-- ALTER TABLE tasks ADD COLUMN analyze_dialogue_language TEXT;
+-- ALTER TABLE tasks ADD COLUMN analyze_dialogue_style TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);

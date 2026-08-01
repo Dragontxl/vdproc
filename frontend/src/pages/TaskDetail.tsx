@@ -184,6 +184,28 @@ export default function TaskDetail() {
     }
   };
 
+  const handleRefreshSubtasks = async () => {
+    setSubtaskLoading(true);
+    console.log('handleRefreshSubtasks called, taskId:', id);
+    try {
+      const cleanupResult: any = await taskApi.cleanupStaleSubtasks(id!);
+      console.log('cleanupStaleSubtasks result:', JSON.stringify(cleanupResult, null, 2));
+      const cleanedCount = cleanupResult.data?.cleaned_count || 0;
+      const cleanupMsg = cleanupResult.msg || '';
+      console.log('cleanedCount:', cleanedCount, 'msg:', cleanupMsg);
+      if (cleanedCount > 0) {
+        message.success(cleanupMsg);
+      }
+      await loadSubtasks(selectedSubtaskPhase as TaskPhase);
+    } catch (error: any) {
+      console.error('cleanupStaleSubtasks error:', error);
+      const msg = error.response?.data?.msg || '刷新失败';
+      message.error(msg);
+    } finally {
+      setSubtaskLoading(false);
+    }
+  };
+
   const handleRunSubtask = async (phase: string, index: number) => {
     try {
       const key = `${phase}-${index}`;
@@ -605,7 +627,7 @@ export default function TaskDetail() {
               <Option key={p} value={p}>{phaseConfig[p].label}</Option>
             ))}
           </Select>
-          <Button type="primary" onClick={() => loadSubtasks(selectedSubtaskPhase as TaskPhase)} disabled={!selectedSubtaskPhase}>
+          <Button type="primary" onClick={handleRefreshSubtasks} disabled={!selectedSubtaskPhase} loading={subtaskLoading}>
             刷新
           </Button>
           <div style={{ flex: 1 }} />
@@ -643,7 +665,13 @@ export default function TaskDetail() {
               width={140}
               render={(_, record) => {
                 const label = phaseConfig[record.phase as TaskPhase]?.label || record.phase;
-                return <Tag color="blue">{label}-{record.subtask_index}</Tag>;
+                let displayIndex = record.subtask_index;
+                if (record.phase === 'CONVERT_FRAMES') {
+                  displayIndex = Math.floor(record.subtask_index / 2);
+                  const frameType = record.subtask_index % 2 === 0 ? '首帧' : '尾帧';
+                  return <Tag color="blue">{label}-{displayIndex}({frameType})</Tag>;
+                }
+                return <Tag color="blue">{label}-{displayIndex}</Tag>;
               }}
             />
             <Table.Column

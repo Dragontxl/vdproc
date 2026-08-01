@@ -78,11 +78,15 @@ jobs:
           PROMPT=$(echo "$CONFIG_JSON" | jq -r '.prompt // ""')
           OUTPUT_FPS=$(echo "$CONFIG_JSON" | jq -r '.output_fps // 24')
           MAX_CONCURRENT=$(echo "$CONFIG_JSON" | jq -r '.max_concurrent // 2')
+          ANALYZE_DIALOGUE_LANGUAGE=$(echo "$CONFIG_JSON" | jq -r '.analyze_dialogue_language // ""')
+          ANALYZE_DIALOGUE_STYLE=$(echo "$CONFIG_JSON" | jq -r '.analyze_dialogue_style // ""')
           echo "VIDEO_PATH=$VIDEO_PATH" >> $GITHUB_OUTPUT
           echo "FPS=$FPS" >> $GITHUB_OUTPUT
           echo "PROMPT=$PROMPT" >> $GITHUB_OUTPUT
           echo "OUTPUT_FPS=$OUTPUT_FPS" >> $GITHUB_OUTPUT
           echo "MAX_CONCURRENT=$MAX_CONCURRENT" >> $GITHUB_OUTPUT
+          echo "ANALYZE_DIALOGUE_LANGUAGE=$ANALYZE_DIALOGUE_LANGUAGE" >> $GITHUB_OUTPUT
+          echo "ANALYZE_DIALOGUE_STYLE=$ANALYZE_DIALOGUE_STYLE" >> $GITHUB_OUTPUT
 
       - name: Run range processing (single Docker container)
         env:
@@ -94,6 +98,8 @@ jobs:
           PROMPT: ${{ steps.parse_config.outputs.PROMPT }}
           OUTPUT_FPS: ${{ steps.parse_config.outputs.OUTPUT_FPS }}
           MAX_CONCURRENT: ${{ steps.parse_config.outputs.MAX_CONCURRENT }}
+          ANALYZE_DIALOGUE_LANGUAGE: ${{ steps.parse_config.outputs.ANALYZE_DIALOGUE_LANGUAGE }}
+          ANALYZE_DIALOGUE_STYLE: ${{ steps.parse_config.outputs.ANALYZE_DIALOGUE_STYLE }}
           START_PHASE: ${{ inputs.start_phase || github.event.client_payload.start_phase }}
           END_PHASE: ${{ inputs.end_phase || github.event.client_payload.end_phase }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -117,6 +123,8 @@ jobs:
             -e PROMPT="$PROMPT" \
             -e OUTPUT_FPS="$OUTPUT_FPS" \
             -e MAX_CONCURRENT="$MAX_CONCURRENT" \
+            -e ANALYZE_DIALOGUE_LANGUAGE="$ANALYZE_DIALOGUE_LANGUAGE" \
+            -e ANALYZE_DIALOGUE_STYLE="$ANALYZE_DIALOGUE_STYLE" \
             -e START_PHASE="$START_PHASE" \
             -e END_PHASE="$END_PHASE" \
             -e R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \

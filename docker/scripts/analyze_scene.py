@@ -16,6 +16,8 @@ R2_ACCESS_KEY_ID = os.environ.get('R2_ACCESS_KEY_ID')
 R2_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY')
 R2_ENDPOINT_URL = os.environ.get('R2_ENDPOINT_URL')
 R2_BUCKET_NAME = os.environ.get('R2_BUCKET_NAME')
+ANALYZE_DIALOGUE_LANGUAGE = os.environ.get('ANALYZE_DIALOGUE_LANGUAGE', '').strip()
+ANALYZE_DIALOGUE_STYLE = os.environ.get('ANALYZE_DIALOGUE_STYLE', '').strip()
 
 MODEL_PRIORITY_LIST = [
     "models/gemini-3.6-flash",
@@ -23,6 +25,22 @@ MODEL_PRIORITY_LIST = [
     "models/gemini-3.1-flash-lite",
 ]
 MAX_RETRIES_PER_MODEL = 3
+
+LANG_CN_MAP = {
+    'chinese': '中文',
+    'english': '英文',
+}
+
+STYLE_CN_MAP = {
+    'plain': '平实朴素',
+    'ornate': '华丽典雅',
+    'fresh': '清新自然',
+    'solemn': '厚重沉稳',
+    'humorous': '幽默诙谐',
+    'sharp': '犀利尖锐',
+    'gentle': '温婉细腻',
+    'restrained': '冷峻克制',
+}
 
 WORK_DIR = f"/tmp/{TASK_ID}"
 
@@ -645,6 +663,8 @@ def main():
         log(f"  VIDEO_PATH: {VIDEO_PATH}")
         log(f"  R2_BUCKET_NAME: {R2_BUCKET_NAME}")
         log(f"  MODEL_PRIORITY_LIST: {MODEL_PRIORITY_LIST}")
+        log(f"  ANALYZE_DIALOGUE_LANGUAGE: {ANALYZE_DIALOGUE_LANGUAGE!r}")
+        log(f"  ANALYZE_DIALOGUE_STYLE: {ANALYZE_DIALOGUE_STYLE!r}")
         
         genai.configure(api_key=AI_API_KEY)
         log("Google GenerativeAI configured")
@@ -690,7 +710,17 @@ def main():
         else:
             subtitle_section = "字幕内容：无（请从视频中识别对话）"
             subtitle_instruction = "未提供字幕文件，请从视频中分析识别对话内容。"
-        
+
+        dialogue_directive = ''
+        if ANALYZE_DIALOGUE_LANGUAGE or ANALYZE_DIALOGUE_STYLE:
+            parts = []
+            if ANALYZE_DIALOGUE_LANGUAGE in LANG_CN_MAP:
+                parts.append(f"所有 dialogues 中的 text 必须统一翻译为{LANG_CN_MAP[ANALYZE_DIALOGUE_LANGUAGE]}")
+            if ANALYZE_DIALOGUE_STYLE in STYLE_CN_MAP:
+                parts.append(f"对话文风须采用「{STYLE_CN_MAP[ANALYZE_DIALOGUE_STYLE]}」的风格进行表述，保持人物性格与语境一致")
+            if parts:
+                dialogue_directive = "\n对话处理要求（用户指定，优先级最高，仅作用于 dialogues.text 字段，不影响其他字段语言和内容）：\n" + "；".join(parts) + "。\n"
+
         prompt_text = f"""你是一个专业的视频分析助手。请分析以下视频的剧情和分镜结构。
 
 视频信息：
@@ -700,7 +730,7 @@ def main():
 {subtitle_section}
 
 {subtitle_instruction}
-
+{dialogue_directive}
 分析要求：
 1. 总结整体视频的核心内容，包括故事主题、主要角色关系、关键情节发展
 2. 严格按照提供的场景切分结果（scenes）进行分镜划分，每个场景作为一个分镜

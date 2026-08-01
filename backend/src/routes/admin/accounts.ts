@@ -116,7 +116,7 @@ accountRoutes.post('/ai/:id/health', async (c) => {
 
 accountRoutes.get('/ai/:id/debug', async (c) => {
   const cryptoService = new CryptoService(c.env as Bindings);
-  const result = await c.env.DB.prepare('SELECT id, api_key_encrypted, base_url FROM ai_accounts WHERE id = ?')
+  const result = await (c.env as Bindings).DB.prepare('SELECT id, api_key_encrypted, base_url FROM ai_accounts WHERE id = ?')
     .bind(parseInt(c.req.param('id'))).first();
 
   if (!result) {

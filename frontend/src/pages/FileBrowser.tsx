@@ -445,13 +445,15 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
 
       message.info(`开始上传 ${filesToUpload.length} 个文件...`);
 
-      for (const { file, relativePath } of filesToUpload) {
+      const uploadPromises = filesToUpload.map(({ file, relativePath }) => {
         const folderPath = relativePath.substring(0, relativePath.lastIndexOf('/'));
         const uploadPrefix = folderPath ? `${currentPath}${folderPath}/` : currentPath;
-        await handleUpload(file, uploadPrefix);
-      }
+        return handleUpload(file, uploadPrefix);
+      });
 
-      message.success(`上传完成`);
+      await Promise.all(uploadPromises);
+
+      message.success(`上传完成，共 ${filesToUpload.length} 个文件`);
     } catch (error) {
       message.error('拖放上传失败');
     }

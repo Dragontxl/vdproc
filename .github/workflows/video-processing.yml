@@ -102,6 +102,8 @@ jobs:
           PARSED_PROMPT: ${{ fromJSON(inputs.config || github.event.client_payload.config || '{}').prompt || inputs.prompt || github.event.client_payload.prompt || '' }}
           PARSED_OUTPUT_FPS: ${{ fromJSON(inputs.config || github.event.client_payload.config || '{}').output_fps || inputs.output_fps || github.event.client_payload.output_fps || 24 }}
           PARSED_MAX_CONCURRENT: ${{ fromJSON(inputs.config || github.event.client_payload.config || '{}').max_concurrent || inputs.max_concurrent || github.event.client_payload.max_concurrent || 2 }}
+          PARSED_ANALYZE_DIALOGUE_LANGUAGE: ${{ fromJSON(inputs.config || github.event.client_payload.config || '{}').analyze_dialogue_language || inputs.analyze_dialogue_language || github.event.client_payload.analyze_dialogue_language || '' }}
+          PARSED_ANALYZE_DIALOGUE_STYLE: ${{ fromJSON(inputs.config || github.event.client_payload.config || '{}').analyze_dialogue_style || inputs.analyze_dialogue_style || github.event.client_payload.analyze_dialogue_style || '' }}
         run: |
           echo "DEBUG_CONFIG_JSON: $CONFIG_JSON"
           echo "VIDEO_PATH=$PARSED_VIDEO_PATH" >> $GITHUB_OUTPUT
@@ -109,12 +111,16 @@ jobs:
           echo "PROMPT=$PARSED_PROMPT" >> $GITHUB_OUTPUT
           echo "OUTPUT_FPS=$PARSED_OUTPUT_FPS" >> $GITHUB_OUTPUT
           echo "MAX_CONCURRENT=$PARSED_MAX_CONCURRENT" >> $GITHUB_OUTPUT
+          echo "ANALYZE_DIALOGUE_LANGUAGE=$PARSED_ANALYZE_DIALOGUE_LANGUAGE" >> $GITHUB_OUTPUT
+          echo "ANALYZE_DIALOGUE_STYLE=$PARSED_ANALYZE_DIALOGUE_STYLE" >> $GITHUB_OUTPUT
           
           echo "Parsed VIDEO_PATH: '$PARSED_VIDEO_PATH'"
           echo "Parsed FPS: '$PARSED_FPS'"
           echo "Parsed PROMPT: '$PARSED_PROMPT'"
           echo "Parsed OUTPUT_FPS: '$PARSED_OUTPUT_FPS'"
           echo "Parsed MAX_CONCURRENT: '$PARSED_MAX_CONCURRENT'"
+          echo "Parsed ANALYZE_DIALOGUE_LANGUAGE: '$PARSED_ANALYZE_DIALOGUE_LANGUAGE'"
+          echo "Parsed ANALYZE_DIALOGUE_STYLE: '$PARSED_ANALYZE_DIALOGUE_STYLE'"
 
       - name: Run shot detection phase
         if: ${{ steps.get_phase_order.outputs.detect >= steps.get_phase_order.outputs.start && steps.get_phase_order.outputs.detect <= steps.get_phase_order.outputs.end }}
@@ -151,6 +157,8 @@ jobs:
           GH_ACCOUNT_ID: ${{ inputs.gh_account_id || github.event.client_payload.gh_account_id }}
           AI_ACCOUNT_ID: ${{ inputs.ai_account_id || github.event.client_payload.ai_account_id }}
           VIDEO_PATH: ${{ steps.parse_config.outputs.VIDEO_PATH }}
+          ANALYZE_DIALOGUE_LANGUAGE: ${{ steps.parse_config.outputs.ANALYZE_DIALOGUE_LANGUAGE }}
+          ANALYZE_DIALOGUE_STYLE: ${{ steps.parse_config.outputs.ANALYZE_DIALOGUE_STYLE }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
@@ -166,6 +174,8 @@ jobs:
             -e GH_ACCOUNT_ID="$GH_ACCOUNT_ID" \
             -e AI_ACCOUNT_ID="$AI_ACCOUNT_ID" \
             -e VIDEO_PATH="$VIDEO_PATH" \
+            -e ANALYZE_DIALOGUE_LANGUAGE="$ANALYZE_DIALOGUE_LANGUAGE" \
+            -e ANALYZE_DIALOGUE_STYLE="$ANALYZE_DIALOGUE_STYLE" \
             -e R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
             -e R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
             -e R2_ENDPOINT_URL="$R2_ENDPOINT_URL" \

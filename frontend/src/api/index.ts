@@ -56,6 +56,7 @@ export const taskApi = {
   batchRunSubtasks: (id: string, subtasks: { phase: string; subtask_index: number }[], customPrompts: Record<string, string>) =>
     api.post(`/admin/tasks/${id}/subtasks/batch-run`, { subtasks, custom_prompts: customPrompts }),
   createSubtask: (id: string, data: { phase: string; subtask_index: number; subtask_type: string; input_path?: string; metadata?: string }) => api.post(`/admin/tasks/${id}/subtasks`, data),
+  cleanupStaleSubtasks: (id: string) => api.post(`/admin/tasks/${id}/subtasks/cleanup-stale`),
 };
 
 export const accountApi = {

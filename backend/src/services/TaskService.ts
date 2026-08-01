@@ -23,7 +23,7 @@ const phasesRequiringAI: Partial<Record<TaskPhase, string>> = {
 export class TaskService {
   private cryptoService: CryptoService;
 
-  constructor(private env: Bindings) {
+  constructor(public env: Bindings) {
     this.cryptoService = new CryptoService(env);
   }
 
@@ -42,6 +42,8 @@ export class TaskService {
     outputFps: number;
     priority?: number;
     tags?: string;
+    analyzeDialogueLanguage?: string;
+    analyzeDialogueStyle?: string;
   }): Promise<Task> {
     const task: Task = {
       id: this.generateUUID(data.title),
@@ -62,11 +64,13 @@ export class TaskService {
       retry_count: 0,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      analyze_dialogue_language: data.analyzeDialogueLanguage || null,
+      analyze_dialogue_style: data.analyzeDialogueStyle || null,
     };
 
     await this.env.DB.prepare(`
-      INSERT INTO tasks (id, user_id, title, status, current_phase, video_path, fps, prompt, output_fps, priority, tags, progress, total_frames, processed_frames, failed_frames, retry_count, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO tasks (id, user_id, title, status, current_phase, video_path, fps, prompt, output_fps, priority, tags, progress, total_frames, processed_frames, failed_frames, retry_count, created_at, updated_at, analyze_dialogue_language, analyze_dialogue_style)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
       .bind(
         task.id,
@@ -86,7 +90,9 @@ export class TaskService {
         task.failed_frames || 0,
         task.retry_count,
         task.created_at,
-        task.updated_at
+        task.updated_at,
+        task.analyze_dialogue_language,
+        task.analyze_dialogue_style
       )
       .run();
 
@@ -121,7 +127,7 @@ export class TaskService {
     params.push(limit, offset);
 
     const result = await this.env.DB.prepare(query).bind(...params).all();
-    return result.results as Task[];
+    return (result.results as unknown) as Task[];
   }
 
   async updateTask(id: string, data: Partial<Task>): Promise<Task | null> {
@@ -145,7 +151,24 @@ export class TaskService {
     const result = await this.env.DB.prepare(
       `DELETE FROM tasks WHERE id = ?`
     ).bind(id).run();
-    return result.changes > 0;
+    return (result as any).changes > 0;
+  }
+
+  async batchCreateTasks(tasksData: Array<{
+    title: string;
+    videoPath: string;
+    fps: number;
+    prompt: string;
+    outputFps: number;
+    priority?: number;
+    tags?: string;
+  }>): Promise<Task[]> {
+    const results: Task[] = [];
+    for (const data of tasksData) {
+      const task = await this.createTask(data);
+      results.push(task);
+    }
+    return results;
   }
 
   async startTask(id: string): Promise<Task | null> {
@@ -228,7 +251,7 @@ export class TaskService {
       if (!isRangeExecution) {
         const requiredApiType = phasesRequiringAI[phase];
         if (requiredApiType) {
-          if (!aiAccountId) {
+          if (!aiAccountId && ghAccountId !== undefined) {
             aiAccount = await new accountService.AccountService(this.env).selectAIAccountForGitHub(ghAccountId, requiredApiType);
             if (!aiAccount) {
               console.error('triggerPhase: No available AI account for phase:', phase);
@@ -257,7 +280,7 @@ export class TaskService {
           }
         }
         
-        await this.dispatchRangeWorkflow(taskId, effectiveStartPhase, effectiveEndPhase, ghAccountId);
+        await this.dispatchRangeWorkflow(taskId, effectiveStartPhase, effectiveEndPhase, ghAccountId as number);
       }
       
       await this.env.DB.prepare(`
@@ -411,6 +434,8 @@ export class TaskService {
           prompt: task.prompt,
           output_fps: task.output_fps,
           max_concurrent: maxConcurrent,
+          analyze_dialogue_language: task.analyze_dialogue_language || '',
+          analyze_dialogue_style: task.analyze_dialogue_style || '',
         }),
       },
     };
@@ -551,6 +576,8 @@ export class TaskService {
           prompt: task.prompt,
           output_fps: task.output_fps,
           max_concurrent: maxConcurrent,
+          analyze_dialogue_language: task.analyze_dialogue_language || '',
+          analyze_dialogue_style: task.analyze_dialogue_style || '',
         }),
       },
     };
@@ -598,6 +625,12 @@ export class TaskService {
 
     console.log('updateTaskProgress called:', { taskId, phase, processedCount, totalCount, failedCount, message });
 
+    const taskResult = await this.env.DB.prepare('SELECT status FROM tasks WHERE id = ?').bind(taskId).first() as any;
+    if (taskResult?.status === 'COMPLETED') {
+      console.log('updateTaskProgress: Task', taskId, 'is already completed, skipping progress update');
+      return { success: true, taskId };
+    }
+
     const phaseIndex = phaseOrder.indexOf(phase as TaskPhase);
     const phasesCount = phaseOrder.length;
     const runningStatus = phaseStatusMap[phase as TaskPhase]?.running || phaseStatusMap[phaseOrder[0]].running;
@@ -608,7 +641,7 @@ export class TaskService {
 
       await this.env.DB.prepare(`
         UPDATE tasks SET progress = ?, current_phase = ?, status = ?, processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ?
+        WHERE id = ? AND status != 'COMPLETED'
       `).bind(progress, phase, runningStatus, processedCount, totalCount, taskId).run();
       console.log('updateTaskProgress: Progress updated for task', taskId, 'phase:', phase, 'progress:', progress);
     } else {
@@ -616,7 +649,7 @@ export class TaskService {
 
       await this.env.DB.prepare(`
         UPDATE tasks SET progress = ?, current_phase = ?, status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ?
+        WHERE id = ? AND status != 'COMPLETED'
       `).bind(progress, phase, runningStatus, taskId).run();
       console.log('updateTaskProgress: Phase only updated for task', taskId, 'phase:', phase, 'progress:', progress);
     }
@@ -642,9 +675,9 @@ export class TaskService {
     console.log('handleTaskComplete called:', { taskId, phase, data });
     
     await this.env.DB.prepare(`
-      UPDATE tasks SET status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+      UPDATE tasks SET status = ?, current_phase = ?, progress = 100, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ?
-    `).bind('COMPLETED', taskId).run();
+    `).bind('COMPLETED', phase || 'COMPOSE', taskId).run();
     
     await this.env.DB.prepare(`
       UPDATE ai_accounts SET cooldown_until = NULL 
@@ -873,7 +906,7 @@ export class TaskService {
     const taskResult = await this.env.DB.prepare('SELECT prompt FROM tasks WHERE id = ?').bind(taskId).first() as any;
     const taskPrompt = taskResult?.prompt || '';
     
-    let shotData: Record<number, { positive_prompt: string; scene_description: string; dialogue: string; video_summary: string; characters: any[]; camera_movement: string; dialogues: any[] }> = {};
+    let shotData: Record<number, { positive_prompt: string; scene_description: string; dialogue: string; video_summary: string; characters: any[]; camera_movement: string; dialogues: any[]; first_keyframe_characters: any[]; last_keyframe_characters: any[]; characters_present: string[] }> = {};
 
     try {
       const r2Obj = await this.env.R2.get(`${taskId}/analysis_result.json`);
@@ -893,6 +926,9 @@ export class TaskService {
               characters: characters,
               camera_movement: shot.camera_movement || '',
               dialogues: shot.dialogues || [],
+              first_keyframe_characters: shot.first_keyframe_characters || [],
+              last_keyframe_characters: shot.last_keyframe_characters || [],
+              characters_present: shot.characters_present || [],
             };
           }
         }
@@ -902,17 +938,24 @@ export class TaskService {
     }
 
     if (Object.keys(shotData).length === 0) {
-      const shotsResult = await this.env.DB.prepare('SELECT shot_index, positive_prompt, scene_description, dialogue FROM shot_details WHERE task_id = ?').bind(taskId).all();
-      for (const row of (shotsResult.results || []) as any[]) {
-        shotData[row.shot_index] = {
-          positive_prompt: row.positive_prompt || '',
-          scene_description: row.scene_description || '',
-          dialogue: row.dialogue || '',
-          video_summary: '',
-          characters: [],
-          camera_movement: '',
-          dialogues: [],
-        };
+      try {
+        const shotsResult = await this.env.DB.prepare('SELECT shot_index, positive_prompt, scene_description, dialogue FROM shot_details WHERE task_id = ?').bind(taskId).all();
+        for (const row of (shotsResult.results || []) as any[]) {
+          shotData[row.shot_index] = {
+            positive_prompt: row.positive_prompt || '',
+            scene_description: row.scene_description || '',
+            dialogue: row.dialogue || '',
+            video_summary: '',
+            characters: [],
+            camera_movement: '',
+            dialogues: [],
+            first_keyframe_characters: [],
+            last_keyframe_characters: [],
+            characters_present: [],
+          };
+        }
+      } catch (e) {
+        console.log('Failed to load shot_details from DB:', e);
       }
     }
 
@@ -922,35 +965,59 @@ export class TaskService {
         const sd = shotData[shotIndex];
         
         const characterDescriptions: string[] = [];
-        if (sd.characters && sd.dialogues && Array.isArray(sd.dialogues) && sd.dialogues.length > 0) {
-          const charMap: Record<string, any> = {};
+        const charMap: Record<string, any> = {};
+        if (sd.characters && Array.isArray(sd.characters)) {
           for (const c of sd.characters) {
             charMap[c.role_id] = c;
           }
-          const presentRoles = new Set<string>();
+        }
+
+        const firstPositions: Record<string, { x: number; y: number }> = {};
+        const lastPositions: Record<string, { x: number; y: number }> = {};
+        if (sd.first_keyframe_characters && Array.isArray(sd.first_keyframe_characters)) {
+          for (const c of sd.first_keyframe_characters) {
+            firstPositions[c.role_id] = { x: c.x ?? 0.5, y: c.y ?? 0.3 };
+          }
+        }
+        if (sd.last_keyframe_characters && Array.isArray(sd.last_keyframe_characters)) {
+          for (const c of sd.last_keyframe_characters) {
+            lastPositions[c.role_id] = { x: c.x ?? 0.5, y: c.y ?? 0.3 };
+          }
+        }
+
+        const presentRoles = new Set<string>();
+        if (sd.characters_present && Array.isArray(sd.characters_present)) {
+          for (const roleId of sd.characters_present) {
+            presentRoles.add(roleId);
+          }
+        }
+        if (sd.dialogues && Array.isArray(sd.dialogues)) {
           for (const d of sd.dialogues) {
             if (d.speaker) {
               presentRoles.add(d.speaker);
             }
           }
-          for (const roleId of presentRoles) {
-            const char = charMap[roleId];
-            if (char) {
-              const charName = char.name || '';
-              const gender = char.gender || '';
-              const features = char.permanent_features || '';
-              if (charName && gender && features) {
-                characterDescriptions.push(`${charName}是${gender}，${features}`);
-              } else if (charName && features) {
-                characterDescriptions.push(`${charName}，${features}`);
-              } else if (gender && features) {
-                characterDescriptions.push(`${gender}，${features}`);
-              } else if (features) {
-                characterDescriptions.push(features);
-              } else if (charName) {
-                characterDescriptions.push(charName);
-              }
+        }
+
+        for (const roleId of presentRoles) {
+          const char = charMap[roleId];
+          if (char) {
+            const charName = char.name || roleId;
+            if (firstPositions[roleId]) {
+              const { x, y } = firstPositions[roleId];
+              const xDesc = x < 0.3 ? '左侧' : (x > 0.7 ? '右侧' : '中央');
+              const yDesc = y < 0.3 ? '上方' : (y > 0.7 ? '下方' : '中间');
+              characterDescriptions.push(`${charName}在首帧位于画面${xDesc}${yDesc}`);
+            } else if (lastPositions[roleId]) {
+              const { x, y } = lastPositions[roleId];
+              const xDesc = x < 0.3 ? '左侧' : (x > 0.7 ? '右侧' : '中央');
+              const yDesc = y < 0.3 ? '上方' : (y > 0.7 ? '下方' : '中间');
+              characterDescriptions.push(`${charName}在尾帧位于画面${xDesc}${yDesc}`);
+            } else {
+              characterDescriptions.push(charName);
             }
+          } else {
+            characterDescriptions.push(roleId);
           }
         }
 
@@ -1006,7 +1073,7 @@ export class TaskService {
           original_prompt: originalPrompt,
         });
       }
-      subtasks.sort((a, b) => a.subtask_index - b.subtask_index);
+      subtasks.sort((a: any, b: any) => (a.subtask_index as number) - (b.subtask_index as number));
     }
 
     for (const subtask of subtasks as any[]) {
@@ -1024,31 +1091,53 @@ export class TaskService {
                 charMap[c.role_id] = c;
               }
             }
-            if (sd.dialogues && Array.isArray(sd.dialogues) && sd.dialogues.length > 0) {
-              const presentRoles = new Set<string>();
+
+            const firstPositions: Record<string, { x: number; y: number }> = {};
+            const lastPositions: Record<string, { x: number; y: number }> = {};
+            if (sd.first_keyframe_characters && Array.isArray(sd.first_keyframe_characters)) {
+              for (const c of sd.first_keyframe_characters) {
+                firstPositions[c.role_id] = { x: c.x ?? 0.5, y: c.y ?? 0.3 };
+              }
+            }
+            if (sd.last_keyframe_characters && Array.isArray(sd.last_keyframe_characters)) {
+              for (const c of sd.last_keyframe_characters) {
+                lastPositions[c.role_id] = { x: c.x ?? 0.5, y: c.y ?? 0.3 };
+              }
+            }
+
+            const presentRoles = new Set<string>();
+            if (sd.characters_present && Array.isArray(sd.characters_present)) {
+              for (const roleId of sd.characters_present) {
+                presentRoles.add(roleId);
+              }
+            }
+            if (sd.dialogues && Array.isArray(sd.dialogues)) {
               for (const d of sd.dialogues) {
                 if (d.speaker) {
                   presentRoles.add(d.speaker);
                 }
               }
-              for (const roleId of presentRoles) {
-                const char = charMap[roleId];
-                if (char) {
-                  const charName = char.name || '';
-                  const gender = char.gender || '';
-                  const features = char.permanent_features || '';
-                  if (charName && gender && features) {
-                    characterDescriptions.push(`${charName}是${gender}，${features}`);
-                  } else if (charName && features) {
-                    characterDescriptions.push(`${charName}，${features}`);
-                  } else if (gender && features) {
-                    characterDescriptions.push(`${gender}，${features}`);
-                  } else if (features) {
-                    characterDescriptions.push(features);
-                  } else if (charName) {
-                    characterDescriptions.push(charName);
-                  }
+            }
+
+            for (const roleId of presentRoles) {
+              const char = charMap[roleId];
+              if (char) {
+                const charName = char.name || roleId;
+                if (firstPositions[roleId]) {
+                  const { x, y } = firstPositions[roleId];
+                  const xDesc = x < 0.3 ? '左侧' : (x > 0.7 ? '右侧' : '中央');
+                  const yDesc = y < 0.3 ? '上方' : (y > 0.7 ? '下方' : '中间');
+                  characterDescriptions.push(`${charName}在首帧位于画面${xDesc}${yDesc}`);
+                } else if (lastPositions[roleId]) {
+                  const { x, y } = lastPositions[roleId];
+                  const xDesc = x < 0.3 ? '左侧' : (x > 0.7 ? '右侧' : '中央');
+                  const yDesc = y < 0.3 ? '上方' : (y > 0.7 ? '下方' : '中间');
+                  characterDescriptions.push(`${charName}在尾帧位于画面${xDesc}${yDesc}`);
+                } else {
+                  characterDescriptions.push(charName);
                 }
+              } else {
+                characterDescriptions.push(roleId);
               }
             }
 
@@ -1142,7 +1231,7 @@ export class TaskService {
       throw new Error('Subtask not found');
     }
     
-    if (!taskResult || !taskResult.github_account_id) {
+    if (!taskResult || !(taskResult as any).github_account_id) {
       throw new Error('Task or GitHub account not found');
     }
     
@@ -1460,7 +1549,7 @@ export class TaskService {
     aiApiKey: string;
     aiBaseUrl: string;
   }> {
-    const lockedAccounts = await this.lockAIAccounts(apiType, maxConcurrent, ghAccountId);
+    const lockedAccounts = await this.lockAIAccounts(apiType, maxConcurrent, ghAccountId !== undefined ? String(ghAccountId) : undefined);
     if (lockedAccounts.length === 0) {
       return { aiAccountsJson: '', aiApiKey: '', aiBaseUrl: '' };
     }
@@ -1501,5 +1590,88 @@ export class TaskService {
     const timestamp = `${year}${month}${day}${hour}${minute}`;
     const randomSuffix = Math.random().toString(36).substring(2, 8);
     return `${truncatedTitle}${timestamp}${randomSuffix}`;
+  }
+
+  async cleanupTimedOutSubtasks(timeoutMinutes: number = 60, taskId?: string): Promise<number> {
+    let query = `
+      UPDATE phase_subtasks
+      SET status = 'FAILED',
+          error_msg = ?,
+          completed_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          retry_count = retry_count + 1
+      WHERE status = 'PROCESSING'
+        AND started_at IS NOT NULL
+        AND STRFTIME('%s', 'now') - STRFTIME('%s', started_at) > ?
+    `;
+    const binds: any[] = [`Subtask timed out after ${timeoutMinutes} minutes`, timeoutMinutes * 60];
+
+    if (taskId) {
+      query += ` AND task_id = ?`;
+      binds.push(taskId);
+    }
+
+    query += ` AND id IN (SELECT MAX(id) FROM phase_subtasks WHERE task_id = phase_subtasks.task_id AND phase = phase_subtasks.phase AND subtask_index = phase_subtasks.subtask_index)`;
+
+    const result = await this.env.DB.prepare(query).bind(...binds).run();
+
+    const changedRows = (result as any).changes || 0;
+    if (changedRows > 0) {
+      console.log(`cleanupTimedOutSubtasks: Marked ${changedRows} subtasks as FAILED due to timeout`);
+
+      await this.env.DB.prepare(`
+        UPDATE ai_accounts SET cooldown_until = NULL
+        WHERE cooldown_until IS NOT NULL
+      `).run();
+      console.log('cleanupTimedOutSubtasks: Released all locked AI accounts');
+    }
+
+    return changedRows;
+  }
+
+  async cleanupStaleSubtasks(taskId?: string): Promise<number> {
+    let debugQuery = `SELECT id, task_id, phase, subtask_index, status FROM phase_subtasks WHERE status = 'PROCESSING'`;
+    if (taskId) {
+      debugQuery += ` AND task_id = ?`;
+    }
+    const debugResult = await this.env.DB.prepare(debugQuery).bind(...(taskId ? [taskId] : [])).all();
+    console.log(`cleanupStaleSubtasks debug: Found ${debugResult.results?.length || 0} PROCESSING subtasks`, JSON.stringify(debugResult.results));
+
+    let query = `
+      UPDATE phase_subtasks
+      SET status = 'FAILED',
+          error_msg = ?,
+          completed_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          retry_count = retry_count + 1
+      WHERE status = 'PROCESSING'
+    `;
+    const binds: any[] = ['Subtask marked as FAILED by manual refresh (stale status)'];
+
+    if (taskId) {
+      query += ` AND task_id = ?`;
+      binds.push(taskId);
+    }
+
+    query += ` AND id IN (SELECT MAX(id) FROM phase_subtasks WHERE 1=1`;
+    if (taskId) {
+      query += ` AND task_id = ?`;
+      binds.push(taskId);
+    }
+    query += ` GROUP BY phase, subtask_index)`;
+
+    const result = await this.env.DB.prepare(query).bind(...binds).run();
+
+    const changedRows = (result as any).changes || 0;
+    console.log(`cleanupStaleSubtasks: Changed ${changedRows} rows`);
+    if (changedRows > 0) {
+      console.log(`cleanupStaleSubtasks: Marked ${changedRows} subtasks as FAILED by manual refresh`);
+
+      await this.env.DB.prepare(`
+        UPDATE ai_accounts SET cooldown_until = NULL
+        WHERE cooldown_until IS NOT NULL
+      `).run();
+      console.log('cleanupStaleSubtasks: Released all locked AI accounts');
+    }
+
+    return changedRows;
   }
 }

@@ -41,6 +41,8 @@ taskRoutes.post('/', async (c) => {
       outputFps: body.output_fps || 30,
       priority: body.priority || 0,
       tags: body.tags || '',
+      analyzeDialogueLanguage: body.analyze_dialogue_language || undefined,
+      analyzeDialogueStyle: body.analyze_dialogue_style || undefined,
     });
     
     try {
@@ -109,7 +111,7 @@ taskRoutes.post('/:id/cancel', async (c) => {
 
 taskRoutes.post('/:id/retry', async (c) => {
   const service = new TaskService(c.env as Bindings);
-  const result = await service.retryFailedTask(c.req.param('id'));
+  const result = await service.retryTask(c.req.param('id'));
   
   if (!result) {
     return c.json({ code: 400, data: null, msg: 'Failed to retry task' }, 400);

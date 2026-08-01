@@ -118,7 +118,9 @@ taskRoutes.get('/:id/subtasks', async (c) => {
   
   try {
     const taskService = new TaskService(c.env as Bindings);
+    console.log('getPhaseSubtasks called with taskId:', id, 'phase:', phase);
     const subtasks = await taskService.getPhaseSubtasks(id, phase);
+    console.log('getPhaseSubtasks completed, found', subtasks.length, 'subtasks');
     
     return c.json({
       code: 200,
@@ -127,6 +129,7 @@ taskRoutes.get('/:id/subtasks', async (c) => {
     });
   } catch (error: any) {
     console.error('Failed to load subtasks:', error);
+    console.error('Error stack:', error.stack);
     return c.json({
       code: 500,
       data: [],
@@ -200,9 +203,9 @@ taskRoutes.post('/:id/subtasks', async (c) => {
   const { id } = c.req.param();
   const body = await c.req.json().catch(() => ({}));
   const { phase, subtask_index, subtask_type, input_path, metadata } = body;
-  
+
   const taskService = new TaskService(c.env as Bindings);
-  
+
   try {
     await taskService.createPhaseSubtask(id, phase, subtask_index, subtask_type, input_path, metadata);
     return c.json({
@@ -211,6 +214,43 @@ taskRoutes.post('/:id/subtasks', async (c) => {
       msg: '子任务创建成功',
     }, 201);
   } catch (error) {
+    return c.json({
+      code: 500,
+      data: null,
+      msg: (error as Error).message,
+    }, 500);
+  }
+});
+
+taskRoutes.post('/:id/subtasks/cleanup-stale', async (c) => {
+  const { id } = c.req.param();
+  const taskService = new TaskService(c.env as Bindings);
+
+  try {
+    const debugResult = await taskService.env.DB.prepare(`
+      SELECT id, task_id, phase, subtask_index, status, started_at, completed_at 
+      FROM phase_subtasks WHERE task_id = ? AND status = 'PROCESSING'
+    `).bind(id).all();
+    const processingSubtasks = debugResult.results || [];
+    
+    const allSubtasksResult = await taskService.env.DB.prepare(`
+      SELECT id, task_id, phase, subtask_index, status 
+      FROM phase_subtasks WHERE task_id = ?
+    `).bind(id).all();
+    const allSubtasks = allSubtasksResult.results || [];
+
+    const cleanedCount = await taskService.cleanupStaleSubtasks(id);
+    return c.json({
+      code: 200,
+      data: { 
+        cleaned_count: cleanedCount,
+        processing_before: processingSubtasks.length,
+        all_before: allSubtasks.length,
+        processing_details: processingSubtasks,
+      },
+      msg: cleanedCount > 0 ? `已清理 ${cleanedCount} 个超时子任务` : '无需清理',
+    });
+  } catch (error: any) {
     return c.json({
       code: 500,
       data: null,

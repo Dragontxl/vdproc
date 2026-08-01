@@ -7,28 +7,32 @@ export interface Task {
   fps: number;
   prompt: string;
   output_fps: number;
-  github_account_id: number;
-  ai_account_id: number;
-  current_run_id: string;
+  github_account_id?: number;
+  ai_account_id?: number;
+  current_run_id?: string;
   current_phase: string;
-  origin_frames_path: string;
-  ai_frames_path: string;
-  final_video_path: string;
-  final_video_url: string;
+  origin_frames_path?: string;
+  ai_frames_path?: string;
+  final_video_path?: string;
+  final_video_url?: string;
+  progress: number;
   total_frames: number;
   processed_frames: number;
   failed_frames: number;
   retry_count: number;
-  max_retries: number;
+  max_retries?: number;
   created_at: string;
   updated_at: string;
-  started_at: string;
-  completed_at: string;
-  expires_at: string;
-  error_msg: string;
-  error_stack: string;
+  started_at?: string;
+  completed_at?: string;
+  expires_at?: string;
+  error_msg?: string;
+  error_stack?: string;
   tags: string;
   priority: number;
+  status_message?: string;
+  analyze_dialogue_language?: string | null;
+  analyze_dialogue_style?: string | null;
 }
 
 export type TaskPhase =
