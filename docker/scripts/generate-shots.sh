@@ -5,7 +5,7 @@ set -e
 export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 
-echo "=== Phase 7: Shot Generation ==="
+echo "=== Phase 5: Shot Generation ==="
 echo "Task ID: $TASK_ID"
 echo "AI Account ID: $AI_ACCOUNT_ID"
 echo "Output FPS: $OUTPUT_FPS"

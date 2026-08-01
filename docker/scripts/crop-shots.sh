@@ -5,7 +5,7 @@ set -e
 export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 
-echo "=== Phase 5: Shot Cropping ==="
+echo "=== Phase 3: Shot Cropping ==="
 echo "Task ID: $TASK_ID"
 
 WORK_DIR="/tmp/$TASK_ID"
@@ -156,7 +156,7 @@ aws s3 cp ./shot_videos/ \
     --recursive \
     --content-type video/mp4
 
-echo "Phase 5 completed: $SHOT_COUNT shots processed"
+echo "Phase 3 completed: $SHOT_COUNT shots processed"
 
 cat > /tmp/result.json <<EOF
 {

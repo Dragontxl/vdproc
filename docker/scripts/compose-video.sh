@@ -5,7 +5,7 @@ set -e
 export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 
-echo "=== Phase 8: Video Composition ==="
+echo "=== Phase 6: Video Composition ==="
 echo "Task ID: $TASK_ID"
 echo "Output FPS: $OUTPUT_FPS"
 
@@ -64,7 +64,7 @@ aws s3 cp "./output_video.mp4" \
 FINAL_URL="$R2_ENDPOINT_URL/${TASK_ID}/output/video.mp4"
 echo "Final video URL: $FINAL_URL"
 
-echo "Phase 8 completed successfully"
+echo "Phase 6 completed successfully"
 
 cat > /tmp/result.json <<EOF
 {
