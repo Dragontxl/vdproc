@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Card, Form, Input, Button, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import api from '../api';
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
@@ -8,15 +9,9 @@ export default function Login() {
   const handleLogin = async (values: { username: string; password: string }) => {
     setLoading(true);
     try {
-      const response = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
-      });
+      const data = await api.post('/auth/login', values);
       
-      const data = await response.json();
-      
-      if (response.ok && data.code === 200) {
+      if (data.code === 200) {
         localStorage.setItem('token', data.data.token);
         localStorage.setItem('userId', data.data.userId);
         localStorage.setItem('role', data.data.role);
@@ -25,8 +20,9 @@ export default function Login() {
       } else {
         message.error(data.msg || '登录失败');
       }
-    } catch (error) {
-      message.error('网络错误');
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.msg || '网络错误';
+      message.error(errorMsg);
     } finally {
       setLoading(false);
     }
