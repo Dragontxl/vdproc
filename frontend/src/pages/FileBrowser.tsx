@@ -33,9 +33,19 @@ interface FileBrowserProps {
   initialPrefix?: string;
   rootPrefix?: string;
   embedded?: boolean;
+  selectable?: boolean;
+  fileFilter?: (file: FileItem) => boolean;
+  onSelect?: (file: FileItem) => void;
 }
 
-export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embedded = false }: FileBrowserProps = {}) {
+export default function FileBrowser({
+  initialPrefix = '',
+  rootPrefix = '',
+  embedded = false,
+  selectable = false,
+  fileFilter,
+  onSelect,
+}: FileBrowserProps = {}) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentPath, setCurrentPath] = useState(initialPrefix);
@@ -529,25 +539,27 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
     return items;
   };
 
+  const checkboxColumn = {
+    title: (
+      <Checkbox
+        checked={selectedKeys.length === files.length && files.length > 0}
+        indeterminate={selectedKeys.length > 0 && selectedKeys.length < files.length}
+        onChange={toggleSelectAll}
+        disabled={files.length === 0}
+      />
+    ),
+    key: 'checkbox',
+    width: 50,
+    render: (_: any, record: FileItem) => (
+      <Checkbox
+        checked={selectedKeys.includes(record.key)}
+        onChange={() => toggleSelect(record.key)}
+      />
+    ),
+  };
+
   const columns = [
-    {
-      title: (
-        <Checkbox
-          checked={selectedKeys.length === files.length && files.length > 0}
-          indeterminate={selectedKeys.length > 0 && selectedKeys.length < files.length}
-          onChange={toggleSelectAll}
-          disabled={files.length === 0}
-        />
-      ),
-      key: 'checkbox',
-      width: 50,
-      render: (_: any, record: FileItem) => (
-        <Checkbox
-          checked={selectedKeys.includes(record.key)}
-          onChange={() => toggleSelect(record.key)}
-        />
-      ),
-    },
+    ...(selectable ? [] : [checkboxColumn]),
     {
       title: '名称',
       dataIndex: 'name',
@@ -593,9 +605,14 @@ export default function FileBrowser({ initialPrefix = '', rootPrefix = '', embed
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: selectable ? 260 : 200,
       render: (_: any, record: FileItem) => (
         <Space>
+          {selectable && record.type === 'file' && (!fileFilter || fileFilter(record)) && (
+            <Button type="primary" size="small" onClick={() => onSelect?.(record)}>
+              选择
+            </Button>
+          )}
           {record.type === 'file' && (
             <>
               {isVideoFile(record.name) && (

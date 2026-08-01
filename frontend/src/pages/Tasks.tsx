@@ -8,8 +8,10 @@ import {
   EyeOutlined,
   RotateLeftOutlined,
   PauseCircleOutlined,
+  FolderOpenOutlined,
 } from '@ant-design/icons';
 import { taskApi } from '../api';
+import FileBrowser from './FileBrowser';
 import dayjs from 'dayjs';
 import 'dayjs/plugin/utc';
 
@@ -22,7 +24,13 @@ export default function Tasks() {
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isVideoPickerOpen, setIsVideoPickerOpen] = useState(false);
   const [form] = Form.useForm();
+
+  const isVideoFile = (name: string) => {
+    const ext = name.toLowerCase().split('.').pop();
+    return ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv'].includes(ext || '');
+  };
 
   useEffect(() => {
     loadTasks();
@@ -285,7 +293,14 @@ export default function Tasks() {
             <Input placeholder="请输入任务标题" />
           </Form.Item>
           <Form.Item name="videoPath" label="视频路径" rules={[{ required: true }]}>
-            <Input placeholder="R2存储中的视频路径" />
+            <Input
+              placeholder="R2存储中的视频路径"
+              addonAfter={
+                <Button type="link" size="small" icon={<FolderOpenOutlined />} onClick={() => setIsVideoPickerOpen(true)} style={{ padding: '0 4px' }}>
+                  选择
+                </Button>
+              }
+            />
           </Form.Item>
           <Form.Item name="prompt" label="提示词" initialValue="修改为美式动画风格，保留原始图片的元素和内容, 只改变风格。">
             <Input.TextArea placeholder="AI生成提示词" rows={3} />
@@ -318,6 +333,26 @@ export default function Tasks() {
             <InputNumber min={0} max={100} />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="从 R2 选择视频文件"
+        open={isVideoPickerOpen}
+        onCancel={() => setIsVideoPickerOpen(false)}
+        footer={null}
+        width={900}
+        destroyOnClose
+      >
+        <FileBrowser
+          embedded
+          selectable
+          fileFilter={(file) => isVideoFile(file.name)}
+          onSelect={(file) => {
+            form.setFieldValue('videoPath', file.key);
+            setIsVideoPickerOpen(false);
+            message.success(`已选择: ${file.key}`);
+          }}
+        />
       </Modal>
     </div>
   );
