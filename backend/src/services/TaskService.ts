@@ -635,23 +635,43 @@ export class TaskService {
     const phasesCount = phaseOrder.length;
     const runningStatus = phaseStatusMap[phase as TaskPhase]?.running || phaseStatusMap[phaseOrder[0]].running;
 
+    // 如果有失败子任务，不覆盖任务状态（保留 FAILED 状态）
+    const shouldKeepStatus = failedCount > 0;
+
     if (totalCount > 0) {
       const phaseProgress = Math.round((processedCount / totalCount) * 100);
       const progress = Math.round(((phaseIndex / phasesCount) * 100) + ((phaseProgress / 100) * (100 / phasesCount)));
 
-      await this.env.DB.prepare(`
-        UPDATE tasks SET progress = ?, current_phase = ?, status = ?, processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ? AND status != 'COMPLETED'
-      `).bind(progress, phase, runningStatus, processedCount, totalCount, taskId).run();
-      console.log('updateTaskProgress: Progress updated for task', taskId, 'phase:', phase, 'progress:', progress);
+      if (shouldKeepStatus) {
+        // 只更新进度和帧数，不改变 status
+        await this.env.DB.prepare(`
+          UPDATE tasks SET progress = ?, current_phase = ?, processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ? AND status != 'COMPLETED'
+        `).bind(progress, phase, processedCount, totalCount, taskId).run();
+        console.log('updateTaskProgress: Progress updated for task', taskId, 'phase:', phase, 'progress:', progress, '(status preserved due to failures)');
+      } else {
+        await this.env.DB.prepare(`
+          UPDATE tasks SET progress = ?, current_phase = ?, status = ?, processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ? AND status != 'COMPLETED'
+        `).bind(progress, phase, runningStatus, processedCount, totalCount, taskId).run();
+        console.log('updateTaskProgress: Progress updated for task', taskId, 'phase:', phase, 'progress:', progress);
+      }
     } else {
       const progress = Math.round((phaseIndex / phasesCount) * 100);
 
-      await this.env.DB.prepare(`
-        UPDATE tasks SET progress = ?, current_phase = ?, status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ? AND status != 'COMPLETED'
-      `).bind(progress, phase, runningStatus, taskId).run();
-      console.log('updateTaskProgress: Phase only updated for task', taskId, 'phase:', phase, 'progress:', progress);
+      if (shouldKeepStatus) {
+        await this.env.DB.prepare(`
+          UPDATE tasks SET progress = ?, current_phase = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ? AND status != 'COMPLETED'
+        `).bind(progress, phase, taskId).run();
+        console.log('updateTaskProgress: Phase only updated for task', taskId, 'phase:', phase, 'progress:', progress, '(status preserved due to failures)');
+      } else {
+        await this.env.DB.prepare(`
+          UPDATE tasks SET progress = ?, current_phase = ?, status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ? AND status != 'COMPLETED'
+        `).bind(progress, phase, runningStatus, taskId).run();
+        console.log('updateTaskProgress: Phase only updated for task', taskId, 'phase:', phase, 'progress:', progress);
+      }
     }
 
     if (failedCount) {
@@ -903,9 +923,10 @@ export class TaskService {
     const result = await this.env.DB.prepare(query).bind(...params).all();
     let subtasks = result.results || [];
 
-    const taskResult = await this.env.DB.prepare('SELECT prompt, fps FROM tasks WHERE id = ?').bind(taskId).first() as any;
+    const taskResult = await this.env.DB.prepare('SELECT prompt, fps, output_fps FROM tasks WHERE id = ?').bind(taskId).first() as any;
     const taskPrompt = taskResult?.prompt || '';
     const taskFps = taskResult?.fps || 30;
+    const taskOutputFps = taskResult?.output_fps || 24;
 
     // 将 "HH:MM:SS.mmm" 格式的时间字符串解析为秒数
     const parseTimeToSeconds = (timeStr: string): number => {
@@ -1207,7 +1228,20 @@ export class TaskService {
       const sd = shotData[shotIndex];
       if (sd) {
         subtask.duration = sd.duration;
-        subtask.frames = Math.round(sd.duration * taskFps);
+        // 视频生成模型要求 num_frames 符合 8n+1 规则（9, 17, 25, 33, ...），最小为 9
+        // 此逻辑与 generate-shots.sh 中的计算保持一致
+        const targetFrames = Math.floor(sd.duration * taskOutputFps);
+        let numFrames: number;
+        if (targetFrames < 9) {
+          numFrames = 9;
+        } else {
+          const n = Math.floor((targetFrames - 1) / 8);
+          numFrames = n * 8 + 1;
+          if (numFrames < 9) {
+            numFrames = 9;
+          }
+        }
+        subtask.frames = numFrames;
       } else {
         subtask.duration = 0;
         subtask.frames = 0;
@@ -1243,6 +1277,59 @@ export class TaskService {
         WHERE cooldown_until IS NOT NULL
       `).run();
       console.log('updatePhaseSubtaskStatus: Released all locked AI accounts');
+
+      // 检查该任务的当前阶段所有子任务是否都已终止
+      // 如果全部完成则推进阶段；如果有失败则标记任务失败
+      await this.checkPhaseCompletion(taskId, phase);
+    }
+  }
+
+  private async checkPhaseCompletion(taskId: string, phase: string) {
+    const task = await this.getTask(taskId);
+    if (!task) return;
+
+    // 只在任务状态仍为运行中时检查（避免已处理过的场景）
+    if (task.status === 'COMPLETED' || task.status === 'FAILED' || task.status === 'CANCELLED') {
+      return;
+    }
+
+    // 查询该任务当前阶段的所有子任务
+    const allSubtasks = await this.env.DB.prepare(`
+      SELECT status FROM phase_subtasks
+      WHERE task_id = ? AND phase = ?
+      AND id IN (SELECT MAX(id) FROM phase_subtasks WHERE task_id = ? AND phase = ? GROUP BY subtask_index)
+    `).bind(taskId, phase, taskId, phase).all();
+
+    const subtasks = allSubtasks.results as Array<{ status: string }>;
+    if (subtasks.length === 0) return;
+
+    const terminalStatuses = new Set(['COMPLETED', 'FAILED']);
+    const allTerminal = subtasks.every(s => terminalStatuses.has(s.status));
+
+    if (!allTerminal) {
+      return;
+    }
+
+    const failedCount = subtasks.filter(s => s.status === 'FAILED').length;
+    const completedCount = subtasks.filter(s => s.status === 'COMPLETED').length;
+
+    console.log(`checkPhaseCompletion: All subtasks finished for ${taskId}/${phase}`, {
+      total: subtasks.length, completed: completedCount, failed: failedCount
+    });
+
+    if (failedCount > 0) {
+      // 只要有任何子任务失败，整个阶段就标记为 FAILED
+      // 这样前端会显示重试按钮，用户可以手动重试失败的子任务
+      await this.env.DB.prepare(`
+        UPDATE tasks SET status = ?, failed_frames = ?, error_msg = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id = ?
+      `).bind('FAILED', failedCount, `阶段 ${phase} 失败: ${failedCount}/${subtasks.length} 个子任务失败`, taskId).run();
+      await this.logTask(taskId, phase, 'ERROR', `Phase ${phase} failed: ${failedCount}/${subtasks.length} subtasks failed`);
+      console.log(`checkPhaseCompletion: Task ${taskId} marked as FAILED (${failedCount} failed, ${completedCount} completed)`);
+    } else {
+      // 所有子任务都成功了，推进到下一阶段
+      console.log(`checkPhaseCompletion: Task ${taskId} phase ${phase} all completed, advancing...`);
+      await this.advancePhase(taskId);
     }
   }
 

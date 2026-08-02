@@ -17,6 +17,7 @@ GITHUB_REPO_NAME = "vdproc"
 FRONTEND_URL = "${FRONTEND_URL}"
 ADMIN_URL = "${ADMIN_URL}"
 R2_PUBLIC_URL = "${R2_PUBLIC_URL}"
+CLOUDFLARE_ZONE_ID = "a30fd8d66c6b1bbceb77d16f9e6f80cb"
 
 [[env.production.d1_databases]]
 binding = "DB"
@@ -30,6 +31,9 @@ bucket_name = "ai-video-bucket"
 [[env.production.kv_namespaces]]
 binding = "KV"
 id = "f657d34c477947e4b9ca003332b75073"
+
+[[env.production.triggers]]
+crons = ["*/5 * * * *"]
 
 [vars]
 ADMIN_API_KEY = "${ADMIN_API_KEY}"
@@ -58,3 +62,6 @@ id = "f657d34c477947e4b9ca003332b75073"
 pattern = "ai-video.ldragon.xyz"
 zone_name = "ldragon.xyz"
 custom_domain = true
+
+[[triggers]]
+crons = ["*/5 * * * *"]
