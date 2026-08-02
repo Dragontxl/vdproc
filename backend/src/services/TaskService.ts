@@ -638,6 +638,9 @@ export class TaskService {
     // 如果有失败子任务，不覆盖任务状态（保留 FAILED 状态）
     const shouldKeepStatus = failedCount > 0;
 
+    // 只在任务仍在运行时更新进度，避免覆盖 FAILED/CANCELLED 等终止状态
+    const terminalStatusClause = "status NOT IN ('COMPLETED', 'FAILED', 'CANCELLED')";
+
     if (totalCount > 0) {
       const phaseProgress = Math.round((processedCount / totalCount) * 100);
       const progress = Math.round(((phaseIndex / phasesCount) * 100) + ((phaseProgress / 100) * (100 / phasesCount)));
@@ -646,13 +649,13 @@ export class TaskService {
         // 只更新进度和帧数，不改变 status
         await this.env.DB.prepare(`
           UPDATE tasks SET progress = ?, current_phase = ?, processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-          WHERE id = ? AND status != 'COMPLETED'
+          WHERE id = ? AND ${terminalStatusClause}
         `).bind(progress, phase, processedCount, totalCount, taskId).run();
         console.log('updateTaskProgress: Progress updated for task', taskId, 'phase:', phase, 'progress:', progress, '(status preserved due to failures)');
       } else {
         await this.env.DB.prepare(`
           UPDATE tasks SET progress = ?, current_phase = ?, status = ?, processed_frames = ?, total_frames = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-          WHERE id = ? AND status != 'COMPLETED'
+          WHERE id = ? AND ${terminalStatusClause}
         `).bind(progress, phase, runningStatus, processedCount, totalCount, taskId).run();
         console.log('updateTaskProgress: Progress updated for task', taskId, 'phase:', phase, 'progress:', progress);
       }
@@ -662,13 +665,13 @@ export class TaskService {
       if (shouldKeepStatus) {
         await this.env.DB.prepare(`
           UPDATE tasks SET progress = ?, current_phase = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-          WHERE id = ? AND status != 'COMPLETED'
+          WHERE id = ? AND ${terminalStatusClause}
         `).bind(progress, phase, taskId).run();
         console.log('updateTaskProgress: Phase only updated for task', taskId, 'phase:', phase, 'progress:', progress, '(status preserved due to failures)');
       } else {
         await this.env.DB.prepare(`
           UPDATE tasks SET progress = ?, current_phase = ?, status = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-          WHERE id = ? AND status != 'COMPLETED'
+          WHERE id = ? AND ${terminalStatusClause}
         `).bind(progress, phase, runningStatus, taskId).run();
         console.log('updateTaskProgress: Phase only updated for task', taskId, 'phase:', phase, 'progress:', progress);
       }
