@@ -684,12 +684,28 @@ export default function TaskDetail() {
               render={(_, record) => {
                 const label = phaseConfig[record.phase as TaskPhase]?.label || record.phase;
                 let displayIndex = record.subtask_index;
+                const duration = record.duration || 0;
+                const frames = record.frames || 0;
+                const durationStr = duration.toFixed(3) + '秒';
+                const framesStr = frames + '帧';
                 if (record.phase === 'CONVERT_FRAMES') {
                   displayIndex = Math.floor(record.subtask_index / 2);
                   const frameType = record.subtask_index % 2 === 0 ? '首帧' : '尾帧';
-                  return <Tag color="blue">{label}-{displayIndex}({frameType})</Tag>;
+                  return (
+                    <div>
+                      <Tag color="blue">{label}-{displayIndex}({frameType})</Tag>
+                      <div style={{ fontSize: '12px', color: '#999', marginTop: 4 }}>{durationStr}</div>
+                      <div style={{ fontSize: '12px', color: '#999' }}>{framesStr}</div>
+                    </div>
+                  );
                 }
-                return <Tag color="blue">{label}-{displayIndex}</Tag>;
+                return (
+                  <div>
+                    <Tag color="blue">{label}-{displayIndex}</Tag>
+                    <div style={{ fontSize: '12px', color: '#999', marginTop: 4 }}>{durationStr}</div>
+                    <div style={{ fontSize: '12px', color: '#999' }}>{framesStr}</div>
+                  </div>
+                );
               }}
             />
             <Table.Column

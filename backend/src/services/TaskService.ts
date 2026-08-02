@@ -903,10 +903,21 @@ export class TaskService {
     const result = await this.env.DB.prepare(query).bind(...params).all();
     let subtasks = result.results || [];
 
-    const taskResult = await this.env.DB.prepare('SELECT prompt FROM tasks WHERE id = ?').bind(taskId).first() as any;
+    const taskResult = await this.env.DB.prepare('SELECT prompt, fps FROM tasks WHERE id = ?').bind(taskId).first() as any;
     const taskPrompt = taskResult?.prompt || '';
-    
-    let shotData: Record<number, { positive_prompt: string; scene_description: string; dialogue: string; video_summary: string; characters: any[]; camera_movement: string; dialogues: any[]; first_keyframe_characters: any[]; last_keyframe_characters: any[]; characters_present: string[] }> = {};
+    const taskFps = taskResult?.fps || 30;
+
+    // 将 "HH:MM:SS.mmm" 格式的时间字符串解析为秒数
+    const parseTimeToSeconds = (timeStr: string): number => {
+      if (!timeStr || typeof timeStr !== 'string') return 0;
+      const parts = timeStr.split(':');
+      const hours = parseInt(parts[0]) || 0;
+      const minutes = parseInt(parts[1]) || 0;
+      const seconds = parseFloat(parts[2]) || 0;
+      return hours * 3600 + minutes * 60 + seconds;
+    };
+
+    let shotData: Record<number, { positive_prompt: string; scene_description: string; dialogue: string; video_summary: string; characters: any[]; camera_movement: string; dialogues: any[]; first_keyframe_characters: any[]; last_keyframe_characters: any[]; characters_present: string[]; start_time: number; end_time: number; duration: number }> = {};
 
     try {
       const r2Obj = await this.env.R2.get(`${taskId}/analysis_result.json`);
@@ -918,6 +929,8 @@ export class TaskService {
           const characters = analysis.characters || [];
           for (let i = 0; i < analysis.storyboards.length; i++) {
             const shot = analysis.storyboards[i];
+            const startTime = parseTimeToSeconds(shot.start_time);
+            const endTime = parseTimeToSeconds(shot.end_time);
             shotData[i] = {
               positive_prompt: shot.positive_prompt || '',
               scene_description: shot.scene_description || '',
@@ -929,6 +942,9 @@ export class TaskService {
               first_keyframe_characters: shot.first_keyframe_characters || [],
               last_keyframe_characters: shot.last_keyframe_characters || [],
               characters_present: shot.characters_present || [],
+              start_time: startTime,
+              end_time: endTime,
+              duration: endTime - startTime,
             };
           }
         }
@@ -939,7 +955,7 @@ export class TaskService {
 
     if (Object.keys(shotData).length === 0) {
       try {
-        const shotsResult = await this.env.DB.prepare('SELECT shot_index, positive_prompt, scene_description, dialogue FROM shot_details WHERE task_id = ?').bind(taskId).all();
+        const shotsResult = await this.env.DB.prepare('SELECT shot_index, positive_prompt, scene_description, dialogue, start_time, end_time, duration FROM shot_details WHERE task_id = ?').bind(taskId).all();
         for (const row of (shotsResult.results || []) as any[]) {
           shotData[row.shot_index] = {
             positive_prompt: row.positive_prompt || '',
@@ -952,6 +968,9 @@ export class TaskService {
             first_keyframe_characters: [],
             last_keyframe_characters: [],
             characters_present: [],
+            start_time: row.start_time || 0,
+            end_time: row.end_time || 0,
+            duration: row.duration || 0,
           };
         }
       } catch (e) {
@@ -1175,6 +1194,23 @@ export class TaskService {
           }
         }
         subtask.original_prompt = originalPrompt;
+      }
+    }
+
+    // 为每个子任务附加分镜时长和帧数信息
+    for (const subtask of subtasks as any[]) {
+      // CONVERT_FRAMES 阶段每个分镜有首帧、尾帧两个子任务，shot_index = floor(subtask_index / 2)
+      // GENERATE_SHOTS 阶段 subtask_index 直接对应 shot_index
+      const shotIndex = subtask.phase === 'CONVERT_FRAMES'
+        ? Math.floor(subtask.subtask_index / 2)
+        : subtask.subtask_index;
+      const sd = shotData[shotIndex];
+      if (sd) {
+        subtask.duration = sd.duration;
+        subtask.frames = Math.round(sd.duration * taskFps);
+      } else {
+        subtask.duration = 0;
+        subtask.frames = 0;
       }
     }
 
