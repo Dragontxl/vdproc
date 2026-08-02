@@ -693,12 +693,6 @@ export default function TaskDetail() {
               }}
             />
             <Table.Column
-              title="类型"
-              dataIndex="subtask_type"
-              key="subtask_type"
-              render={(type) => <Tag>{type}</Tag>}
-            />
-            <Table.Column
               title="状态"
               dataIndex="status"
               key="status"
