@@ -12,6 +12,7 @@ import {
   RocketOutlined,
   ReloadOutlined,
   EyeOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import { taskApi } from '../api';
 import dayjs from 'dayjs';
@@ -203,6 +204,23 @@ export default function TaskDetail() {
       message.error(msg);
     } finally {
       setSubtaskLoading(false);
+    }
+  };
+
+  const handleCopyPrompt = async (record: any) => {
+    try {
+      const key = `${record.phase}-${record.subtask_index}`;
+      // 优先使用用户编辑过的自定义提示词，否则使用子任务的原始提示词
+      const promptText = customPrompts[key]?.trim() || record.original_prompt || '';
+      if (!promptText) {
+        message.warning('当前子任务没有可复制的提示词');
+        return;
+      }
+      await navigator.clipboard.writeText(promptText);
+      message.success('提示词已复制到剪贴板');
+    } catch (error) {
+      console.error('Copy prompt error:', error);
+      message.error('复制提示词失败');
     }
   };
 
@@ -737,6 +755,13 @@ export default function TaskDetail() {
               key="actions"
               render={(_, record) => (
                 <Space>
+                  <Button
+                    size="small"
+                    icon={<CopyOutlined />}
+                    onClick={() => handleCopyPrompt(record)}
+                  >
+                    复制提示词
+                  </Button>
                   <Button
                     type="primary"
                     size="small"
