@@ -118,7 +118,7 @@ INSERT OR IGNORE INTO system_config (key, value, description) VALUES
     ('default_cooldown', '60', 'AI账户默认冷却时间（秒）'),
     ('max_retry_count', '3', '最大重试次数'),
     ('task_expire_days', '7', '任务过期天数'),
-    ('max_concurrent_jobs_per_github_account', '2', '每个GitHub账户最大并发任务数'),
+    ('max_concurrent_jobs_per_github_account', '4', '每个GitHub账户最大并发任务数'),
     ('ai_rate_limit_window', '60', 'AI账户限流窗口（秒）'),
     ('ai_rate_limit_max_requests', '100', 'AI账户限流窗口内最大请求数'),
     ('frame_batch_size', '10', '帧处理批次大小'),
