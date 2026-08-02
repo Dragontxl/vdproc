@@ -181,7 +181,8 @@ export class TaskService {
       return null;
     }
 
-    await this.triggerPhase(id, 'DETECT', undefined, undefined, 'DETECT', 'COMPOSE');
+    // 只启动 DETECT 阶段，后续阶段由用户手动触发
+    await this.triggerPhase(id, 'DETECT');
     return this.getTask(id);
   }
 
