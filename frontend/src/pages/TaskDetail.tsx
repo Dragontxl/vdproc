@@ -754,11 +754,12 @@ export default function TaskDetail() {
               title="操作"
               key="actions"
               render={(_, record) => (
-                <Space>
+                <Space direction="vertical" style={{ width: '100%' }}>
                   <Button
                     size="small"
                     icon={<CopyOutlined />}
                     onClick={() => handleCopyPrompt(record)}
+                    block
                   >
                     复制提示词
                   </Button>
@@ -768,6 +769,7 @@ export default function TaskDetail() {
                     icon={<ReloadOutlined />}
                     onClick={() => handleRunSubtask(record.phase, record.subtask_index)}
                     disabled={record.status === 'PROCESSING'}
+                    block
                   >
                     {record.status === 'PROCESSING' ? '处理中' : '运行'}
                   </Button>
