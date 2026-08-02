@@ -109,13 +109,24 @@ for scene in scene_data:
             sub_length_frames = sub_end_frame - sub_start_frame
             sub_length_seconds = sub_end_time - sub_start_time
             
+            # 生成 timecode 格式 HH:MM:SS.mmm（与 PySceneDetect 输出格式一致）
+            def seconds_to_timecode(sec):
+                h = int(sec // 3600)
+                m = int((sec % 3600) // 60)
+                s = int(sec % 60)
+                ms = int(round((sec - int(sec)) * 1000))
+                if ms == 1000:
+                    ms = 0
+                    s += 1
+                return f"{h:02d}:{m:02d}:{s:02d}.{ms:03d}"
+            
             final_scenes.append({
                 'scene_number': 0,  # 占位，后面统一重新编号
                 'start_frame': sub_start_frame,
-                'start_timecode': '',  # 切分点无对应 timecode，留空
+                'start_timecode': seconds_to_timecode(sub_start_time),
                 'start_time_seconds': round(sub_start_time, 3),
                 'end_frame': sub_end_frame,
-                'end_timecode': '',
+                'end_timecode': seconds_to_timecode(sub_end_time),
                 'end_time_seconds': round(sub_end_time, 3),
                 'length_frames': sub_length_frames,
                 'length_seconds': round(sub_length_seconds, 3),
