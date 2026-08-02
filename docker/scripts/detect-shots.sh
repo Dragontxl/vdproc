@@ -41,10 +41,15 @@ fi
 echo "CSV file content:"
 cat "$SCENE_FILE"
 
-python3 << 'PYTHON_SCRIPT'
+SHOT_COUNT=$(python3 << 'PYTHON_SCRIPT'
 import csv
 import json
+import math
+import os
 import sys
+
+# 最大场景时长（秒），超过则均匀切分
+MAX_SCENE_DURATION = float(os.environ.get('MAX_SCENE_DURATION', '30'))
 
 scene_data = []
 with open('./scenes/input_video-Scenes.csv', 'r') as f:
@@ -74,21 +79,63 @@ with open('./scenes/input_video-Scenes.csv', 'r') as f:
             'length_seconds': float(row_dict.get('Length (seconds)', '0'))
         })
 
-sys.stderr.write(f'Total shots: {len(scene_data)}\n')
+sys.stderr.write(f'Original scenes: {len(scene_data)}\n')
+sys.stderr.write(f'MAX_SCENE_DURATION: {MAX_SCENE_DURATION}s\n')
+
+# 对超长场景进行均匀切分
+final_scenes = []
+split_count = 0
+for scene in scene_data:
+    duration = scene['length_seconds']
+    if duration <= MAX_SCENE_DURATION:
+        # 不超过阈值，原样保留
+        final_scenes.append(scene)
+    else:
+        # 超过阈值，均匀切分为 n 个子场景（每个 <= MAX_SCENE_DURATION）
+        n = math.ceil(duration / MAX_SCENE_DURATION)
+        sub_duration = duration / n
+        # 用该场景的帧数/时长推算 fps，确保切分点帧对齐
+        fps = scene['length_frames'] / scene['length_seconds'] if scene['length_seconds'] > 0 else 30
+        
+        parent_num = scene['scene_number']
+        sys.stderr.write(f'Splitting scene {parent_num} (duration={duration:.3f}s) into {n} sub-scenes (each ~{sub_duration:.3f}s)\n')
+        
+        for i in range(n):
+            # 最后一个子场景的 end_time 用原始场景的 end_time，避免浮点误差导致丢失帧
+            sub_start_time = scene['start_time_seconds'] + i * sub_duration
+            sub_end_time = scene['start_time_seconds'] + (i + 1) * sub_duration if i < n - 1 else scene['end_time_seconds']
+            sub_start_frame = int(round(sub_start_time * fps))
+            sub_end_frame = int(round(sub_end_time * fps))
+            sub_length_frames = sub_end_frame - sub_start_frame
+            sub_length_seconds = sub_end_time - sub_start_time
+            
+            final_scenes.append({
+                'scene_number': 0,  # 占位，后面统一重新编号
+                'start_frame': sub_start_frame,
+                'start_timecode': '',  # 切分点无对应 timecode，留空
+                'start_time_seconds': round(sub_start_time, 3),
+                'end_frame': sub_end_frame,
+                'end_timecode': '',
+                'end_time_seconds': round(sub_end_time, 3),
+                'length_frames': sub_length_frames,
+                'length_seconds': round(sub_length_seconds, 3),
+                'parent_scene_number': parent_num,  # 记录原始场景号，便于追溯
+                'sub_index': i  # 子场景序号（从0开始）
+            })
+            split_count += 1
+
+# 重新编号所有场景的 scene_number（从1开始连续）
+for idx, scene in enumerate(final_scenes):
+    scene['scene_number'] = idx + 1
+
+sys.stderr.write(f'Split {split_count} sub-scenes from long scenes\n')
+sys.stderr.write(f'Final scenes: {len(final_scenes)}\n')
 
 with open('./scenes/scenes.json', 'w') as f:
-    json.dump(scene_data, f, indent=2)
+    json.dump(final_scenes, f, indent=2)
 
 sys.stderr.write('Generated scenes.json\n')
-print(len(scene_data))
-PYTHON_SCRIPT
-SHOT_COUNT=$(python3 << 'PYTHON_SCRIPT'
-import csv
-
-with open('./scenes/input_video-Scenes.csv', 'r') as f:
-    reader = csv.reader(f)
-    lines = list(reader)
-    print(max(0, len(lines) - 2))
+print(len(final_scenes))
 PYTHON_SCRIPT
 )
 
