@@ -181,8 +181,8 @@ export class TaskService {
       return null;
     }
 
-    // 只启动 DETECT 阶段，后续阶段由用户手动触发
-    await this.triggerPhase(id, 'DETECT');
+    // 范围执行模式：从 DETECT 执行到 COMPOSE
+    await this.triggerPhase(id, 'DETECT', undefined, undefined, 'DETECT', 'COMPOSE');
     return this.getTask(id);
   }
 
@@ -801,6 +801,7 @@ export class TaskService {
     if (status === 'success') {
       try {
         if (startPhase && endPhase && startPhase !== endPhase) {
+          // 范围执行完成，标记任务为完成
           console.log('handleGitHubCallback: Range execution completed, marking task as completed');
           await this.env.DB.prepare(`
             UPDATE tasks SET status = ?, completed_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -812,8 +813,14 @@ export class TaskService {
           `).run();
           console.log('handleGitHubCallback: Released all locked AI accounts for range execution');
           await this.logTask(taskId, phase, 'INFO', `Range execution completed: ${startPhase} to ${endPhase}`);
-        } else {
+        } else if (!startPhase && !endPhase) {
+          // 单个阶段执行完成，触发 advancePhase 推进到下一阶段
+          console.log('handleGitHubCallback: Single phase execution completed, advancing to next phase');
           await this.advancePhase(taskId);
+        } else {
+          // startPhase 和 endPhase 只存在一个，属于异常情况，记录警告但不触发 advancePhase
+          console.warn('handleGitHubCallback: Inconsistent startPhase/endPhase, skipping advancePhase:', { startPhase, endPhase });
+          await this.logTask(taskId, phase, 'WARNING', `Inconsistent phase range: start=${startPhase}, end=${endPhase}`);
         }
       } catch (error) {
         console.error('handleGitHubCallback: Failed to process completion:', error);

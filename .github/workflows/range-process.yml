@@ -87,6 +87,12 @@ jobs:
           echo "MAX_CONCURRENT=$MAX_CONCURRENT" >> $GITHUB_OUTPUT
           echo "ANALYZE_DIALOGUE_LANGUAGE=$ANALYZE_DIALOGUE_LANGUAGE" >> $GITHUB_OUTPUT
           echo "ANALYZE_DIALOGUE_STYLE=$ANALYZE_DIALOGUE_STYLE" >> $GITHUB_OUTPUT
+          # 明确解析 start_phase 和 end_phase，确保可靠传递
+          START_PHASE="${{ inputs.start_phase || github.event.client_payload.start_phase }}"
+          END_PHASE="${{ inputs.end_phase || github.event.client_payload.end_phase }}"
+          echo "START_PHASE=$START_PHASE" >> $GITHUB_OUTPUT
+          echo "END_PHASE=$END_PHASE" >> $GITHUB_OUTPUT
+          echo "Parsed START_PHASE=$START_PHASE, END_PHASE=$END_PHASE"
 
       - name: Run range processing (single Docker container)
         env:
@@ -100,8 +106,8 @@ jobs:
           MAX_CONCURRENT: ${{ steps.parse_config.outputs.MAX_CONCURRENT }}
           ANALYZE_DIALOGUE_LANGUAGE: ${{ steps.parse_config.outputs.ANALYZE_DIALOGUE_LANGUAGE }}
           ANALYZE_DIALOGUE_STYLE: ${{ steps.parse_config.outputs.ANALYZE_DIALOGUE_STYLE }}
-          START_PHASE: ${{ inputs.start_phase || github.event.client_payload.start_phase }}
-          END_PHASE: ${{ inputs.end_phase || github.event.client_payload.end_phase }}
+          START_PHASE: ${{ steps.parse_config.outputs.START_PHASE }}
+          END_PHASE: ${{ steps.parse_config.outputs.END_PHASE }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
@@ -150,8 +156,9 @@ jobs:
           RUN_NUMBER: ${{ github.run_number }}
           CALLBACK_URL: ${{ secrets.CALLBACK_URL }}
           CALLBACK_SECRET: ${{ secrets.CALLBACK_SECRET }}
-          START_PHASE: ${{ inputs.start_phase || github.event.client_payload.start_phase }}
-          END_PHASE: ${{ inputs.end_phase || github.event.client_payload.end_phase }}
+          # 使用解析后的输出，确保可靠获取 start_phase 和 end_phase
+          START_PHASE: ${{ steps.parse_config.outputs.START_PHASE }}
+          END_PHASE: ${{ steps.parse_config.outputs.END_PHASE }}
         run: |
           MAX_RETRIES=3
           RETRY_DELAY=5
