@@ -1304,6 +1304,13 @@ export class TaskService {
       return;
     }
 
+    // 检查是否在范围执行模式中
+    // 如果 start_phase !== end_phase，说明是范围执行模式，不应触发 advancePhase
+    if (task.start_phase && task.end_phase && task.start_phase !== task.end_phase) {
+      console.log(`checkPhaseCompletion: Task ${taskId} is in range execution mode (${task.start_phase} to ${task.end_phase}), skipping advancePhase`);
+      return;
+    }
+
     // 查询该任务当前阶段的所有子任务
     const allSubtasks = await this.env.DB.prepare(`
       SELECT status FROM phase_subtasks

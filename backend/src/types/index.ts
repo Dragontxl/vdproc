@@ -11,6 +11,8 @@ export interface Task {
   ai_account_id?: number;
   current_run_id?: string;
   current_phase: string;
+  start_phase?: string;
+  end_phase?: string;
   origin_frames_path?: string;
   ai_frames_path?: string;
   final_video_path?: string;
