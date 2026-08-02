@@ -103,8 +103,10 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
     
     echo "Extracting first frame (0.150s after start)..."
     FIRST_FRAME_SECONDS=$(awk "BEGIN {print $START_SECONDS + 0.150}")
-    if awk "BEGIN {exit !($FIRST_FRAME_SECONDS >= $END_SECONDS)}"; then
-        echo "Warning: first frame time ($FIRST_FRAME_SECONDS) exceeds end_time, using start_time instead..."
+    # 当 (start_time + 0.150s) >= (end_time - 0.150s) 即分镜时长 <= 0.300s 时，首帧取 start_time
+    # 避免短分镜首尾帧交叉或逆序
+    if awk "BEGIN {exit !($FIRST_FRAME_SECONDS >= $END_SECONDS - 0.150)}"; then
+        echo "Short shot (duration <= 0.300s), using start_time as first frame..."
         FIRST_FRAME_SECONDS="$START_SECONDS"
     fi
     FIRST_FRAME_HOURS=$(printf "%02d" $(awk "BEGIN {print int($FIRST_FRAME_SECONDS / 3600)}"))
@@ -112,17 +114,16 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
     FIRST_FRAME_SECS=$(printf "%06.3f" $(awk "BEGIN {print $FIRST_FRAME_SECONDS % 60}"))
     FIRST_FRAME_TIME="${FIRST_FRAME_HOURS}:${FIRST_FRAME_MINS}:${FIRST_FRAME_SECS}"
     echo "  First frame time: $FIRST_FRAME_TIME"
-    
+
     ffmpeg -ss "$FIRST_FRAME_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_first.jpg"
-    
+
     echo "Extracting last frame (0.150s before end)..."
     LAST_FRAME_SECONDS=$(awk "BEGIN {print $END_SECONDS - 0.150}")
-    if awk "BEGIN {exit !($LAST_FRAME_SECONDS < $START_SECONDS)}"; then
-        LAST_FRAME_SECONDS="$START_SECONDS"
-    fi
-    if awk "BEGIN {exit !($FIRST_FRAME_SECONDS >= $LAST_FRAME_SECONDS)}"; then
-        echo "Warning: first frame time ($FIRST_FRAME_SECONDS) >= last frame time ($LAST_FRAME_SECONDS), adjusting last frame..."
-        LAST_FRAME_SECONDS=$(awk "BEGIN {print $FIRST_FRAME_SECONDS + 0.050}")
+    # 当 (end_time - 0.150s) < (start_time + 0.150s) 即分镜时长 < 0.300s 时，尾帧取 end_time
+    # 避免短分镜尾帧落在首帧之前
+    if awk "BEGIN {exit !($LAST_FRAME_SECONDS < $START_SECONDS + 0.150)}"; then
+        echo "Short shot (duration < 0.300s), using end_time as last frame..."
+        LAST_FRAME_SECONDS="$END_SECONDS"
     fi
     
     LAST_FRAME_HOURS=$(printf "%02d" $(awk "BEGIN {print int($LAST_FRAME_SECONDS / 3600)}"))
