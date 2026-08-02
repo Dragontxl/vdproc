@@ -724,8 +724,12 @@ export default function TaskDetail() {
               title="错误信息"
               dataIndex="error_msg"
               key="error_msg"
-              ellipsis
-              width={100}
+              width={200}
+              render={(text) => (
+                <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {text || '-'}
+                </span>
+              )}
             />
             <Table.Column
               title="自定义提示词"
