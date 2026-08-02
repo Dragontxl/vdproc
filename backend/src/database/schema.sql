@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 INSERT OR IGNORE INTO users (username, password_hash, role) VALUES
-    ('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMye.IjzqAKL9xL5jvMFVdNJHvGCgTq/VEq', 'ADMIN');
+    ('admin', 'defaultSaltForAdmin123456:88513b6b347747a1fa8b3fcbf7335a3f64b9e43ebb301aa91be8d06b5cf15cd6', 'ADMIN');
 
 CREATE TABLE IF NOT EXISTS task_queue (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

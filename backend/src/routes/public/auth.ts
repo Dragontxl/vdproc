@@ -25,7 +25,7 @@ authRoutes.post('/login', async (c) => {
   const user = result as { id: number; username: string; password_hash: string; role: string };
   const cryptoService = new CryptoService(c.env as Bindings);
 
-  const isPasswordValid = cryptoService.verifyPassword(password, user.password_hash);
+  const isPasswordValid = await cryptoService.verifyPassword(password, user.password_hash);
 
   if (!isPasswordValid) {
     return c.json({ code: 401, data: null, msg: 'Invalid credentials' }, 401);
