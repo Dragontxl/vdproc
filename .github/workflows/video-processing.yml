@@ -350,7 +350,9 @@ jobs:
                 \"status\": \"$STATUS\",
                 \"run_id\": \"$RUN_ID\",
                 \"run_number\": \"$RUN_NUMBER\",
-                \"phase\": \"$PHASE\"
+                \"phase\": \"$PHASE\",
+                \"start_phase\": \"$PHASE\",
+                \"end_phase\": \"$PHASE\"
               }")
             
             HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
