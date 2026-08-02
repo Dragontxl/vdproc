@@ -10,6 +10,7 @@ import {
   PlusOutlined,
   PlayCircleOutlined,
   EyeOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import { fileApi } from '../api';
 import dayjs from 'dayjs';
@@ -197,6 +198,17 @@ export default function FileBrowser({
       setIsJsonPreviewOpen(false);
     } finally {
       setJsonLoading(false);
+    }
+  };
+
+  const handleCopyUrl = async (filename: string, key: string) => {
+    try {
+      const url = fileApi.previewUrl(filename, currentPath);
+      await navigator.clipboard.writeText(url);
+      message.success('网址已复制到剪贴板');
+    } catch (error) {
+      console.error('Copy URL error:', error);
+      message.error('复制网址失败');
     }
   };
 
@@ -605,7 +617,7 @@ export default function FileBrowser({
     {
       title: '操作',
       key: 'action',
-      width: selectable ? 260 : 200,
+      width: selectable ? 340 : 280,
       render: (_: any, record: FileItem) => (
         <Space>
           {selectable && record.type === 'file' && (!fileFilter || fileFilter(record)) && (
@@ -630,6 +642,9 @@ export default function FileBrowser({
                   预览
                 </Button>
               )}
+              <Button size="small" icon={<CopyOutlined />} onClick={() => handleCopyUrl(record.name, record.key)}>
+                复制网址
+              </Button>
               <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload(record.name, record.key)} loading={downloadingFiles.has(record.key)}>
                 {downloadingFiles.has(record.key) ? `${downloadProgress[record.key]}%` : '下载'}
               </Button>
