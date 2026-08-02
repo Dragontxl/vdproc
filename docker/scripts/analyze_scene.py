@@ -528,6 +528,78 @@ def validate_and_fix_storyboards(result_json, video_duration=None, scenes_data=N
     log(f"Validation complete: fixed {fixed_count} issues")
     return result_json
 
+def force_align_storyboards_with_scenes(result_json, scenes_data):
+    """
+    强制将storyboards与scenes严格一一对应：
+    - storyboards[i]的start_time/end_time强制覆盖为scenes[i]的时间范围
+    - 如果storyboards数量与scenes数量不一致，记录详细警告
+    - 确保storyboards数量等于scenes数量（多余截断，不足补空）
+    这从根本上杜绝了Gemini跳过/合并/拆分场景导致的提示词与片段错位问题。
+    """
+    if not scenes_data:
+        log("No scenes data available for force alignment, skipping")
+        return result_json
+
+    storyboards = result_json.get('storyboards', [])
+    scenes_count = len(scenes_data)
+    storyboards_count = len(storyboards)
+
+    log(f"Force alignment: {storyboards_count} storyboards vs {scenes_count} scenes")
+
+    if storyboards_count != scenes_count:
+        log(f"WARNING: storyboards count ({storyboards_count}) != scenes count ({scenes_count})!")
+        log(f"  This indicates Gemini skipped, merged, or split scenes despite instructions.")
+        log(f"  Storyboards will be aligned by index; mismatched descriptions may occur for affected shots.")
+
+    aligned_storyboards = []
+    for i, scene in enumerate(scenes_data):
+        scene_start = scene.get('start_timecode', '')
+        scene_end = scene.get('end_timecode', '')
+        scene_number = scene.get('scene_number', i)
+
+        if i < storyboards_count:
+            shot = storyboards[i]
+            original_start = shot.get('start_time', '')
+            original_end = shot.get('end_time', '')
+
+            # 强制覆盖时间范围，确保与scenes完全一致
+            shot['start_time'] = scene_start
+            shot['end_time'] = scene_end
+
+            if original_start != scene_start or original_end != scene_end:
+                log(f"  Scene {i} (scene_number={scene_number}): time overwritten [{original_start} -> {original_end}] => [{scene_start} -> {scene_end}]")
+            else:
+                log(f"  Scene {i} (scene_number={scene_number}): time already correct [{scene_start} -> {scene_end}]")
+
+            aligned_storyboards.append(shot)
+        else:
+            # storyboards比scenes少，创建空分镜
+            log(f"  Scene {i} (scene_number={scene_number}): no corresponding storyboard, creating empty one")
+            shot = {
+                'start_time': scene_start,
+                'end_time': scene_end,
+                'characters_present': [],
+                'dialogues': [],
+                'scene_description': '（缺失描述：Gemini未生成此分镜）',
+                'lighting_description': '',
+                'camera_movement': '',
+                'positive_prompt': '',
+                'negative_prompt': '',
+                'first_keyframe_characters': [],
+                'last_keyframe_characters': []
+            }
+            aligned_storyboards.append(shot)
+
+    # 如果storyboards比scenes多，丢弃多余的分镜
+    if storyboards_count > scenes_count:
+        dropped_count = storyboards_count - scenes_count
+        log(f"  Dropping {dropped_count} extra storyboards (indices {scenes_count} to {storyboards_count - 1})")
+
+    result_json['storyboards'] = aligned_storyboards
+    log(f"Force alignment complete: {len(aligned_storyboards)} storyboards aligned to {scenes_count} scenes")
+
+    return result_json
+
 def repair_json(text):
     """尝试修复常见的 JSON 格式错误"""
     import re
@@ -733,8 +805,8 @@ def main():
 {dialogue_directive}
 分析要求：
 1. 总结整体视频的核心内容，包括故事主题、主要角色关系、关键情节发展
-2. 严格按照提供的场景切分结果（scenes）进行分镜划分，每个场景作为一个分镜
-3. 分镜时长约束：每个分镜时长必须不超过15秒。如果场景时长超过15秒，需要将其拆分为多个分镜。
+2. 严格按照提供的场景切分结果（scenes）进行分镜划分，每个场景对应且仅对应一个分镜。分镜数量必须与场景数量完全一致，绝对不得跳过、合并或拆分任何场景。无论场景时长多长，都作为一个分镜处理。
+3. 每个分镜的start_time和end_time必须与对应场景的起始时间和结束时间完全一致，不得自行修改或调整。
 4. 输出全局角色档案，包括：
    - role_id（R1, R2, R3...）
    - name（角色中文名字，如诸葛亮、王朗）
@@ -745,7 +817,7 @@ def main():
    - face_position_x（人脸在画面中的水平位置，归一化0-1，0为最左侧，1为最右侧）
    - face_position_y（人脸在画面中的垂直位置，归一化0-1，0为最顶部，1为最底部）
 5. 每段分镜输出：
-   - 精确起止时间（修改后的）
+   - 精确起止时间（必须与对应场景的起始时间和结束时间完全一致，不得修改）
    - 本段所有出场人物role_id
    - 对话数组（dialogues），包含每句话的 speaker 和 text，用于区分多人对话的归属
    - 场景描述
@@ -869,7 +941,12 @@ JSON格式如下：
         
         log("Validating and fixing storyboard timestamps...")
         result_json = validate_and_fix_storyboards(result_json, video_duration, scenes_data)
-        
+
+        # 强制对齐：用scenes的时间范围覆盖storyboards的时间范围，确保一一对应
+        # 这从根本上了杜绝Gemini跳过/合并/拆分场景导致的提示词与片段错位问题
+        log("Force aligning storyboards with scenes...")
+        result_json = force_align_storyboards_with_scenes(result_json, scenes_data)
+
         # Post-processing: allocate dialogues from SRT based on timestamps
         if srt_local_path and os.path.exists(srt_local_path):
             log("Allocating dialogues from SRT to storyboards...")

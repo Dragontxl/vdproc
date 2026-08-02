@@ -65,6 +65,8 @@ export default function TaskDetail() {
   const [customPrompts, setCustomPrompts] = useState<Record<string, string>>({});
   const [selectedSubtaskKeys, setSelectedSubtaskKeys] = useState<React.Key[]>([]);
   const [batchRunning, setBatchRunning] = useState(false);
+  // 跟踪用户手动编辑过的提示词 key，这些 key 的值不会被 original_prompt 覆盖
+  const userEditedPromptKeys = useRef<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef({ x: 0, y: 0 });
   
@@ -166,12 +168,15 @@ export default function TaskDetail() {
       if (phase) {
         setSelectedSubtaskPhase(phase);
       }
-      // 以每个子任务的 original_prompt 作为自定义提示词框的默认值（仅在用户未编辑过该 key 时填充）
+      // 以每个子任务的 original_prompt 作为自定义提示词框的默认值
+      // 每次加载时用最新的 original_prompt 同步，但保留用户手动编辑过的值
+      // 这样可以避免 analysis_result.json 更新后提示词与分镜数据错位
       setCustomPrompts((prev) => {
         const next = { ...prev };
         for (const item of list as any[]) {
           const key = `${item.phase}-${item.subtask_index}`;
-          if (next[key] === undefined && item.original_prompt) {
+          // 只更新用户未手动编辑过的 key
+          if (!userEditedPromptKeys.current.has(key) && item.original_prompt) {
             next[key] = item.original_prompt;
           }
         }
@@ -758,7 +763,10 @@ export default function TaskDetail() {
                   <Input.TextArea
                     placeholder="输入自定义提示词，留空使用默认"
                     value={customPrompts[key] || ''}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCustomPrompts(prev => ({ ...prev, [key]: e.target.value }))}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                      userEditedPromptKeys.current.add(key);
+                      setCustomPrompts(prev => ({ ...prev, [key]: e.target.value }));
+                    }}
                     autoSize={{ minRows: 6, maxRows: 12 }}
                   />
                 );
