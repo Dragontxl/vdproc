@@ -211,7 +211,7 @@ process_frame() {
     echo "Shot $shot_index ${frame_type}: Using AI account index $account_index (alias: $selected_alias)"
     echo "  Shot $shot_index ${frame_type}: API URL: $selected_url"
 
-    MAX_RETRIES=5
+    MAX_RETRIES=3
     RETRY_DELAY=10
     API_SUCCESS=0
     RESPONSE=""
@@ -341,7 +341,7 @@ export ACQUIRE_ACCOUNT_INTERVAL
 export CALLBACK_URL
 export CALLBACK_SECRET
 
-MAX_ROUNDS=10
+MAX_ROUNDS=3
 
 report_progress() {
     local round=$1
