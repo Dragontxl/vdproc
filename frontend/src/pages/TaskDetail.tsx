@@ -307,6 +307,32 @@ export default function TaskDetail() {
     message.success('首尾帧下载完成');
   };
 
+  // 下载分镜视频（通过后端代理，避免 R2 公开域名 CORS 跨域问题）
+  const handleDownloadShot = async (subtaskIndex: number) => {
+    const prefix = `${id}/generated_shots/`;
+    const filename = `shot_${subtaskIndex}.mp4`;
+
+    const triggerDownload = (blob: Blob, fname: string) => {
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fname;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    };
+
+    try {
+      const blob = await fileApi.downloadAsBlob(filename, prefix);
+      triggerDownload(blob, filename);
+      message.success('分镜下载完成');
+    } catch (error: any) {
+      console.error('Download shot error:', error);
+      message.error(`下载失败: ${error.response?.data?.msg || error.message || '未知错误'}`);
+    }
+  };
+
   // 触发上传帧
   const handleUploadFramesClick = (phase: string, index: number) => {
     currentUploadSubtaskRef.current = { phase, index };
@@ -978,6 +1004,14 @@ export default function TaskDetail() {
                           block
                         >
                           上传视频
+                        </Button>
+                        <Button
+                          size="small"
+                          icon={<DownloadOutlined />}
+                          onClick={() => handleDownloadShot(record.subtask_index)}
+                          block
+                        >
+                          下载分镜
                         </Button>
                       </>
                     )}
