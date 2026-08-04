@@ -271,7 +271,7 @@ export default function TaskDetail() {
 
   // 下载首尾帧（通过后端代理，避免 R2 公开域名 CORS 跨域问题）
   const handleDownloadFrames = async (subtaskIndex: number) => {
-    const prefix = `${id}/ai_shot_frames`;
+    const prefix = `${id}/ai_shot_frames/`;
     const firstName = `shot_${subtaskIndex}_first.jpg`;
     const lastName = `shot_${subtaskIndex}_last.jpg`;
 
@@ -329,7 +329,7 @@ export default function TaskDetail() {
     }
 
     const { index } = currentUploadSubtaskRef.current;
-    const prefix = `${id}/ai_shot_frames`;
+    const prefix = `${id}/ai_shot_frames/`;
 
     try {
       for (let i = 0; i < files.length; i++) {
@@ -370,7 +370,7 @@ export default function TaskDetail() {
     if (!files || files.length === 0 || !currentUploadSubtaskRef.current) return;
 
     const { index } = currentUploadSubtaskRef.current;
-    const prefix = `${id}/generated_shots`;
+    const prefix = `${id}/generated_shots/`;
     const file = files[0];
     const ext = file.name.split('.').pop() || 'mp4';
     const filename = `shot_${index}.${ext}`;
