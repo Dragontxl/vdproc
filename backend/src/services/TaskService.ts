@@ -1127,35 +1127,44 @@ export class TaskService {
       subtasks.sort((a: any, b: any) => (a.subtask_index as number) - (b.subtask_index as number));
     }
 
-    // CONVERT_FRAMES 阶段自动生成子任务（与 convert-frames.sh 中的编号规则一致）
+    // CONVERT_FRAMES 阶段自动生成缺失的子任务（与 convert-frames.sh 中的编号规则一致）
     // 每个分镜有首帧（偶数索引）和尾帧（奇数索引）两个子任务
-    if (phase === 'CONVERT_FRAMES' && subtasks.length === 0 && Object.keys(shotData).length > 0) {
+    if (phase === 'CONVERT_FRAMES' && Object.keys(shotData).length > 0) {
+      // 收集已存在的 subtask_index
+      const existingIndices = new Set<number>();
+      for (const st of subtasks as any[]) {
+        existingIndices.add(st.subtask_index);
+      }
+
+      // 检查每个分镜的首帧和尾帧是否存在，缺失则补充
       for (const shotIndexStr of Object.keys(shotData)) {
         const shotIndex = parseInt(shotIndexStr);
         const frameTypes: Array<'first' | 'last'> = ['first', 'last'];
         for (const frameType of frameTypes) {
           const subtaskIndex = shotIndex * 2 + (frameType === 'first' ? 0 : 1);
-          const inputPath = `${taskId}/shot_frames/shot_${shotIndex}_${frameType}.jpg`;
-          const metadata = JSON.stringify({ shot_index: shotIndex, frame_type: frameType });
-          subtasks.push({
-            id: null,
-            task_id: taskId,
-            phase: 'CONVERT_FRAMES',
-            subtask_index: subtaskIndex,
-            subtask_type: `frame_${frameType}`,
-            status: 'PENDING',
-            input_path: inputPath,
-            output_path: '',
-            ai_account_id: null,
-            retry_count: 0,
-            max_retries: 3,
-            started_at: null,
-            completed_at: null,
-            error_msg: '',
-            metadata: metadata,
-            created_at: '',
-            original_prompt: '',
-          });
+          if (!existingIndices.has(subtaskIndex)) {
+            const inputPath = `${taskId}/shot_frames/shot_${shotIndex}_${frameType}.jpg`;
+            const metadata = JSON.stringify({ shot_index: shotIndex, frame_type: frameType });
+            subtasks.push({
+              id: null,
+              task_id: taskId,
+              phase: 'CONVERT_FRAMES',
+              subtask_index: subtaskIndex,
+              subtask_type: `frame_${frameType}`,
+              status: 'PENDING',
+              input_path: inputPath,
+              output_path: '',
+              ai_account_id: null,
+              retry_count: 0,
+              max_retries: 3,
+              started_at: null,
+              completed_at: null,
+              error_msg: '',
+              metadata: metadata,
+              created_at: '',
+              original_prompt: '',
+            });
+          }
         }
       }
       subtasks.sort((a: any, b: any) => (a.subtask_index as number) - (b.subtask_index as number));
