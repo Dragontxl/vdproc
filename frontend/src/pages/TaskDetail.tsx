@@ -13,8 +13,11 @@ import {
   ReloadOutlined,
   EyeOutlined,
   CopyOutlined,
+  DownloadOutlined,
+  UploadOutlined,
+  FileImageOutlined,
 } from '@ant-design/icons';
-import { taskApi } from '../api';
+import { taskApi, fileApi } from '../api';
 import dayjs from 'dayjs';
 import 'dayjs/plugin/utc';
 
@@ -69,6 +72,11 @@ export default function TaskDetail() {
   const userEditedPromptKeys = useRef<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef({ x: 0, y: 0 });
+  // 隐藏的 file input ref，用于上传帧和视频
+  const uploadFrameInputRef = useRef<HTMLInputElement>(null);
+  const uploadVideoInputRef = useRef<HTMLInputElement>(null);
+  // 记录当前操作的子任务索引（用于上传时确定目标路径）
+  const currentUploadSubtaskRef = useRef<{ phase: string; index: number } | null>(null);
   
   const subtaskPhases: TaskPhase[] = ['CONVERT_FRAMES', 'GENERATE_SHOTS'];
   const allPhases: TaskPhase[] = ['DETECT', 'ANALYZE', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
@@ -241,6 +249,145 @@ export default function TaskDetail() {
       const msg = error.response?.data?.msg || '启动子任务失败';
       message.error(msg);
     }
+  };
+
+  // R2 公开 URL
+  const r2PublicUrl = import.meta.env.VITE_R2_PUBLIC_URL || 'https://aivideobucket.ldragon.xyz';
+
+  // 获取分镜的首帧和尾帧 URL
+  const getFrameUrls = (subtaskIndex: number): { firstFrameUrl: string; lastFrameUrl: string } => {
+    const firstFrameUrl = `${r2PublicUrl}/${id}/ai_shot_frames/shot_${subtaskIndex}_first.jpg`;
+    const lastFrameUrl = `${r2PublicUrl}/${id}/ai_shot_frames/shot_${subtaskIndex}_last.jpg`;
+    return { firstFrameUrl, lastFrameUrl };
+  };
+
+  // 复制帧地址
+  const handleCopyFrameUrls = async (subtaskIndex: number) => {
+    const { firstFrameUrl, lastFrameUrl } = getFrameUrls(subtaskIndex);
+    const text = `首帧: ${firstFrameUrl}\n尾帧: ${lastFrameUrl}`;
+    await navigator.clipboard.writeText(text);
+    message.success('帧地址已复制到剪贴板');
+  };
+
+  // 下载首尾帧
+  const handleDownloadFrames = async (subtaskIndex: number) => {
+    try {
+      const { firstFrameUrl, lastFrameUrl } = getFrameUrls(subtaskIndex);
+      
+      // 下载首帧
+      const firstResponse = await fetch(firstFrameUrl);
+      if (!firstResponse.ok) {
+        throw new Error(`首帧下载失败: ${firstResponse.status}`);
+      }
+      const firstBlob = await firstResponse.blob();
+      const firstUrl = window.URL.createObjectURL(firstBlob);
+      const firstLink = document.createElement('a');
+      firstLink.href = firstUrl;
+      firstLink.download = `shot_${subtaskIndex}_first.jpg`;
+      document.body.appendChild(firstLink);
+      firstLink.click();
+      document.body.removeChild(firstLink);
+      window.URL.revokeObjectURL(firstUrl);
+
+      // 下载尾帧
+      const lastResponse = await fetch(lastFrameUrl);
+      if (!lastResponse.ok) {
+        throw new Error(`尾帧下载失败: ${lastResponse.status}`);
+      }
+      const lastBlob = await lastResponse.blob();
+      const lastUrl = window.URL.createObjectURL(lastBlob);
+      const lastLink = document.createElement('a');
+      lastLink.href = lastUrl;
+      lastLink.download = `shot_${subtaskIndex}_last.jpg`;
+      document.body.appendChild(lastLink);
+      lastLink.click();
+      document.body.removeChild(lastLink);
+      window.URL.revokeObjectURL(lastUrl);
+
+      message.success('首尾帧下载完成');
+    } catch (error: any) {
+      console.error('Download frames error:', error);
+      message.error(`下载失败: ${error.message || '未知错误'}`);
+    }
+  };
+
+  // 触发上传帧
+  const handleUploadFramesClick = (phase: string, index: number) => {
+    currentUploadSubtaskRef.current = { phase, index };
+    if (uploadFrameInputRef.current) {
+      uploadFrameInputRef.current.click();
+    }
+  };
+
+  // 处理上传帧文件选择
+  const handleUploadFramesChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0 || !currentUploadSubtaskRef.current) return;
+
+    const { index } = currentUploadSubtaskRef.current;
+    const prefix = `${id}/ai_shot_frames`;
+
+    try {
+      // 遍历上传的文件
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        // 根据文件顺序确定是首帧还是尾帧（第一个文件为首帧，第二个为尾帧）
+        const suffix = i === 0 ? 'first' : 'last';
+        const ext = file.name.split('.').pop() || 'jpg';
+        const filename = `shot_${index}_${suffix}.${ext}`;
+        
+        // 创建带新文件名的 File 对象
+        const renamedFile = new File([file], filename, { type: file.type });
+        
+        await fileApi.upload(renamedFile, prefix);
+      }
+      message.success(`已上传 ${files.length} 个帧到 ${prefix}`);
+      loadSubtasks(selectedSubtaskPhase as TaskPhase);
+    } catch (error: any) {
+      console.error('Upload frames error:', error);
+      message.error('上传帧失败');
+    }
+
+    // 清理
+    event.target.value = '';
+    currentUploadSubtaskRef.current = null;
+  };
+
+  // 触发上传视频
+  const handleUploadVideoClick = (phase: string, index: number) => {
+    currentUploadSubtaskRef.current = { phase, index };
+    if (uploadVideoInputRef.current) {
+      uploadVideoInputRef.current.click();
+    }
+  };
+
+  // 处理上传视频文件选择
+  const handleUploadVideoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0 || !currentUploadSubtaskRef.current) return;
+
+    const { index } = currentUploadSubtaskRef.current;
+    const prefix = `${id}/generated_shots`;
+
+    try {
+      for (const file of Array.from(files)) {
+        // 视频命名为 shot_{index}.mp4
+        const ext = file.name.split('.').pop() || 'mp4';
+        const filename = `shot_${index}.${ext}`;
+        const renamedFile = new File([file], filename, { type: file.type });
+        
+        await fileApi.upload(renamedFile, prefix);
+      }
+      message.success(`已上传 ${files.length} 个视频到 ${prefix}`);
+      loadSubtasks(selectedSubtaskPhase as TaskPhase);
+    } catch (error: any) {
+      console.error('Upload video error:', error);
+      message.error('上传视频失败');
+    }
+
+    // 清理
+    event.target.value = '';
+    currentUploadSubtaskRef.current = null;
   };
 
   const handleSubtaskSelect = (keys: React.Key[]) => {
@@ -775,28 +922,68 @@ export default function TaskDetail() {
             <Table.Column
               title="操作"
               key="actions"
-              render={(_, record) => (
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Button
-                    size="small"
-                    icon={<CopyOutlined />}
-                    onClick={() => handleCopyPrompt(record)}
-                    block
-                  >
-                    复制提示词
-                  </Button>
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<ReloadOutlined />}
-                    onClick={() => handleRunSubtask(record.phase, record.subtask_index)}
-                    disabled={record.status === 'PROCESSING'}
-                    block
-                  >
-                    {record.status === 'PROCESSING' ? '处理中' : '运行'}
-                  </Button>
-                </Space>
-              )}
+              width={120}
+              render={(_, record) => {
+                const isGenerateShots = record.phase === 'GENERATE_SHOTS';
+                return (
+                  <Space direction="vertical" style={{ width: '100%' }}>
+                    <Button
+                      size="small"
+                      icon={<CopyOutlined />}
+                      onClick={() => handleCopyPrompt(record)}
+                      block
+                    >
+                      复制提示词
+                    </Button>
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<ReloadOutlined />}
+                      onClick={() => handleRunSubtask(record.phase, record.subtask_index)}
+                      disabled={record.status === 'PROCESSING'}
+                      block
+                    >
+                      {record.status === 'PROCESSING' ? '处理中' : '运行'}
+                    </Button>
+                    {isGenerateShots && (
+                      <>
+                        <Button
+                          size="small"
+                          icon={<CopyOutlined />}
+                          onClick={() => handleCopyFrameUrls(record.subtask_index)}
+                          block
+                        >
+                          复制帧地址
+                        </Button>
+                        <Button
+                          size="small"
+                          icon={<DownloadOutlined />}
+                          onClick={() => handleDownloadFrames(record.subtask_index)}
+                          block
+                        >
+                          下载首尾帧
+                        </Button>
+                        <Button
+                          size="small"
+                          icon={<UploadOutlined />}
+                          onClick={() => handleUploadFramesClick(record.phase, record.subtask_index)}
+                          block
+                        >
+                          上传帧
+                        </Button>
+                        <Button
+                          size="small"
+                          icon={<VideoCameraOutlined />}
+                          onClick={() => handleUploadVideoClick(record.phase, record.subtask_index)}
+                          block
+                        >
+                          上传视频
+                        </Button>
+                      </>
+                    )}
+                  </Space>
+                );
+              }}
             />
           </Table>
         )}
@@ -809,6 +996,24 @@ export default function TaskDetail() {
           embedded={true}
         />
       </Card>
+
+      {/* 隐藏的 file input，用于上传帧和视频 */}
+      <input
+        type="file"
+        ref={uploadFrameInputRef}
+        style={{ display: 'none' }}
+        accept="image/*"
+        multiple
+        onChange={handleUploadFramesChange}
+      />
+      <input
+        type="file"
+        ref={uploadVideoInputRef}
+        style={{ display: 'none' }}
+        accept="video/*"
+        multiple
+        onChange={handleUploadVideoChange}
+      />
     </div>
   );
 }
