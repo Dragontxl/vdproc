@@ -269,46 +269,42 @@ export default function TaskDetail() {
     message.success('帧地址已复制到剪贴板');
   };
 
-  // 下载首尾帧
+  // 下载首尾帧（通过后端代理，避免 R2 公开域名 CORS 跨域问题）
   const handleDownloadFrames = async (subtaskIndex: number) => {
+    const prefix = `${id}/ai_shot_frames`;
+    const firstName = `shot_${subtaskIndex}_first.jpg`;
+    const lastName = `shot_${subtaskIndex}_last.jpg`;
+
+    const triggerDownload = (blob: Blob, filename: string) => {
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    };
+
     try {
-      const { firstFrameUrl, lastFrameUrl } = getFrameUrls(subtaskIndex);
-      
-      // 下载首帧
-      const firstResponse = await fetch(firstFrameUrl);
-      if (!firstResponse.ok) {
-        throw new Error(`首帧下载失败: ${firstResponse.status}`);
-      }
-      const firstBlob = await firstResponse.blob();
-      const firstUrl = window.URL.createObjectURL(firstBlob);
-      const firstLink = document.createElement('a');
-      firstLink.href = firstUrl;
-      firstLink.download = `shot_${subtaskIndex}_first.jpg`;
-      document.body.appendChild(firstLink);
-      firstLink.click();
-      document.body.removeChild(firstLink);
-      window.URL.revokeObjectURL(firstUrl);
-
-      // 下载尾帧
-      const lastResponse = await fetch(lastFrameUrl);
-      if (!lastResponse.ok) {
-        throw new Error(`尾帧下载失败: ${lastResponse.status}`);
-      }
-      const lastBlob = await lastResponse.blob();
-      const lastUrl = window.URL.createObjectURL(lastBlob);
-      const lastLink = document.createElement('a');
-      lastLink.href = lastUrl;
-      lastLink.download = `shot_${subtaskIndex}_last.jpg`;
-      document.body.appendChild(lastLink);
-      lastLink.click();
-      document.body.removeChild(lastLink);
-      window.URL.revokeObjectURL(lastUrl);
-
-      message.success('首尾帧下载完成');
+      const firstBlob = await fileApi.downloadAsBlob(firstName, prefix);
+      triggerDownload(firstBlob, firstName);
     } catch (error: any) {
-      console.error('Download frames error:', error);
-      message.error(`下载失败: ${error.message || '未知错误'}`);
+      console.error('Download first frame error:', error);
+      message.error(`首帧下载失败: ${error.response?.data?.msg || error.message || '未知错误'}`);
+      return;
     }
+
+    try {
+      const lastBlob = await fileApi.downloadAsBlob(lastName, prefix);
+      triggerDownload(lastBlob, lastName);
+    } catch (error: any) {
+      console.error('Download last frame error:', error);
+      message.error(`尾帧下载失败: ${error.response?.data?.msg || error.message || '未知错误'}`);
+      return;
+    }
+
+    message.success('首尾帧下载完成');
   };
 
   // 触发上传帧
