@@ -83,6 +83,10 @@ export default function TaskDetail() {
   const currentUploadSubtaskRef = useRef<{ phase: string; index: number } | null>(null);
   // 记录当前上传帧的分镜索引
   const currentUploadFrameIndexRef = useRef<number | null>(null);
+  // 隐藏的 file input ref，用于替换原图/生成图
+  const replaceFrameInputRef = useRef<HTMLInputElement>(null);
+  // 记录当前替换图片的目标（原图/生成图）及子任务索引
+  const currentReplaceFrameRef = useRef<{ type: 'original' | 'generated'; subtaskIndex: number } | null>(null);
   
   const subtaskPhases: TaskPhase[] = ['CONVERT_FRAMES', 'GENERATE_SHOTS'];
   const allPhases: TaskPhase[] = ['DETECT', 'ANALYZE', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
@@ -337,6 +341,111 @@ export default function TaskDetail() {
       console.error('Download shot error:', error);
       message.error(`下载失败: ${error.response?.data?.msg || error.message || '未知错误'}`);
     }
+  };
+
+  // 获取 CONVERT_FRAMES 子任务的原图和生成图路径信息
+  // subtask_index 规则: shotIndex * 2 + (首帧=0 / 尾帧=1)
+  const getConvertFramePaths = (subtaskIndex: number) => {
+    const shotIndex = Math.floor(subtaskIndex / 2);
+    const frameType = subtaskIndex % 2 === 0 ? 'first' : 'last';
+    const frameLabel = frameType === 'first' ? '首帧' : '尾帧';
+    const filename = `shot_${shotIndex}_${frameType}.jpg`;
+    const originalPrefix = `${id}/shot_frames/`;
+    const generatedPrefix = `${id}/ai_shot_frames/`;
+    const originalUrl = `${r2PublicUrl}/${id}/shot_frames/${filename}`;
+    const generatedUrl = `${r2PublicUrl}/${id}/ai_shot_frames/${filename}`;
+    return { shotIndex, frameType, frameLabel, filename, originalPrefix, generatedPrefix, originalUrl, generatedUrl };
+  };
+
+  // 通用下载 Blob 触发器
+  const triggerBlobDownload = (blob: Blob, fname: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fname;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
+  // 复制原图地址
+  const handleCopyOriginalUrl = async (subtaskIndex: number) => {
+    const { originalUrl } = getConvertFramePaths(subtaskIndex);
+    try {
+      await navigator.clipboard.writeText(originalUrl);
+      message.success('原图地址已复制到剪贴板');
+    } catch (error) {
+      console.error('Copy original url error:', error);
+      message.error('复制原图地址失败');
+    }
+  };
+
+  // 下载原图
+  const handleDownloadOriginalFrame = async (subtaskIndex: number) => {
+    const { filename, originalPrefix } = getConvertFramePaths(subtaskIndex);
+    try {
+      const blob = await fileApi.downloadAsBlob(filename, originalPrefix);
+      triggerBlobDownload(blob, filename);
+      message.success('原图下载完成');
+    } catch (error: any) {
+      console.error('Download original frame error:', error);
+      message.error(`原图下载失败: ${error.response?.data?.msg || error.message || '未知错误'}`);
+    }
+  };
+
+  // 下载生成图
+  const handleDownloadGeneratedFrame = async (subtaskIndex: number) => {
+    const { filename, generatedPrefix } = getConvertFramePaths(subtaskIndex);
+    try {
+      const blob = await fileApi.downloadAsBlob(filename, generatedPrefix);
+      triggerBlobDownload(blob, filename);
+      message.success('生成图下载完成');
+    } catch (error: any) {
+      console.error('Download generated frame error:', error);
+      message.error(`生成图下载失败: ${error.response?.data?.msg || error.message || '未知错误'}`);
+    }
+  };
+
+  // 触发替换原图
+  const handleReplaceOriginalClick = (subtaskIndex: number) => {
+    currentReplaceFrameRef.current = { type: 'original', subtaskIndex };
+    if (replaceFrameInputRef.current) {
+      replaceFrameInputRef.current.click();
+    }
+  };
+
+  // 触发替换生成图
+  const handleReplaceGeneratedClick = (subtaskIndex: number) => {
+    currentReplaceFrameRef.current = { type: 'generated', subtaskIndex };
+    if (replaceFrameInputRef.current) {
+      replaceFrameInputRef.current.click();
+    }
+  };
+
+  // 处理替换图片文件选择（上传的图片重命名为与目标同名）
+  const handleReplaceFrameChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0 || !currentReplaceFrameRef.current) return;
+
+    const { type, subtaskIndex } = currentReplaceFrameRef.current;
+    const { filename, frameLabel, originalPrefix, generatedPrefix } = getConvertFramePaths(subtaskIndex);
+    const prefix = type === 'original' ? originalPrefix : generatedPrefix;
+    const file = files[0];
+    const renamedFile = new File([file], filename, { type: file.type || 'image/jpeg' });
+
+    try {
+      await fileApi.upload(renamedFile, prefix);
+      message.success(`已替换${type === 'original' ? '原图' : '生成图'}（${frameLabel} ${filename}）`);
+      loadSubtasks(selectedSubtaskPhase as TaskPhase);
+    } catch (error: any) {
+      console.error('Replace frame error:', error);
+      message.error(`替换失败: ${error.response?.data?.msg || error.message || '未知错误'}`);
+    }
+
+    // 清理
+    event.target.value = '';
+    currentReplaceFrameRef.current = null;
   };
 
   // 触发上传帧（打开 Modal）
@@ -967,9 +1076,10 @@ export default function TaskDetail() {
             <Table.Column
               title="操作"
               key="actions"
-              width={120}
+              width={140}
               render={(_, record) => {
                 const isGenerateShots = record.phase === 'GENERATE_SHOTS';
+                const isConvertFrames = record.phase === 'CONVERT_FRAMES';
                 return (
                   <Space direction="vertical" style={{ width: '100%' }}>
                     <Button
@@ -1034,6 +1144,50 @@ export default function TaskDetail() {
                         </Button>
                       </>
                     )}
+                    {isConvertFrames && (
+                      <>
+                        <Button
+                          size="small"
+                          icon={<CopyOutlined />}
+                          onClick={() => handleCopyOriginalUrl(record.subtask_index)}
+                          block
+                        >
+                          复制原图地址
+                        </Button>
+                        <Button
+                          size="small"
+                          icon={<DownloadOutlined />}
+                          onClick={() => handleDownloadOriginalFrame(record.subtask_index)}
+                          block
+                        >
+                          下载原图
+                        </Button>
+                        <Button
+                          size="small"
+                          icon={<DownloadOutlined />}
+                          onClick={() => handleDownloadGeneratedFrame(record.subtask_index)}
+                          block
+                        >
+                          下载生成图
+                        </Button>
+                        <Button
+                          size="small"
+                          icon={<UploadOutlined />}
+                          onClick={() => handleReplaceOriginalClick(record.subtask_index)}
+                          block
+                        >
+                          替换原图
+                        </Button>
+                        <Button
+                          size="small"
+                          icon={<UploadOutlined />}
+                          onClick={() => handleReplaceGeneratedClick(record.subtask_index)}
+                          block
+                        >
+                          替换生成图
+                        </Button>
+                      </>
+                    )}
                   </Space>
                 );
               }}
@@ -1057,6 +1211,15 @@ export default function TaskDetail() {
         style={{ display: 'none' }}
         accept="video/*"
         onChange={handleUploadVideoChange}
+      />
+
+      {/* 隐藏的 file input，用于替换原图/生成图 */}
+      <input
+        type="file"
+        ref={replaceFrameInputRef}
+        style={{ display: 'none' }}
+        accept="image/*"
+        onChange={handleReplaceFrameChange}
       />
 
       {/* 上传帧 Modal */}
