@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider, Alert, Progress, Select, Table, Popconfirm, Input } from 'antd';
+import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider, Alert, Progress, Select, Table, Popconfirm, Input, Modal, Upload, Radio } from 'antd';
 import {
   PlayCircleOutlined,
   StopOutlined,
@@ -68,15 +68,21 @@ export default function TaskDetail() {
   const [customPrompts, setCustomPrompts] = useState<Record<string, string>>({});
   const [selectedSubtaskKeys, setSelectedSubtaskKeys] = useState<React.Key[]>([]);
   const [batchRunning, setBatchRunning] = useState(false);
+  // 上传帧 Modal 相关状态
+  const [uploadFrameModalVisible, setUploadFrameModalVisible] = useState(false);
+  const [frameType, setFrameType] = useState<'first' | 'last' | 'both'>('both');
+  const [selectedFrameFiles, setSelectedFrameFiles] = useState<any[]>([]);
+  const [uploadingFrames, setUploadingFrames] = useState(false);
   // 跟踪用户手动编辑过的提示词 key，这些 key 的值不会被 original_prompt 覆盖
   const userEditedPromptKeys = useRef<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef({ x: 0, y: 0 });
-  // 隐藏的 file input ref，用于上传帧和视频
-  const uploadFrameInputRef = useRef<HTMLInputElement>(null);
+  // 隐藏的 file input ref，用于上传视频
   const uploadVideoInputRef = useRef<HTMLInputElement>(null);
   // 记录当前操作的子任务索引（用于上传时确定目标路径）
   const currentUploadSubtaskRef = useRef<{ phase: string; index: number } | null>(null);
+  // 记录当前上传帧的分镜索引
+  const currentUploadFrameIndexRef = useRef<number | null>(null);
   
   const subtaskPhases: TaskPhase[] = ['CONVERT_FRAMES', 'GENERATE_SHOTS'];
   const allPhases: TaskPhase[] = ['DETECT', 'ANALYZE', 'CROP_SHOTS', 'CONVERT_FRAMES', 'GENERATE_SHOTS', 'COMPOSE'];
@@ -333,53 +339,66 @@ export default function TaskDetail() {
     }
   };
 
-  // 触发上传帧
+  // 触发上传帧（打开 Modal）
   const handleUploadFramesClick = (phase: string, index: number) => {
-    currentUploadSubtaskRef.current = { phase, index };
-    if (uploadFrameInputRef.current) {
-      uploadFrameInputRef.current.click();
-    }
+    currentUploadFrameIndexRef.current = index;
+    setFrameType('both');
+    setSelectedFrameFiles([]);
+    setUploadFrameModalVisible(true);
   };
 
-  // 处理上传帧文件选择（仅允许选2个图片：首帧+尾帧，按顺序）
-  const handleUploadFramesChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0 || !currentUploadSubtaskRef.current) return;
+  // Modal 中确认上传帧
+  const handleConfirmUploadFrames = async () => {
+    const index = currentUploadFrameIndexRef.current;
+    if (index === null) return;
 
-    // 必须选2个图片：第一个为首帧，第二个为尾帧
-    if (files.length !== 2) {
-      message.warning('请选择2个图片：第一个为首帧，第二个为尾帧');
-      event.target.value = '';
-      currentUploadSubtaskRef.current = null;
+    const files = selectedFrameFiles;
+    if (files.length === 0) {
+      message.warning('请选择图片');
+      return;
+    }
+    // 首尾帧模式必须选2张图片（按顺序为首帧、尾帧）；单帧模式只允许1张
+    if (frameType === 'both' && files.length !== 2) {
+      message.warning('首尾帧模式请选择2张图片（第1张为首帧，第2张为尾帧），或改为单帧模式');
+      return;
+    }
+    if (frameType !== 'both' && files.length !== 1) {
+      message.warning('单帧模式仅允许上传1张图片');
       return;
     }
 
-    const { index } = currentUploadSubtaskRef.current;
     const prefix = `${id}/ai_shot_frames/`;
+    setUploadingFrames(true);
 
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        // 根据文件顺序确定是首帧还是尾帧（第一个文件为首帧，第二个为尾帧）
-        const suffix = i === 0 ? 'first' : 'last';
-        const ext = file.name.split('.').pop() || 'jpg';
+      if (files.length === 1) {
+        // 单张图片，按用户勾选的选项命名
+        const suffix = frameType === 'first' ? 'first' : 'last';
+        const rawFile = files[0].originFileObj || files[0];
+        const ext = rawFile.name.split('.').pop() || 'jpg';
         const filename = `shot_${index}_${suffix}.${ext}`;
-
-        // 创建带新文件名的 File 对象
-        const renamedFile = new File([file], filename, { type: file.type });
-
+        const renamedFile = new File([rawFile], filename, { type: rawFile.type });
         await fileApi.upload(renamedFile, prefix);
+      } else {
+        // 两张图片，按顺序命名首帧和尾帧
+        for (let i = 0; i < files.length; i++) {
+          const rawFile = files[i].originFileObj || files[i];
+          const suffix = i === 0 ? 'first' : 'last';
+          const ext = rawFile.name.split('.').pop() || 'jpg';
+          const filename = `shot_${index}_${suffix}.${ext}`;
+          const renamedFile = new File([rawFile], filename, { type: rawFile.type });
+          await fileApi.upload(renamedFile, prefix);
+        }
       }
-      message.success(`已上传首尾帧到 ${prefix}`);
+      message.success('上传帧成功');
+      setUploadFrameModalVisible(false);
       loadSubtasks(selectedSubtaskPhase as TaskPhase);
     } catch (error: any) {
       console.error('Upload frames error:', error);
       message.error('上传帧失败');
+    } finally {
+      setUploadingFrames(false);
     }
-
-    // 清理
-    event.target.value = '';
-    currentUploadSubtaskRef.current = null;
   };
 
   // 触发上传视频
@@ -1031,14 +1050,7 @@ export default function TaskDetail() {
         />
       </Card>
 
-      {/* 隐藏的 file input，用于上传帧和视频 */}
-      <input
-        type="file"
-        ref={uploadFrameInputRef}
-        style={{ display: 'none' }}
-        accept="image/*"
-        onChange={handleUploadFramesChange}
-      />
+      {/* 隐藏的 file input，用于上传视频 */}
       <input
         type="file"
         ref={uploadVideoInputRef}
@@ -1046,6 +1058,59 @@ export default function TaskDetail() {
         accept="video/*"
         onChange={handleUploadVideoChange}
       />
+
+      {/* 上传帧 Modal */}
+      <Modal
+        title="上传帧"
+        open={uploadFrameModalVisible}
+        onOk={handleConfirmUploadFrames}
+        onCancel={() => setUploadFrameModalVisible(false)}
+        confirmLoading={uploadingFrames}
+        okText="上传"
+        cancelText="取消"
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 8 }}>选择上传类型：</div>
+          <Radio.Group
+            value={frameType}
+            onChange={(e) => {
+              setFrameType(e.target.value);
+              setSelectedFrameFiles([]);
+            }}
+          >
+            <Radio value="first">首帧</Radio>
+            <Radio value="last">尾帧</Radio>
+            <Radio value="both">首尾帧</Radio>
+          </Radio.Group>
+        </div>
+        <Upload
+          beforeUpload={() => false}
+          fileList={selectedFrameFiles}
+          onChange={({ fileList }) => {
+            const maxCount = frameType === 'both' ? 2 : 1;
+            setSelectedFrameFiles(fileList.slice(-maxCount));
+          }}
+          multiple={frameType === 'both'}
+          maxCount={frameType === 'both' ? 2 : 1}
+          accept="image/*"
+          onRemove={(file) => {
+            setSelectedFrameFiles(prev => prev.filter(f => f.uid !== file.uid));
+          }}
+        >
+          <Button icon={<UploadOutlined />}>选择图片</Button>
+        </Upload>
+        {frameType === 'both' && selectedFrameFiles.length === 1 && (
+          <div style={{ marginTop: 8, color: '#faad14', fontSize: 12 }}>
+            提示：首尾帧模式需选择2张图片（第1张为首帧，第2张为尾帧）
+          </div>
+        )}
+        {frameType !== 'both' && selectedFrameFiles.length > 0 && (
+          <div style={{ marginTop: 8, color: '#1890ff', fontSize: 12 }}>
+            将上传为 {frameType === 'first' ? '首帧' : '尾帧'}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
