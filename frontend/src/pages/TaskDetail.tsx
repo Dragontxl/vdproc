@@ -264,7 +264,7 @@ export default function TaskDetail() {
   // 复制帧地址
   const handleCopyFrameUrls = async (subtaskIndex: number) => {
     const { firstFrameUrl, lastFrameUrl } = getFrameUrls(subtaskIndex);
-    const text = `首帧: ${firstFrameUrl}\n尾帧: ${lastFrameUrl}`;
+    const text = `${firstFrameUrl}\n${lastFrameUrl}`;
     await navigator.clipboard.writeText(text);
     message.success('帧地址已复制到剪贴板');
   };
