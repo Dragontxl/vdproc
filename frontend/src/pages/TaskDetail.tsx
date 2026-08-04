@@ -315,29 +315,36 @@ export default function TaskDetail() {
     }
   };
 
-  // 处理上传帧文件选择
+  // 处理上传帧文件选择（仅允许选2个图片：首帧+尾帧，按顺序）
   const handleUploadFramesChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0 || !currentUploadSubtaskRef.current) return;
+
+    // 必须选2个图片：第一个为首帧，第二个为尾帧
+    if (files.length !== 2) {
+      message.warning('请选择2个图片：第一个为首帧，第二个为尾帧');
+      event.target.value = '';
+      currentUploadSubtaskRef.current = null;
+      return;
+    }
 
     const { index } = currentUploadSubtaskRef.current;
     const prefix = `${id}/ai_shot_frames`;
 
     try {
-      // 遍历上传的文件
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         // 根据文件顺序确定是首帧还是尾帧（第一个文件为首帧，第二个为尾帧）
         const suffix = i === 0 ? 'first' : 'last';
         const ext = file.name.split('.').pop() || 'jpg';
         const filename = `shot_${index}_${suffix}.${ext}`;
-        
+
         // 创建带新文件名的 File 对象
         const renamedFile = new File([file], filename, { type: file.type });
-        
+
         await fileApi.upload(renamedFile, prefix);
       }
-      message.success(`已上传 ${files.length} 个帧到 ${prefix}`);
+      message.success(`已上传首尾帧到 ${prefix}`);
       loadSubtasks(selectedSubtaskPhase as TaskPhase);
     } catch (error: any) {
       console.error('Upload frames error:', error);
@@ -357,24 +364,21 @@ export default function TaskDetail() {
     }
   };
 
-  // 处理上传视频文件选择
+  // 处理上传视频文件选择（仅允许选1个视频）
   const handleUploadVideoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0 || !currentUploadSubtaskRef.current) return;
 
     const { index } = currentUploadSubtaskRef.current;
     const prefix = `${id}/generated_shots`;
+    const file = files[0];
+    const ext = file.name.split('.').pop() || 'mp4';
+    const filename = `shot_${index}.${ext}`;
+    const renamedFile = new File([file], filename, { type: file.type });
 
     try {
-      for (const file of Array.from(files)) {
-        // 视频命名为 shot_{index}.mp4
-        const ext = file.name.split('.').pop() || 'mp4';
-        const filename = `shot_${index}.${ext}`;
-        const renamedFile = new File([file], filename, { type: file.type });
-        
-        await fileApi.upload(renamedFile, prefix);
-      }
-      message.success(`已上传 ${files.length} 个视频到 ${prefix}`);
+      await fileApi.upload(renamedFile, prefix);
+      message.success(`已上传视频 ${filename} 到 ${prefix}`);
       loadSubtasks(selectedSubtaskPhase as TaskPhase);
     } catch (error: any) {
       console.error('Upload video error:', error);
@@ -999,7 +1003,6 @@ export default function TaskDetail() {
         ref={uploadFrameInputRef}
         style={{ display: 'none' }}
         accept="image/*"
-        multiple
         onChange={handleUploadFramesChange}
       />
       <input
@@ -1007,7 +1010,6 @@ export default function TaskDetail() {
         ref={uploadVideoInputRef}
         style={{ display: 'none' }}
         accept="video/*"
-        multiple
         onChange={handleUploadVideoChange}
       />
     </div>
