@@ -16,8 +16,9 @@ import {
   DownloadOutlined,
   UploadOutlined,
   FileImageOutlined,
+  SendOutlined,
 } from '@ant-design/icons';
-import { taskApi, fileApi } from '../api';
+import { taskApi, fileApi, configApi } from '../api';
 import dayjs from 'dayjs';
 import 'dayjs/plugin/utc';
 
@@ -25,6 +26,11 @@ const dayjsUtc = (time: string) => dayjs.utc(time).local();
 import FileBrowser from './FileBrowser';
 
 const { Option } = Select;
+
+// 本地 agnes-video-app 的默认位置；可通过系统配置项 local_exe_path 覆盖
+const DEFAULT_LOCAL_EXE_PATH = 'F:\\GO\\videomodifytest\\agnes-video-app\\build\\bin\\agnes-video-app.exe';
+// 与 agnes-video-app 约定的自定义协议
+const LOCAL_EXE_PROTOCOL = 'agnesvideo';
 
 type TaskPhase = 'DETECT' | 'ANALYZE' | 'CROP_SHOTS' | 'CONVERT_FRAMES' | 'GENERATE_SHOTS' | 'COMPOSE';
 
@@ -73,6 +79,8 @@ export default function TaskDetail() {
   const [frameType, setFrameType] = useState<'first' | 'last' | 'both'>('both');
   const [selectedFrameFiles, setSelectedFrameFiles] = useState<any[]>([]);
   const [uploadingFrames, setUploadingFrames] = useState(false);
+  // 用户指定的本地 agnes-video-app.exe 路径，默认使用约定路径
+  const [localExePath, setLocalExePath] = useState(DEFAULT_LOCAL_EXE_PATH);
   // 跟踪用户手动编辑过的提示词 key，这些 key 的值不会被 original_prompt 覆盖
   const userEditedPromptKeys = useRef<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
@@ -95,6 +103,13 @@ export default function TaskDetail() {
     if (id) {
       loadTask(true);
       loadLogs();
+      // 读取用户配置的本地 exe 路径（用于「发送参数」提示），失败时保留默认值
+      configApi.get('local_exe_path').then((res: any) => {
+        const value = res?.data?.value;
+        if (value) {
+          setLocalExePath(value);
+        }
+      }).catch(() => {});
     }
 
     const interval = setInterval(() => {
@@ -277,6 +292,40 @@ export default function TaskDetail() {
     const text = `${firstFrameUrl}\n${lastFrameUrl}`;
     await navigator.clipboard.writeText(text);
     message.success('帧地址已复制到剪贴板');
+  };
+
+  // 构建 agnesvideo:// 协议链接，把分镜生成参数发送给本地 agnes-video-app.exe
+  const handleSendParamsToLocalApp = async (record: any) => {
+    const key = `${record.phase}-${record.subtask_index}`;
+    const prompt = customPrompts[key]?.trim() || record.original_prompt || '';
+    if (!prompt) {
+      message.warning('当前子任务没有提示词，无法发送');
+      return;
+    }
+    const { firstFrameUrl, lastFrameUrl } = getFrameUrls(record.subtask_index);
+    const payload = {
+      prompt,
+      keyframes: [firstFrameUrl, lastFrameUrl],
+      num_frames: Number(record.frames) || 0,
+      frame_rate: Number(record.output_fps) || Number(task?.output_fps) || 24,
+    };
+
+    // JSON -> base64url（与 agnes-video-app protocol.go 的解码方式对应）
+    const bytes = new TextEncoder().encode(JSON.stringify(payload));
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) {
+      bin += String.fromCharCode(bytes[i]);
+    }
+    const b64url = window.btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const uri = `${LOCAL_EXE_PROTOCOL}://send?data=${encodeURIComponent(b64url)}`;
+
+    const link = document.createElement('a');
+    link.href = uri;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    message.success(`参数已发送到本地应用（${localExePath}）`);
   };
 
   // 下载首尾帧（通过后端代理，避免 R2 公开域名 CORS 跨域问题）
@@ -1102,6 +1151,14 @@ export default function TaskDetail() {
                     </Button>
                     {isGenerateShots && (
                       <>
+                        <Button
+                          size="small"
+                          icon={<SendOutlined />}
+                          onClick={() => handleSendParamsToLocalApp(record)}
+                          block
+                        >
+                          发送参数
+                        </Button>
                         <Button
                           size="small"
                           icon={<CopyOutlined />}

@@ -1,0 +1,2 @@
+INSERT OR IGNORE INTO system_config (key, value, description)
+VALUES ('local_exe_path', 'F:\GO\videomodifytest\agnes-video-app\build\bin\agnes-video-app.exe', '本地 agnes-video-app.exe 路径（用于分镜生成「发送参数」按钮）');
