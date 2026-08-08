@@ -304,6 +304,29 @@ export default function TaskDetail() {
     }
   };
 
+  // 图生图（首尾帧转化）默认提示词
+  const I2I_DEFAULT_PROMPT = '修改为美式动画风格，保留原始图片的元素和内容, 只改变风格。';
+
+  // 把图生图（首尾帧转化）参数同步到云端（R2），运行中的 agnes-video-app 图生图页自动轮询刷新
+  const handleSyncI2IParamsToCloud = async (record: any) => {
+    const key = `${record.phase}-${record.subtask_index}`;
+    const prompt = customPrompts[key]?.trim() || record.original_prompt?.trim() || I2I_DEFAULT_PROMPT;
+    const { originalUrl } = getConvertFramePaths(record.subtask_index);
+    const payload = {
+      prompt,
+      keyframes: [originalUrl],
+      width: 1152,
+      height: 864,
+    };
+
+    try {
+      await api.put('/admin/i2i-config', payload);
+      message.success('参数已同步，应用将自动刷新');
+    } catch (e) {
+      message.error(`参数同步失败：${(e as any)?.response?.data?.msg || '请稍后重试'}`);
+    }
+  };
+
   // 下载首尾帧（通过后端代理，避免 R2 公开域名 CORS 跨域问题）
   const handleDownloadFrames = async (subtaskIndex: number) => {
     const prefix = `${id}/ai_shot_frames/`;
@@ -1179,6 +1202,14 @@ export default function TaskDetail() {
                     )}
                     {isConvertFrames && (
                       <>
+                        <Button
+                          size="small"
+                          icon={<SendOutlined />}
+                          onClick={() => handleSyncI2IParamsToCloud(record)}
+                          block
+                        >
+                          发送参数
+                        </Button>
                         <Button
                           size="small"
                           icon={<CopyOutlined />}

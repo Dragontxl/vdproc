@@ -5,6 +5,7 @@ import { configRoutes } from './config';
 import { metricsRoutes } from './metrics';
 import { fileRoutes } from './files';
 import { adminShotConfigRoutes } from './shot-config';
+import { adminI2IConfigRoutes } from './i2i-config';
 
 const adminRoutes = new Hono();
 
@@ -14,5 +15,6 @@ adminRoutes.route('/config', configRoutes);
 adminRoutes.route('/metrics', metricsRoutes);
 adminRoutes.route('/files', fileRoutes);
 adminRoutes.route('/shot-config', adminShotConfigRoutes);
+adminRoutes.route('/i2i-config', adminI2IConfigRoutes);
 
 export { adminRoutes };
