@@ -298,7 +298,7 @@ export default function TaskDetail() {
 
     try {
       await api.put('/admin/shot-config', payload);
-      message.success('参数已同步到云端，应用将自动刷新');
+      message.success('参数已同步，应用将自动刷新');
     } catch (e) {
       message.error(`参数同步失败：${(e as any)?.response?.data?.msg || '请稍后重试'}`);
     }
