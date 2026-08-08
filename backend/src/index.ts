@@ -5,6 +5,7 @@ import { taskRoutes } from './routes/public/tasks';
 import { callbackRoutes } from './routes/public/callback';
 import { authRoutes } from './routes/public/auth';
 import { publicFileRoutes } from './routes/public/files';
+import { shotConfigRoutes } from './routes/public/shot-config';
 import { adminRoutes } from './routes/admin';
 import { authMiddleware } from './middleware/auth';
 import { loggerMiddleware } from './middleware/logger';
@@ -58,6 +59,7 @@ app.route('/api/v1/tasks', taskRoutes);
 app.route('/api/v1/callback', callbackRoutes);
 app.route('/api/v1/auth', authRoutes);
 app.route('/api/v1/files', publicFileRoutes);
+app.route('/api/v1/shot-config', shotConfigRoutes);
 app.use('/api/v1/admin/*', authMiddleware);
 app.route('/api/v1/admin', adminRoutes);
 

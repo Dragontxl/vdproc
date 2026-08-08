@@ -4,6 +4,7 @@ import { accountRoutes } from './accounts';
 import { configRoutes } from './config';
 import { metricsRoutes } from './metrics';
 import { fileRoutes } from './files';
+import { adminShotConfigRoutes } from './shot-config';
 
 const adminRoutes = new Hono();
 
@@ -12,5 +13,6 @@ adminRoutes.route('/accounts', accountRoutes);
 adminRoutes.route('/config', configRoutes);
 adminRoutes.route('/metrics', metricsRoutes);
 adminRoutes.route('/files', fileRoutes);
+adminRoutes.route('/shot-config', adminShotConfigRoutes);
 
 export { adminRoutes };

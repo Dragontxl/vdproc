@@ -1,0 +1,1 @@
+DELETE FROM system_config WHERE key = 'local_exe_path';

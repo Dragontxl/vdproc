@@ -1,0 +1,1 @@
+export const SHOT_CONFIG_KEY = 'agnes-video/shot_config.json';
