@@ -429,6 +429,29 @@ export default function TaskDetail() {
     }
   };
 
+  // 获取分镜的 10%~90% 多帧地址（9 张，shot_${shotIndex}_1-1.jpg ~ shot_${shotIndex}_1-9.jpg）
+  const getMultiFrameUrls = (subtaskIndex: number): string[] => {
+    const shotIndex = Math.floor(subtaskIndex / 2);
+    const urls: string[] = [];
+    for (let n = 1; n <= 9; n++) {
+      urls.push(`${r2PublicUrl}/${id}/shot_frames/shot_${shotIndex}_1-${n}.jpg`);
+    }
+    return urls;
+  };
+
+  // 复制多帧地址（每行一个 url）
+  const handleCopyMultiFrameUrls = async (subtaskIndex: number) => {
+    const urls = getMultiFrameUrls(subtaskIndex);
+    const text = urls.join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      message.success('多帧地址已复制到剪贴板');
+    } catch (error) {
+      console.error('Copy multi-frame urls error:', error);
+      message.error('复制多帧地址失败');
+    }
+  };
+
   // 下载原图
   const handleDownloadOriginalFrame = async (subtaskIndex: number) => {
     const { filename, originalPrefix } = getConvertFramePaths(subtaskIndex);
@@ -1217,6 +1240,14 @@ export default function TaskDetail() {
                           block
                         >
                           复制原图地址
+                        </Button>
+                        <Button
+                          size="small"
+                          icon={<CopyOutlined />}
+                          onClick={() => handleCopyMultiFrameUrls(record.subtask_index)}
+                          block
+                        >
+                          复制多帧地址
                         </Button>
                         <Button
                           size="small"

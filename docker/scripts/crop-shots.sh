@@ -138,7 +138,31 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
         echo "Failed to extract last frame, using first frame as fallback..."
         cp "./shot_frames/shot_${i}_first.jpg" "./shot_frames/shot_${i}_last.jpg"
     fi
-    
+
+    echo "Extracting intermediate frames at 10%, 20%, ..., 90% of shot duration..."
+    SHOT_DURATION=$(awk "BEGIN {print $END_SECONDS - $START_SECONDS}")
+    for n in $(seq 1 9); do
+        # 百分比以时间计：取分镜时长 n*10% 处的时间点
+        PERCENT_SECONDS=$(awk "BEGIN {print $START_SECONDS + $SHOT_DURATION * $n / 10}")
+        # 钳制到 [START_SECONDS, END_SECONDS] 区间，避免浮点越界
+        if awk "BEGIN {exit !($PERCENT_SECONDS < $START_SECONDS)}"; then
+            PERCENT_SECONDS="$START_SECONDS"
+        fi
+        if awk "BEGIN {exit !($PERCENT_SECONDS > $END_SECONDS)}"; then
+            PERCENT_SECONDS="$END_SECONDS"
+        fi
+        PERCENT_HOURS=$(printf "%02d" $(awk "BEGIN {print int($PERCENT_SECONDS / 3600)}"))
+        PERCENT_MINS=$(printf "%02d" $(awk "BEGIN {print int(($PERCENT_SECONDS % 3600) / 60)}"))
+        PERCENT_SECS=$(printf "%06.3f" $(awk "BEGIN {print $PERCENT_SECONDS % 60}"))
+        PERCENT_TIME="${PERCENT_HOURS}:${PERCENT_MINS}:${PERCENT_SECS}"
+        echo "  Frame ${n}0% time: $PERCENT_TIME"
+        ffmpeg -ss "$PERCENT_TIME" -i ./input_video.mp4 -vframes 1 -q:v 2 "./shot_frames/shot_${i}_1-${n}.jpg" 2>&1 || true
+        if [ ! -f "./shot_frames/shot_${i}_1-${n}.jpg" ]; then
+            echo "  Failed to extract frame at ${n}0%, using first frame as fallback..."
+            cp "./shot_frames/shot_${i}_first.jpg" "./shot_frames/shot_${i}_1-${n}.jpg"
+        fi
+    done
+
     echo "Cropping shot video..."
     ffmpeg -ss "$START_TIME" -to "$END_TIME" -i ./input_video.mp4 -c:v libx264 -crf 20 -pix_fmt yuv420p "./shot_videos/shot_${i}.mp4"
 done
