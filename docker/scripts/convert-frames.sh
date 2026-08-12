@@ -329,7 +329,6 @@ export -f process_frame
 export -f acquire_ai_account
 export -f release_ai_account
 export -f notify_subtask
-export RESULT
 export TASK_ID
 export R2_BUCKET_NAME
 export R2_ENDPOINT_URL
