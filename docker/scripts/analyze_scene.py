@@ -625,21 +625,66 @@ def repair_json(text):
     text = re.sub(r'\bFalse\b', 'false', text)
     text = re.sub(r'\bNone\b', 'null', text)
     
-    # 7. 修复字符串值中未转义的双引号 (常见问题)
-    # 例如 "description": "角色说"你好"了" -> "description": "角色说\"你好\"了"
-    def fix_inner_quotes(match):
-        prefix = match.group(1)  # "key": "
-        content = match.group(2)  # 字符串内容
-        suffix = match.group(3)  # "
-        # 如果内容中有奇数个双引号，说明有未转义的双引号
-        # 保留转义的双引号，对未转义的双引号进行转义
-        fixed_content = re.sub(r'(?<!\\)"', r'\\"', content)
-        return prefix + fixed_content + suffix
+    # 交替应用"缺少逗号"和"缺少冒号"修复，直到不再变化：
+    # - 先补逗号再补冒号：适合 "key": "value" "nextkey": ...
+    # - 先补冒号再补逗号：适合 "key" "value" "nextkey": ...
+    # 两种顺序分别生成候选结果，谁先能解析成合法 JSON 就用谁
+    def escape_inner_quotes(content):
+        return re.sub(r'(?<!\\)"', r'\\"', content)
     
-    # 这个正则匹配 "key": "value" 模式，其中 value 可能含未转义的双引号
-    text = re.sub(r'("\w+"):\s*"((?:[^"\\]|\\.)*?)"\s*([,}\]])', fix_inner_quotes, text, flags=re.DOTALL)
+    char_set = r'(?:[^"\\]|\\.)'
     
-    return text
+    def add_missing_comma(t):
+        # "值" "键":  -> "值", "键":
+        return re.sub(
+            r'("' + char_set + r'*")\s+("(?:[a-zA-Z_][a-zA-Z0-9_]*)"\s*:)',
+            r'\1, \2',
+            t,
+        )
+    
+    def add_missing_colon(t):
+        # "键" "值"  -> "键": "值"
+        # 已补冒号的键之间是无关的，正则里用 (?!"[a-zA-Z_]) 保证后面的字符串是"值"而不是键
+        return re.sub(
+            r'("(?:[a-zA-Z_][a-zA-Z0-9_]*)")\s+("' + char_set + r'*")',
+            r'\1: \2',
+            t,
+        )
+    
+    def fix_inner_quotes(t):
+        # "key": "value" 中的未转义双引号 -> 转义
+        # 用 "(?!\s*[,}\]])" 允许字符串内部的引号被当作内容，直到遇到真正收尾的引号
+        def inner(m):
+            return m.group(1) + ': "' + escape_inner_quotes(m.group(2)) + '"' + m.group(3)
+        return re.sub(
+            r'("\w+"):\s*"((?:\\.|[^"\\]|"(?!\s*[,}\]]))*)"\s*([,}\]])',
+            inner,
+            t,
+            flags=re.DOTALL,
+        )
+    
+    def loop(t, comma_first):
+        prev = None
+        while prev != t:
+            prev = t
+            if comma_first:
+                t = add_missing_comma(t)
+                t = add_missing_colon(t)
+            else:
+                t = add_missing_colon(t)
+                t = add_missing_comma(t)
+            t = fix_inner_quotes(t)
+        return t
+    
+    candidates = [loop(text, True), loop(text, False)]
+    for cand in candidates:
+        try:
+            json.loads(cand)
+            return cand
+        except (json.JSONDecodeError, TypeError):
+            continue
+    # 都失败时返回补逗号优先的结果（与旧行为一致，便于日志排查）
+    return candidates[0]
 
 
 def parse_json_response(text):
