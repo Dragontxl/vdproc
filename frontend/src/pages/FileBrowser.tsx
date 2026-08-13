@@ -321,7 +321,7 @@ export default function FileBrowser({
     }
   };
 
-  const CHUNK_SIZE = 5 * 1024 * 1024;
+  const CHUNK_SIZE = 25 * 1024 * 1024;
 
   const handleUpload = async (file: File, prefix?: string) => {
     const key = `${file.name}_${file.size}_${Date.now()}`;

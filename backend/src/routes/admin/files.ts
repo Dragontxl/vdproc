@@ -562,12 +562,12 @@ fileRoutes.post('/batch-upload', async (c) => {
 });
 
 fileRoutes.post('/multipart/init', async (c) => {
-  const { DB } = c.env as Bindings;
-  
+  const { R2, DB } = c.env as Bindings;
+
   try {
     const body = await c.req.json();
     const { filename, prefix = '' } = body;
-    
+
     if (!filename) {
       return c.json({
         code: 400,
@@ -577,7 +577,14 @@ fileRoutes.post('/multipart/init', async (c) => {
     }
 
     const key = prefix ? `${prefix}${filename}` : filename;
-    const uploadId = crypto.randomUUID();
+
+    // 使用 R2 原生分片上传，避免 Worker 内存限制
+    const multipartUpload = await R2.createMultipartUpload(key, {
+      httpMetadata: {
+        contentType: 'application/octet-stream',
+      },
+    });
+    const uploadId = multipartUpload.uploadId;
 
     await DB.prepare('INSERT INTO uploads (upload_id, key, status, created_at) VALUES (?, ?, ?, ?)')
       .bind(uploadId, key, 'uploading', new Date().toISOString())
@@ -660,31 +667,21 @@ fileRoutes.post('/multipart/upload', async (c) => {
       }, 400);
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const partKey = `${uploadId}/part_${partNumber}`;
-    
-    await R2.put(partKey, arrayBuffer, {
-      httpMetadata: {
-        contentType: file.type || 'application/octet-stream',
-      },
-    });
-
-    const digest = await crypto.subtle.digest('SHA-256', arrayBuffer);
-    const etag = Array.from(new Uint8Array(digest))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+    // 使用 R2 原生分片上传，分片数据直接传给 R2，不经过 Worker 内存持久化
+    const multipartUpload = R2.resumeMultipartUpload(key, uploadId);
+    const uploadedPart = await multipartUpload.uploadPart(partNumber, file);
 
     await DB.prepare('INSERT INTO upload_parts (upload_id, part_number, etag) VALUES (?, ?, ?)')
-      .bind(uploadId, partNumber, etag)
+      .bind(uploadId, partNumber, uploadedPart.etag)
       .run();
 
-    console.log(`Multipart upload success: uploadId=${uploadId}, partNumber=${partNumber}, etag=${etag}`);
+    console.log(`Multipart upload success: uploadId=${uploadId}, partNumber=${partNumber}, etag=${uploadedPart.etag}`);
 
     return c.json({
       code: 200,
       data: {
         partNumber,
-        etag,
+        etag: uploadedPart.etag,
       },
       msg: '分片上传成功',
     });
@@ -731,7 +728,10 @@ fileRoutes.post('/multipart/complete', async (c) => {
       .bind(uploadId)
       .all();
 
-    const parts = (partsResult.results || []) as { part_number: number; etag: string }[];
+    const parts = (partsResult.results || []).map((p: any) => ({
+      partNumber: p.part_number,
+      etag: p.etag,
+    }));
 
     if (parts.length === 0) {
       return c.json({
@@ -741,40 +741,9 @@ fileRoutes.post('/multipart/complete', async (c) => {
       }, 400);
     }
 
-    let totalSize = 0;
-    const partBuffers: Uint8Array[] = [];
-    
-    for (const part of parts) {
-      const partKey = `${uploadId}/part_${part.part_number}`;
-      const partObj = await R2.get(partKey);
-      
-      if (!partObj || !partObj.body) {
-        return c.json({
-          code: 500,
-          data: null,
-          msg: `分片 ${part.part_number} 不存在`,
-        }, 500);
-      }
-
-      const partBuffer = await partObj.arrayBuffer();
-      partBuffers.push(new Uint8Array(partBuffer));
-      totalSize += partBuffer.byteLength;
-
-      await R2.delete(partKey);
-    }
-
-    const combinedBuffer = new Uint8Array(totalSize);
-    let offset = 0;
-    for (const buffer of partBuffers) {
-      combinedBuffer.set(buffer, offset);
-      offset += buffer.length;
-    }
-
-    await R2.put(key, combinedBuffer, {
-      httpMetadata: {
-        contentType: 'application/octet-stream',
-      },
-    });
+    // R2 服务端合并分片，零文件数据经过 Worker 内存
+    const multipartUpload = R2.resumeMultipartUpload(key, uploadId);
+    const completedObject = await multipartUpload.complete(parts);
 
     await DB.prepare('UPDATE uploads SET status = ? WHERE upload_id = ?')
       .bind('completed', uploadId)
@@ -784,7 +753,7 @@ fileRoutes.post('/multipart/complete', async (c) => {
       .bind(uploadId)
       .run();
 
-    console.log(`Multipart upload completed: key=${key}, size=${totalSize}`);
+    console.log(`Multipart upload completed: key=${key}, size=${completedObject.size}`);
 
     purgeCloudflareCache(c, [key]);
 
@@ -792,7 +761,7 @@ fileRoutes.post('/multipart/complete', async (c) => {
       code: 200,
       data: {
         key,
-        size: totalSize,
+        size: completedObject.size,
       },
       msg: '文件上传完成',
     });
@@ -821,13 +790,9 @@ fileRoutes.post('/multipart/abort', async (c) => {
       }, 400);
     }
 
-    const listResult = await R2.list({
-      prefix: `${uploadId}/`,
-    });
-
-    for (const obj of listResult.objects || []) {
-      await R2.delete(obj.key);
-    }
+    // R2 原生取消分片上传，服务端自动清理分片
+    const multipartUpload = R2.resumeMultipartUpload(key, uploadId);
+    await multipartUpload.abort();
 
     await DB.prepare('UPDATE uploads SET status = ? WHERE upload_id = ?')
       .bind('aborted', uploadId)
