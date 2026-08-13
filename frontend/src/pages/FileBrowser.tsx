@@ -339,7 +339,14 @@ export default function FileBrowser({
       message.success(`文件 ${file.name} 上传成功`);
       loadFiles(currentPath);
     } catch (error) {
-      message.error(`上传失败: ${(error as any)?.response?.data?.msg || '未知错误'}`);
+      const err = error as any;
+      const status = err?.response?.status;
+      let msg = err?.response?.data?.msg || err?.message;
+      if (!msg && err?.response?.data && typeof err.response.data === 'string') {
+        const text = err.response.data.slice(0, 200).replace(/<[^>]*>/g, '');
+        msg = text.trim() || (status ? `HTTP ${status}` : '');
+      }
+      message.error(`上传失败: ${msg || '未知错误'}${status ? `（${status}）` : ''}`);
     } finally {
       setUploadingFiles(prev => {
         const newSet = new Set(prev);

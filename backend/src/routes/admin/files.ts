@@ -510,14 +510,13 @@ fileRoutes.post('/batch-upload', async (c) => {
     for (const file of files) {
       try {
         const key = prefix ? `${prefix}${file.name}` : file.name;
-        const arrayBuffer = await file.arrayBuffer();
-        
-        await R2.put(key, arrayBuffer, {
+
+        await R2.put(key, file.stream(), {
           httpMetadata: {
             contentType: file.type || 'application/octet-stream',
           },
         });
-        
+
         results.push({
           key,
           name: file.name,
@@ -525,12 +524,13 @@ fileRoutes.post('/batch-upload', async (c) => {
           success: true,
         });
       } catch (error) {
+        const errStr = (error as Error)?.message || (typeof error === 'string' ? error : JSON.stringify(error));
         results.push({
           key: '',
           name: file.name,
           size: file.size,
           success: false,
-          error: (error as Error).message,
+          error: errStr,
         });
       }
     }
@@ -729,9 +729,9 @@ fileRoutes.post('/multipart/complete', async (c) => {
       .all();
 
     const parts = (partsResult.results || []).map((p: any) => ({
-      partNumber: p.part_number,
-      etag: p.etag,
-    }));
+      partNumber: Number(p.part_number),
+      etag: String(p.etag ?? ''),
+    })).filter((p: any) => Number.isFinite(p.partNumber) && p.partNumber > 0 && p.etag);
 
     if (parts.length === 0) {
       return c.json({
@@ -740,6 +740,20 @@ fileRoutes.post('/multipart/complete', async (c) => {
         msg: '没有上传任何分片',
       }, 400);
     }
+
+    // 校验分片序号从 1 开始连续
+    parts.sort((a, b) => a.partNumber - b.partNumber);
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i].partNumber !== i + 1) {
+        return c.json({
+          code: 400,
+          data: null,
+          msg: `分片序号不连续: 期望 ${i + 1}, 实际 ${parts[i].partNumber}`,
+        }, 400);
+      }
+    }
+
+    console.log(`Multipart complete parts: uploadId=${uploadId}, parts=${parts.length}, firstPart=${parts[0].partNumber}, lastPart=${parts[parts.length-1].partNumber}, sampleEtag=${parts[0].etag.substring(0,16)}...`);
 
     // R2 服务端合并分片，零文件数据经过 Worker 内存
     const multipartUpload = R2.resumeMultipartUpload(key, uploadId);
@@ -766,11 +780,12 @@ fileRoutes.post('/multipart/complete', async (c) => {
       msg: '文件上传完成',
     });
   } catch (error: any) {
-    console.error('Multipart complete error:', error, error?.message, error?.stack);
+    const errStr = error?.message || (typeof error === 'string' ? error : JSON.stringify(error));
+    console.error('Multipart complete error:', errStr, error?.stack || '');
     return c.json({
       code: 500,
       data: null,
-      msg: `完成上传失败: ${error?.message || '未知错误'}`,
+      msg: `完成上传失败: ${errStr || '未知错误'}`,
     }, 500);
   }
 });
