@@ -40,7 +40,7 @@ on:
 jobs:
   range-process:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     concurrency:
       group: ${{ inputs.task_id || github.event.client_payload.task_id }}-range
       cancel-in-progress: false
