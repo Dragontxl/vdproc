@@ -19,6 +19,7 @@ import {
   SendOutlined,
 } from '@ant-design/icons';
 import api, { taskApi, fileApi } from '../api';
+import { copyTextToClipboard } from '../utils/clipboard';
 import dayjs from 'dayjs';
 import 'dayjs/plugin/utc';
 
@@ -240,7 +241,7 @@ export default function TaskDetail() {
         message.warning('当前子任务没有可复制的提示词');
         return;
       }
-      await navigator.clipboard.writeText(promptText);
+      await copyTextToClipboard(promptText);
       message.success('提示词已复制到剪贴板');
     } catch (error) {
       console.error('Copy prompt error:', error);
@@ -276,8 +277,13 @@ export default function TaskDetail() {
   const handleCopyFrameUrls = async (subtaskIndex: number) => {
     const { firstFrameUrl, lastFrameUrl } = getFrameUrls(subtaskIndex);
     const text = `${firstFrameUrl}\n${lastFrameUrl}`;
-    await navigator.clipboard.writeText(text);
-    message.success('帧地址已复制到剪贴板');
+    try {
+      await copyTextToClipboard(text);
+      message.success('帧地址已复制到剪贴板');
+    } catch (error) {
+      console.error('Copy frame urls error:', error);
+      message.error('复制帧地址失败');
+    }
   };
 
   // 把分镜生成参数同步到云端（R2），运行中的 agnes-video-app 会自动轮询拉取并刷新
@@ -421,7 +427,7 @@ export default function TaskDetail() {
   const handleCopyOriginalUrl = async (subtaskIndex: number) => {
     const { originalUrl } = getConvertFramePaths(subtaskIndex);
     try {
-      await navigator.clipboard.writeText(originalUrl);
+      await copyTextToClipboard(originalUrl);
       message.success('原图地址已复制到剪贴板');
     } catch (error) {
       console.error('Copy original url error:', error);
@@ -444,7 +450,7 @@ export default function TaskDetail() {
     const urls = getMultiFrameUrls(subtaskIndex);
     const text = urls.join('\n');
     try {
-      await navigator.clipboard.writeText(text);
+      await copyTextToClipboard(text);
       message.success('多帧地址已复制到剪贴板');
     } catch (error) {
       console.error('Copy multi-frame urls error:', error);

@@ -13,6 +13,7 @@ import {
   CopyOutlined,
 } from '@ant-design/icons';
 import { fileApi } from '../api';
+import { copyTextToClipboard } from '../utils/clipboard';
 import dayjs from 'dayjs';
 import 'dayjs/plugin/utc';
 
@@ -204,7 +205,7 @@ export default function FileBrowser({
   const handleCopyUrl = async (filename: string, key: string) => {
     try {
       const url = fileApi.previewUrl(filename, currentPath);
-      await navigator.clipboard.writeText(url);
+      await copyTextToClipboard(url);
       message.success('网址已复制到剪贴板');
     } catch (error) {
       console.error('Copy URL error:', error);
