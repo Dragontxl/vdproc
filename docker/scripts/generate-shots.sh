@@ -72,11 +72,11 @@ notify_subtask() {
     fi
     
     local r2_public_url="${R2_PUBLIC_URL:-https://aivideobucket.ldragon.xyz}"
-    local first_frame_url="${r2_public_url}/${TASK_ID}/ai_shot_frames/shot_${shot_index}_first.jpg"
+    local first_frame_url="${r2_public_url}/${TASK_ID}/ai_shot_frames/shot_${shot_index}_first.png"
     if [ "$shot_index" -gt 0 ]; then
-        first_frame_url="${r2_public_url}/${TASK_ID}/ai_shot_frames/shot_$((shot_index - 1))_last.jpg"
+        first_frame_url="${r2_public_url}/${TASK_ID}/ai_shot_frames/shot_$((shot_index - 1))_last.png"
     fi
-    local last_frame_url="${r2_public_url}/${TASK_ID}/ai_shot_frames/shot_${shot_index}_last.jpg"
+    local last_frame_url="${r2_public_url}/${TASK_ID}/ai_shot_frames/shot_${shot_index}_last.png"
     
     local payload="{\"task_id\":\"$TASK_ID\",\"phase\":\"GENERATE_SHOTS\",\"subtask_index\":$shot_index"
     
@@ -439,8 +439,8 @@ def process_shot(shot_index):
     callback_url = os.environ.get('CALLBACK_URL', 'https://ai-video.ldragon.xyz/api/v1/callback')
     api_base = callback_url.replace('/api/v1/callback', '') if '/api/v1/callback' in callback_url else callback_url
     cache_buster = int(time.time())
-    first_frame_url = f"{api_base}/api/v1/files/preview/shot_{shot_index}_first.jpg?prefix={task_id}/ai_shot_frames/&no_cache=true&t={cache_buster}"
-    last_frame_url = f"{api_base}/api/v1/files/preview/shot_{shot_index}_last.jpg?prefix={task_id}/ai_shot_frames/&no_cache=true&t={cache_buster}"
+    first_frame_url = f"{api_base}/api/v1/files/preview/shot_{shot_index}_first.png?prefix={task_id}/ai_shot_frames/&no_cache=true&t={cache_buster}"
+    last_frame_url = f"{api_base}/api/v1/files/preview/shot_{shot_index}_last.png?prefix={task_id}/ai_shot_frames/&no_cache=true&t={cache_buster}"
 
     print(f"First frame URL: {first_frame_url}")
     print(f"Last frame URL: {last_frame_url}")

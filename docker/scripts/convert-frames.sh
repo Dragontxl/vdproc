@@ -161,9 +161,9 @@ process_frame() {
 
     notify_subtask "create" "$shot_index" "$frame_type" "" "" ""
 
-    if [ -f "./ai_shot_frames/shot_${shot_index}_${frame_type}.jpg" ] && [ -s "./ai_shot_frames/shot_${shot_index}_${frame_type}.jpg" ]; then
+    if [ -f "./ai_shot_frames/shot_${shot_index}_${frame_type}.png" ] && [ -s "./ai_shot_frames/shot_${shot_index}_${frame_type}.png" ]; then
         echo "Frame shot_${shot_index}_${frame_type} already exists, skipping"
-        notify_subtask "update" "$shot_index" "$frame_type" "COMPLETED" "${TASK_ID}/ai_shot_frames/shot_${shot_index}_${frame_type}.jpg" ""
+        notify_subtask "update" "$shot_index" "$frame_type" "COMPLETED" "${TASK_ID}/ai_shot_frames/shot_${shot_index}_${frame_type}.png" ""
         echo "${shot_index}_${frame_type}:SUCCESS" >> "./frame_results.txt"
         return 0
     fi
@@ -306,19 +306,39 @@ process_frame() {
         return 1
     fi
 
-    echo "Downloading converted frame..."
-    curl -s --connect-timeout 30 --max-time 60 -o "./ai_shot_frames/shot_${shot_index}_${frame_type}.jpg" "$RESULT_URL"
+    OUTPUT_FILE="./ai_shot_frames/shot_${shot_index}_${frame_type}.png"
+    DOWNLOAD_FILE="${OUTPUT_FILE}.download"
+    rm -f "$OUTPUT_FILE" "$DOWNLOAD_FILE"
 
-    if [ ! -f "./ai_shot_frames/shot_${shot_index}_${frame_type}.jpg" ] || [ ! -s "./ai_shot_frames/shot_${shot_index}_${frame_type}.jpg" ]; then
-        echo "Error: Downloaded frame is empty"
+    echo "Downloading converted frame..."
+    if ! curl -fsSL --connect-timeout 30 --max-time 60 -o "$DOWNLOAD_FILE" "$RESULT_URL"; then
+        echo "Error: Failed to download converted frame"
+        rm -f "$DOWNLOAD_FILE"
+        notify_subtask "update" "$shot_index" "$frame_type" "FAILED" "" "Failed to download converted frame"
+        echo "${shot_index}_${frame_type}:FAILED" >> "./frame_results.txt"
+        return 1
+    fi
+
+    echo "Normalizing converted frame to PNG..."
+    if ! ffmpeg -y -v error -i "$DOWNLOAD_FILE" -frames:v 1 "$OUTPUT_FILE"; then
+        echo "Error: Failed to encode converted frame as PNG"
+        rm -f "$DOWNLOAD_FILE" "$OUTPUT_FILE"
+        notify_subtask "update" "$shot_index" "$frame_type" "FAILED" "" "Failed to encode converted frame as PNG"
+        echo "${shot_index}_${frame_type}:FAILED" >> "./frame_results.txt"
+        return 1
+    fi
+    rm -f "$DOWNLOAD_FILE"
+
+    if [ ! -f "$OUTPUT_FILE" ] || [ ! -s "$OUTPUT_FILE" ]; then
+        echo "Error: Converted PNG frame is empty"
         rm -f "./input_${shot_index}_${frame_type}.jpg"
-        notify_subtask "update" "$shot_index" "$frame_type" "FAILED" "" "Downloaded frame is empty"
+        notify_subtask "update" "$shot_index" "$frame_type" "FAILED" "" "Converted PNG frame is empty"
         echo "${shot_index}_${frame_type}:FAILED" >> "./frame_results.txt"
         return 1
     fi
 
     rm -f "./input_${shot_index}_${frame_type}.jpg"
-    notify_subtask "update" "$shot_index" "$frame_type" "COMPLETED" "${TASK_ID}/ai_shot_frames/shot_${shot_index}_${frame_type}.jpg" ""
+    notify_subtask "update" "$shot_index" "$frame_type" "COMPLETED" "${TASK_ID}/ai_shot_frames/shot_${shot_index}_${frame_type}.png" ""
     echo "${shot_index}_${frame_type}:SUCCESS" >> "./frame_results.txt"
     echo "Successfully converted shot $shot_index, ${frame_type} frame"
 
@@ -364,7 +384,7 @@ get_missing_frames() {
     local missing=""
     for i in $(seq 0 $((SHOT_COUNT - 1))); do
         for frame_type in first last; do
-            if [ ! -f "./ai_shot_frames/shot_${i}_${frame_type}.jpg" ] || [ ! -s "./ai_shot_frames/shot_${i}_${frame_type}.jpg" ]; then
+            if [ ! -f "./ai_shot_frames/shot_${i}_${frame_type}.png" ] || [ ! -s "./ai_shot_frames/shot_${i}_${frame_type}.png" ]; then
                 missing="${missing}${i} ${frame_type}\n"
             fi
         done
@@ -397,9 +417,12 @@ if [ -n "$SUBTASK_INDEX" ] && [ -n "$SUBTASK_TYPE" ]; then
     
     echo "Uploading converted frames..."
     aws s3 sync "./ai_shot_frames" "s3://$R2_BUCKET_NAME/${TASK_ID}/ai_shot_frames" \
-        --endpoint-url "$R2_ENDPOINT_URL"
+        --endpoint-url "$R2_ENDPOINT_URL" \
+        --exclude "*" \
+        --include "*.png" \
+        --content-type "image/png"
     
-    if [ -f "./ai_shot_frames/shot_${SHOT_INDEX}_${FRAME_TYPE}.jpg" ] && [ -s "./ai_shot_frames/shot_${SHOT_INDEX}_${FRAME_TYPE}.jpg" ]; then
+    if [ -f "./ai_shot_frames/shot_${SHOT_INDEX}_${FRAME_TYPE}.png" ] && [ -s "./ai_shot_frames/shot_${SHOT_INDEX}_${FRAME_TYPE}.png" ]; then
         echo "Subtask completed successfully"
         exit 0
     else
@@ -424,13 +447,16 @@ else
 
         echo "Uploading converted frames..."
         aws s3 sync "./ai_shot_frames" "s3://$R2_BUCKET_NAME/${TASK_ID}/ai_shot_frames" \
-            --endpoint-url "$R2_ENDPOINT_URL"
+            --endpoint-url "$R2_ENDPOINT_URL" \
+            --exclude "*" \
+            --include "*.png" \
+            --content-type "image/png"
 
         TOTAL_SUCCESS=0
         TOTAL_FAILED=0
         for i in $(seq 0 $((SHOT_COUNT - 1))); do
             for frame_type in first last; do
-                if [ -f "./ai_shot_frames/shot_${i}_${frame_type}.jpg" ] && [ -s "./ai_shot_frames/shot_${i}_${frame_type}.jpg" ]; then
+                if [ -f "./ai_shot_frames/shot_${i}_${frame_type}.png" ] && [ -s "./ai_shot_frames/shot_${i}_${frame_type}.png" ]; then
                     TOTAL_SUCCESS=$((TOTAL_SUCCESS + 1))
                 else
                     TOTAL_FAILED=$((TOTAL_FAILED + 1))

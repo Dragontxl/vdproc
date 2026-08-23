@@ -30,6 +30,40 @@ const { Option } = Select;
 
 type TaskPhase = 'DETECT' | 'ANALYZE' | 'CROP_SHOTS' | 'CONVERT_FRAMES' | 'GENERATE_SHOTS' | 'COMPOSE';
 
+const normalizeImageFile = async (
+  file: File,
+  filename: string,
+  mimeType: 'image/jpeg' | 'image/png',
+): Promise<File> => {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('无法创建图片转换画布');
+    }
+
+    if (mimeType === 'image/jpeg') {
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    context.drawImage(bitmap, 0, 0);
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        result => result ? resolve(result) : reject(new Error('图片格式转换失败')),
+        mimeType,
+        mimeType === 'image/jpeg' ? 0.95 : undefined,
+      );
+    });
+    return new File([blob], filename, { type: mimeType });
+  } finally {
+    bitmap.close();
+  }
+};
+
 const phaseConfig: Record<TaskPhase, { label: string; description: string; icon: React.ReactNode }> = {
   DETECT: { label: '镜头检测', description: '使用PySceneDetect检测视频镜头边界', icon: <VideoCameraOutlined /> },
   ANALYZE: { label: '剧情分析', description: '使用Gemini分析剧情并生成分镜详情', icon: <RocketOutlined /> },
@@ -268,8 +302,8 @@ export default function TaskDetail() {
 
   // 获取分镜的首帧和尾帧 URL
   const getFrameUrls = (subtaskIndex: number): { firstFrameUrl: string; lastFrameUrl: string } => {
-    const firstFrameUrl = `${r2PublicUrl}/${id}/ai_shot_frames/shot_${subtaskIndex}_first.jpg`;
-    const lastFrameUrl = `${r2PublicUrl}/${id}/ai_shot_frames/shot_${subtaskIndex}_last.jpg`;
+    const firstFrameUrl = `${r2PublicUrl}/${id}/ai_shot_frames/shot_${subtaskIndex}_first.png`;
+    const lastFrameUrl = `${r2PublicUrl}/${id}/ai_shot_frames/shot_${subtaskIndex}_last.png`;
     return { firstFrameUrl, lastFrameUrl };
   };
 
@@ -336,8 +370,8 @@ export default function TaskDetail() {
   // 下载首尾帧（通过后端代理，避免 R2 公开域名 CORS 跨域问题）
   const handleDownloadFrames = async (subtaskIndex: number) => {
     const prefix = `${id}/ai_shot_frames/`;
-    const firstName = `shot_${subtaskIndex}_first.jpg`;
-    const lastName = `shot_${subtaskIndex}_last.jpg`;
+    const firstName = `shot_${subtaskIndex}_first.png`;
+    const lastName = `shot_${subtaskIndex}_last.png`;
 
     const triggerDownload = (blob: Blob, filename: string) => {
       const url = window.URL.createObjectURL(blob);
@@ -403,12 +437,23 @@ export default function TaskDetail() {
     const shotIndex = Math.floor(subtaskIndex / 2);
     const frameType = subtaskIndex % 2 === 0 ? 'first' : 'last';
     const frameLabel = frameType === 'first' ? '首帧' : '尾帧';
-    const filename = `shot_${shotIndex}_${frameType}.jpg`;
+    const originalFilename = `shot_${shotIndex}_${frameType}.jpg`;
+    const generatedFilename = `shot_${shotIndex}_${frameType}.png`;
     const originalPrefix = `${id}/shot_frames/`;
     const generatedPrefix = `${id}/ai_shot_frames/`;
-    const originalUrl = `${r2PublicUrl}/${id}/shot_frames/${filename}`;
-    const generatedUrl = `${r2PublicUrl}/${id}/ai_shot_frames/${filename}`;
-    return { shotIndex, frameType, frameLabel, filename, originalPrefix, generatedPrefix, originalUrl, generatedUrl };
+    const originalUrl = `${r2PublicUrl}/${id}/shot_frames/${originalFilename}`;
+    const generatedUrl = `${r2PublicUrl}/${id}/ai_shot_frames/${generatedFilename}`;
+    return {
+      shotIndex,
+      frameType,
+      frameLabel,
+      originalFilename,
+      generatedFilename,
+      originalPrefix,
+      generatedPrefix,
+      originalUrl,
+      generatedUrl,
+    };
   };
 
   // 通用下载 Blob 触发器
@@ -460,10 +505,10 @@ export default function TaskDetail() {
 
   // 下载原图
   const handleDownloadOriginalFrame = async (subtaskIndex: number) => {
-    const { filename, originalPrefix } = getConvertFramePaths(subtaskIndex);
+    const { originalFilename, originalPrefix } = getConvertFramePaths(subtaskIndex);
     try {
-      const blob = await fileApi.downloadAsBlob(filename, originalPrefix);
-      triggerBlobDownload(blob, filename);
+      const blob = await fileApi.downloadAsBlob(originalFilename, originalPrefix);
+      triggerBlobDownload(blob, originalFilename);
       message.success('原图下载完成');
     } catch (error: any) {
       console.error('Download original frame error:', error);
@@ -473,10 +518,10 @@ export default function TaskDetail() {
 
   // 下载生成图
   const handleDownloadGeneratedFrame = async (subtaskIndex: number) => {
-    const { filename, generatedPrefix } = getConvertFramePaths(subtaskIndex);
+    const { generatedFilename, generatedPrefix } = getConvertFramePaths(subtaskIndex);
     try {
-      const blob = await fileApi.downloadAsBlob(filename, generatedPrefix);
-      triggerBlobDownload(blob, filename);
+      const blob = await fileApi.downloadAsBlob(generatedFilename, generatedPrefix);
+      triggerBlobDownload(blob, generatedFilename);
       message.success('生成图下载完成');
     } catch (error: any) {
       console.error('Download generated frame error:', error);
@@ -506,13 +551,21 @@ export default function TaskDetail() {
     if (!files || files.length === 0 || !currentReplaceFrameRef.current) return;
 
     const { type, subtaskIndex } = currentReplaceFrameRef.current;
-    const { filename, frameLabel, originalPrefix, generatedPrefix } = getConvertFramePaths(subtaskIndex);
+    const {
+      originalFilename,
+      generatedFilename,
+      frameLabel,
+      originalPrefix,
+      generatedPrefix,
+    } = getConvertFramePaths(subtaskIndex);
     const prefix = type === 'original' ? originalPrefix : generatedPrefix;
     const file = files[0];
-    const renamedFile = new File([file], filename, { type: file.type || 'image/jpeg' });
+    const filename = type === 'original' ? originalFilename : generatedFilename;
+    const mimeType = type === 'original' ? 'image/jpeg' : 'image/png';
 
     try {
-      await fileApi.upload(renamedFile, prefix);
+      const normalizedFile = await normalizeImageFile(file, filename, mimeType);
+      await fileApi.upload(normalizedFile, prefix);
       message.success(`已替换${type === 'original' ? '原图' : '生成图'}（${frameLabel} ${filename}）`);
       loadSubtasks(selectedSubtaskPhase as TaskPhase);
     } catch (error: any) {
@@ -560,21 +613,19 @@ export default function TaskDetail() {
       if (files.length === 1) {
         // 单张图片，按用户勾选的选项命名
         const suffix = frameType === 'first' ? 'first' : 'last';
-        const rawFile = files[0].originFileObj || files[0];
-        const ext = rawFile.name.split('.').pop() || 'jpg';
-        const filename = `shot_${index}_${suffix}.${ext}`;
-        const renamedFile = new File([rawFile], filename, { type: rawFile.type });
-        await fileApi.upload(renamedFile, prefix);
+        const rawFile = (files[0].originFileObj || files[0]) as File;
+        const filename = `shot_${index}_${suffix}.png`;
+        const normalizedFile = await normalizeImageFile(rawFile, filename, 'image/png');
+        await fileApi.upload(normalizedFile, prefix);
       } else {
         // 两张图片，按顺序命名首帧和尾帧
-        for (let i = 0; i < files.length; i++) {
-          const rawFile = files[i].originFileObj || files[i];
+        await Promise.all(files.map(async (uploadFile, i) => {
+          const rawFile = (uploadFile.originFileObj || uploadFile) as File;
           const suffix = i === 0 ? 'first' : 'last';
-          const ext = rawFile.name.split('.').pop() || 'jpg';
-          const filename = `shot_${index}_${suffix}.${ext}`;
-          const renamedFile = new File([rawFile], filename, { type: rawFile.type });
-          await fileApi.upload(renamedFile, prefix);
-        }
+          const filename = `shot_${index}_${suffix}.png`;
+          const normalizedFile = await normalizeImageFile(rawFile, filename, 'image/png');
+          await fileApi.upload(normalizedFile, prefix);
+        }));
       }
       message.success('上传帧成功');
       setUploadFrameModalVisible(false);
