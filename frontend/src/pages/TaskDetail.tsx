@@ -751,10 +751,10 @@ export default function TaskDetail() {
   const handleDelete = async () => {
     try {
       await taskApi.delete(id!);
-      message.success('任务已删除');
+      message.success('任务及相关文件已删除');
       window.location.href = '/tasks';
-    } catch (error) {
-      message.error('删除任务失败');
+    } catch (error: any) {
+      message.error(error.response?.data?.msg || '删除任务失败');
     }
   };
 
@@ -860,9 +860,16 @@ export default function TaskDetail() {
               继续任务
             </Button>
           )}
-          <Button danger icon={<DeleteOutlined />} onClick={handleDelete} style={{ marginLeft: 8 }}>
-            删除任务
-          </Button>
+          <Popconfirm
+            title="确定删除该任务及其全部 R2 文件吗？"
+            onConfirm={handleDelete}
+            okText="删除"
+            cancelText="取消"
+          >
+            <Button danger icon={<DeleteOutlined />} style={{ marginLeft: 8 }}>
+              删除任务
+            </Button>
+          </Popconfirm>
         </div>
       </div>
 

@@ -142,7 +142,41 @@ export class TaskService {
     return this.getTask(id);
   }
 
+  private async deleteR2Prefix(prefix: string): Promise<number> {
+    let deletedCount = 0;
+
+    while (true) {
+      const objects = await this.env.R2.list({
+        prefix,
+        limit: 1000,
+      });
+      const keys = objects.objects.map(object => object.key);
+
+      if (keys.length === 0) {
+        break;
+      }
+
+      await this.env.R2.delete(keys);
+      deletedCount += keys.length;
+    }
+
+    return deletedCount;
+  }
+
   async deleteTask(id: string): Promise<boolean> {
+    const task = await this.getTask(id);
+    if (!task) {
+      return false;
+    }
+
+    let deletedFileCount: number;
+    try {
+      deletedFileCount = await this.deleteR2Prefix(`${id}/`);
+    } catch (error) {
+      console.error(`Failed to delete R2 objects for task ${id}:`, error);
+      throw new Error('R2 项目文件删除失败，任务未删除，请重试');
+    }
+
     await this.env.DB.prepare(`DELETE FROM phase_subtasks WHERE task_id = ?`).bind(id).run();
     await this.env.DB.prepare(`DELETE FROM operation_logs WHERE task_id = ?`).bind(id).run();
     await this.env.DB.prepare(`DELETE FROM task_queue WHERE task_id = ?`).bind(id).run();
@@ -151,6 +185,7 @@ export class TaskService {
     const result = await this.env.DB.prepare(
       `DELETE FROM tasks WHERE id = ?`
     ).bind(id).run();
+    console.log(`Deleted task ${id} and ${deletedFileCount} R2 objects`);
     return (result as any).changes > 0;
   }
 
