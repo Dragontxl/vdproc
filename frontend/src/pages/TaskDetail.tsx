@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider, Alert, Progress, Select, Table, Popconfirm, Input, Modal, Upload, Radio } from 'antd';
+import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider, Alert, Progress, Select, Table, Popconfirm, Input, Modal, Upload, Radio, Form, InputNumber } from 'antd';
 import {
   PlayCircleOutlined,
   StopOutlined,
@@ -17,6 +17,7 @@ import {
   UploadOutlined,
   FileImageOutlined,
   SendOutlined,
+  FolderOpenOutlined,
 } from '@ant-design/icons';
 import api, { taskApi, fileApi } from '../api';
 import { copyTextToClipboard } from '../utils/clipboard';
@@ -109,6 +110,10 @@ export default function TaskDetail() {
   const [frameType, setFrameType] = useState<'first' | 'last' | 'both'>('both');
   const [selectedFrameFiles, setSelectedFrameFiles] = useState<any[]>([]);
   const [uploadingFrames, setUploadingFrames] = useState(false);
+  // 复用模板 Modal 相关状态
+  const [reuseModalVisible, setReuseModalVisible] = useState(false);
+  const [reuseVideoPickerOpen, setReuseVideoPickerOpen] = useState(false);
+  const [reuseForm] = Form.useForm();
   // 跟踪用户手动编辑过的提示词 key，这些 key 的值不会被 original_prompt 覆盖
   const userEditedPromptKeys = useRef<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
@@ -748,25 +753,53 @@ export default function TaskDetail() {
     }
   };
 
-  const handleReuseTemplate = async () => {
+  // 判断是否为视频文件
+  const isVideoFile = (name: string) => {
+    const ext = name.toLowerCase().split('.').pop();
+    return ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv'].includes(ext || '');
+  };
+
+  // 打开复用模板 Modal，预填当前任务参数
+  const handleReuseTemplateClick = () => {
+    reuseForm.setFieldsValue({
+      title: task.title,
+      videoPath: task.video_path,
+      prompt: task.prompt,
+      analyzeDialogueLanguage: task.analyze_dialogue_language || undefined,
+      analyzeDialogueStyle: task.analyze_dialogue_style || undefined,
+      fps: task.fps,
+      outputFps: task.output_fps,
+      priority: task.priority,
+    });
+    setReuseModalVisible(true);
+  };
+
+  // 确认创建：用（可能修改后的）表单参数新建任务
+  const handleReuseConfirm = async () => {
     try {
+      const values = await reuseForm.validateFields();
       const result = await taskApi.create({
-        title: task.title,
-        video_path: task.video_path,
-        fps: task.fps,
-        prompt: task.prompt,
-        output_fps: task.output_fps,
-        priority: task.priority,
-        analyze_dialogue_language: task.analyze_dialogue_language || null,
-        analyze_dialogue_style: task.analyze_dialogue_style || null,
+        title: values.title,
+        video_path: values.videoPath,
+        fps: values.fps,
+        prompt: values.prompt,
+        output_fps: values.outputFps,
+        priority: values.priority,
+        analyze_dialogue_language: values.analyzeDialogueLanguage || null,
+        analyze_dialogue_style: values.analyzeDialogueStyle || null,
       });
-      message.success('已按当前参数新建项目');
+      message.success('任务创建成功');
+      setReuseModalVisible(false);
       const newTaskId = result.data?.id;
       if (newTaskId) {
         window.location.href = `/tasks/${newTaskId}`;
       }
     } catch (error: any) {
-      const msg = error.response?.data?.msg || '新建项目失败';
+      // 表单校验失败时 errorFields 存在，不弹通用错误提示
+      if (error?.errorFields) {
+        return;
+      }
+      const msg = error.response?.data?.msg || '创建任务失败';
       message.error(msg);
     }
   };
@@ -883,16 +916,9 @@ export default function TaskDetail() {
               继续任务
             </Button>
           )}
-          <Popconfirm
-            title="按当前任务参数新建项目？"
-            onConfirm={handleReuseTemplate}
-            okText="新建"
-            cancelText="取消"
-          >
-            <Button icon={<CopyOutlined />} style={{ marginLeft: 8 }}>
-              复用模板
-            </Button>
-          </Popconfirm>
+          <Button icon={<CopyOutlined />} onClick={handleReuseTemplateClick} style={{ marginLeft: 8 }}>
+            复用模板
+          </Button>
           <Popconfirm
             title="确定删除该任务及其全部 R2 文件吗？"
             onConfirm={handleDelete}
@@ -1465,6 +1491,84 @@ export default function TaskDetail() {
             将上传为 {frameType === 'first' ? '首帧' : '尾帧'}
           </div>
         )}
+      </Modal>
+
+      {/* 复用模板 Modal */}
+      <Modal
+        title="复用模板新建任务"
+        open={reuseModalVisible}
+        onOk={handleReuseConfirm}
+        onCancel={() => setReuseModalVisible(false)}
+        okText="创建"
+        cancelText="取消"
+        destroyOnClose
+      >
+        <Form form={reuseForm} layout="vertical">
+          <Form.Item name="title" label="任务标题" rules={[{ required: true }]}>
+            <Input placeholder="请输入任务标题" />
+          </Form.Item>
+          <Form.Item name="videoPath" label="视频路径" rules={[{ required: true }]}>
+            <Input
+              placeholder="R2存储中的视频路径"
+              addonAfter={
+                <Button type="link" size="small" icon={<FolderOpenOutlined />} onClick={() => setReuseVideoPickerOpen(true)} style={{ padding: '0 4px' }}>
+                  选择
+                </Button>
+              }
+            />
+          </Form.Item>
+          <Form.Item name="prompt" label="提示词">
+            <Input.TextArea placeholder="AI生成提示词" rows={3} />
+          </Form.Item>
+          <Form.Item name="analyzeDialogueLanguage" label="分析阶段-对话语言">
+            <Select allowClear placeholder="不设置则由 AI 自行处理">
+              <Option value="chinese">中文</Option>
+              <Option value="english">英文</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="analyzeDialogueStyle" label="分析阶段-对话文风">
+            <Select allowClear placeholder="不设置则由 AI 自行处理">
+              <Option value="plain">平实朴素</Option>
+              <Option value="ornate">华丽典雅</Option>
+              <Option value="fresh">清新自然</Option>
+              <Option value="solemn">厚重沉稳</Option>
+              <Option value="humorous">幽默诙谐</Option>
+              <Option value="sharp">犀利尖锐</Option>
+              <Option value="gentle">温婉细腻</Option>
+              <Option value="restrained">冷峻克制</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="fps" label="抽帧帧率" rules={[{ required: true }]}>
+            <InputNumber min={1} max={120} />
+          </Form.Item>
+          <Form.Item name="outputFps" label="输出帧率" rules={[{ required: true }]}>
+            <InputNumber min={1} max={120} />
+          </Form.Item>
+          <Form.Item name="priority" label="优先级">
+            <InputNumber min={0} max={100} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 复用模板-视频选择 Modal */}
+      <Modal
+        title="从 R2 选择视频文件"
+        open={reuseVideoPickerOpen}
+        onCancel={() => setReuseVideoPickerOpen(false)}
+        footer={null}
+        width={900}
+        destroyOnClose
+      >
+        <FileBrowser
+          embedded
+          selectable
+          fileFilter={(file) => isVideoFile(file.name)}
+          onSelect={(file) => {
+            reuseForm.setFieldValue('videoPath', file.key);
+            setReuseVideoPickerOpen(false);
+            message.success(`已选择: ${file.key}`);
+          }}
+        />
       </Modal>
     </div>
   );
