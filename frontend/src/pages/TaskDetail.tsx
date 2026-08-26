@@ -748,6 +748,29 @@ export default function TaskDetail() {
     }
   };
 
+  const handleReuseTemplate = async () => {
+    try {
+      const result = await taskApi.create({
+        title: task.title,
+        video_path: task.video_path,
+        fps: task.fps,
+        prompt: task.prompt,
+        output_fps: task.output_fps,
+        priority: task.priority,
+        analyze_dialogue_language: task.analyze_dialogue_language || null,
+        analyze_dialogue_style: task.analyze_dialogue_style || null,
+      });
+      message.success('已按当前参数新建项目');
+      const newTaskId = result.data?.id;
+      if (newTaskId) {
+        window.location.href = `/tasks/${newTaskId}`;
+      }
+    } catch (error: any) {
+      const msg = error.response?.data?.msg || '新建项目失败';
+      message.error(msg);
+    }
+  };
+
   const handleDelete = async () => {
     try {
       await taskApi.delete(id!);
@@ -860,6 +883,16 @@ export default function TaskDetail() {
               继续任务
             </Button>
           )}
+          <Popconfirm
+            title="按当前任务参数新建项目？"
+            onConfirm={handleReuseTemplate}
+            okText="新建"
+            cancelText="取消"
+          >
+            <Button icon={<CopyOutlined />} style={{ marginLeft: 8 }}>
+              复用模板
+            </Button>
+          </Popconfirm>
           <Popconfirm
             title="确定删除该任务及其全部 R2 文件吗？"
             onConfirm={handleDelete}
