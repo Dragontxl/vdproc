@@ -32,7 +32,7 @@ bucket_name = "ai-video-bucket"
 binding = "KV"
 id = "f657d34c477947e4b9ca003332b75073"
 
-[[env.production.triggers]]
+[env.production.triggers]
 crons = ["*/5 * * * *"]
 
 [vars]
@@ -63,5 +63,5 @@ pattern = "ai-video.ldragon.xyz"
 zone_name = "ldragon.xyz"
 custom_domain = true
 
-[[triggers]]
+[triggers]
 crons = ["*/5 * * * *"]
