@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     started_at TIMESTAMP,
     completed_at TIMESTAMP,
     expires_at TIMESTAMP,
+    scheduled_at TIMESTAMP,
     error_msg TEXT,
     error_stack TEXT,
     tags TEXT,
@@ -34,6 +35,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     analyze_dialogue_language TEXT,
     analyze_dialogue_style TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_tasks_scheduled_at ON tasks(scheduled_at);
 
 -- Migration: add analyze_dialogue_language and analyze_dialogue_style columns to existing tasks table
 -- Re-run this section after schema change if the table already exists (D1 does not support IF NOT EXISTS on ADD COLUMN)

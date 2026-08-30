@@ -44,6 +44,7 @@ export class TaskService {
     tags?: string;
     analyzeDialogueLanguage?: string;
     analyzeDialogueStyle?: string;
+    scheduledAt?: string;
   }): Promise<Task> {
     const task: Task = {
       id: this.generateUUID(data.title),
@@ -66,11 +67,12 @@ export class TaskService {
       updated_at: new Date().toISOString(),
       analyze_dialogue_language: data.analyzeDialogueLanguage || null,
       analyze_dialogue_style: data.analyzeDialogueStyle || null,
+      scheduled_at: data.scheduledAt || null,
     };
 
     await this.env.DB.prepare(`
-      INSERT INTO tasks (id, user_id, title, status, current_phase, video_path, fps, prompt, output_fps, priority, tags, progress, total_frames, processed_frames, failed_frames, retry_count, created_at, updated_at, analyze_dialogue_language, analyze_dialogue_style)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO tasks (id, user_id, title, status, current_phase, video_path, fps, prompt, output_fps, priority, tags, progress, total_frames, processed_frames, failed_frames, retry_count, created_at, updated_at, analyze_dialogue_language, analyze_dialogue_style, scheduled_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
       .bind(
         task.id,
@@ -92,11 +94,27 @@ export class TaskService {
         task.created_at,
         task.updated_at,
         task.analyze_dialogue_language,
-        task.analyze_dialogue_style
+        task.analyze_dialogue_style,
+        task.scheduled_at
       )
       .run();
 
     return task;
+  }
+
+  /**
+   * 查询当前可以启动的 PENDING 任务（无定时时间或定时时间已到）
+   * scheduled_at 与 D1 CURRENT_TIMESTAMP 一致，使用 UTC 'YYYY-MM-DD HH:MM:SS' 格式存储
+   */
+  async listStartablePendingTasks(limit: number): Promise<Task[]> {
+    const nowUtc = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const result = await this.env.DB.prepare(`
+      SELECT * FROM tasks
+      WHERE status = 'PENDING' AND (scheduled_at IS NULL OR scheduled_at <= ?)
+      ORDER BY priority DESC, created_at ASC
+      LIMIT ?
+    `).bind(nowUtc, limit).all();
+    return (result.results as unknown) as Task[];
   }
 
   async getTask(id: string): Promise<Task | null> {

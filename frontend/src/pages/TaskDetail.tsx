@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider, Alert, Progress, Select, Table, Popconfirm, Input, Modal, Upload, Radio, Form, InputNumber } from 'antd';
+import { Card, Descriptions, Tag, Timeline, Button, message, Space, Row, Col, Divider, Alert, Progress, Select, Table, Popconfirm, Input, Modal, Upload, Radio, Form, InputNumber, DatePicker } from 'antd';
 import {
   PlayCircleOutlined,
   StopOutlined,
@@ -778,6 +778,7 @@ export default function TaskDetail() {
   const handleReuseConfirm = async () => {
     try {
       const values = await reuseForm.validateFields();
+      const isScheduled = values.runMode === 'scheduled';
       const result = await taskApi.create({
         title: values.title,
         video_path: values.videoPath,
@@ -787,8 +788,9 @@ export default function TaskDetail() {
         priority: values.priority,
         analyze_dialogue_language: values.analyzeDialogueLanguage || null,
         analyze_dialogue_style: values.analyzeDialogueStyle || null,
+        scheduled_at: isScheduled ? dayjs(values.scheduledTime).utc().format('YYYY-MM-DD HH:mm:ss') : undefined,
       });
-      message.success('任务创建成功');
+      message.success(isScheduled ? '任务创建成功，将到达设定时间后自动启动' : '任务创建成功');
       setReuseModalVisible(false);
       const newTaskId = result.data?.id;
       if (newTaskId) {
@@ -970,6 +972,13 @@ export default function TaskDetail() {
           <Descriptions.Item label="失败帧数">{task.failed_frames}</Descriptions.Item>
           <Descriptions.Item label="重试次数">{task.retry_count}/{task.max_retries}</Descriptions.Item>
           <Descriptions.Item label="创建时间">{dayjsUtc(task.created_at).format('YYYY-MM-DD HH:mm:ss')}</Descriptions.Item>
+          <Descriptions.Item label="计划时间">
+            {task.scheduled_at ? (
+              <span>{dayjsUtc(task.scheduled_at).format('YYYY-MM-DD HH:mm:ss')}</span>
+            ) : (
+              '-'
+            )}
+          </Descriptions.Item>
           <Descriptions.Item label="更新时间">{dayjsUtc(task.updated_at).format('YYYY-MM-DD HH:mm:ss')}</Descriptions.Item>
           <Descriptions.Item label="开始时间">{task.started_at ? dayjsUtc(task.started_at).format('YYYY-MM-DD HH:mm:ss') : '-'}</Descriptions.Item>
           <Descriptions.Item label="完成时间">{task.completed_at ? dayjsUtc(task.completed_at).format('YYYY-MM-DD HH:mm:ss') : '-'}</Descriptions.Item>
@@ -1537,6 +1546,38 @@ export default function TaskDetail() {
               <Option value="gentle">温婉细腻</Option>
               <Option value="restrained">冷峻克制</Option>
             </Select>
+          </Form.Item>
+          <Form.Item name="runMode" label="运行方式" initialValue="immediate">
+            <Radio.Group>
+              <Radio value="immediate">立即运行</Radio>
+              <Radio value="scheduled">定时运行</Radio>
+            </Radio.Group>
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.runMode !== cur.runMode}>
+            {({ getFieldValue }) =>
+              getFieldValue('runMode') === 'scheduled' ? (
+                <Form.Item
+                  name="scheduledTime"
+                  label="计划启动时间（本地时间）"
+                  rules={[
+                    { required: true, message: '请选择计划启动时间' },
+                    {
+                      validator: (_, value) =>
+                        !value || dayjs(value).isAfter(dayjs())
+                          ? Promise.resolve()
+                          : Promise.reject(new Error('计划启动时间必须晚于当前时间')),
+                    },
+                  ]}
+                >
+                  <DatePicker
+                    showTime={{ format: 'HH:mm:ss' }}
+                    format="YYYY-MM-DD HH:mm:ss"
+                    placeholder="如 2026-08-26 17:30:00"
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+              ) : null
+            }
           </Form.Item>
           <Form.Item name="fps" label="抽帧帧率" rules={[{ required: true }]}>
             <InputNumber min={1} max={120} />

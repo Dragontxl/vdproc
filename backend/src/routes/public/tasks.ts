@@ -29,10 +29,10 @@ taskRoutes.get('/:id', async (c) => {
 
 taskRoutes.post('/', async (c) => {
   const service = new TaskService(c.env as Bindings);
-  
+
   try {
     const body = await c.req.json();
-    
+
     const task = await service.createTask({
       title: body.title,
       videoPath: body.video_path,
@@ -43,8 +43,14 @@ taskRoutes.post('/', async (c) => {
       tags: body.tags || '',
       analyzeDialogueLanguage: body.analyze_dialogue_language || undefined,
       analyzeDialogueStyle: body.analyze_dialogue_style || undefined,
+      scheduledAt: body.scheduled_at || undefined,
     });
-    
+
+    // 定时任务不立即启动，由 cron 到达设定时间后自动启动
+    if (task.scheduled_at) {
+      return c.json({ code: 201, data: task, msg: 'Task created successfully (scheduled)' }, 201);
+    }
+
     try {
       await service.startTask(task.id);
       return c.json({ code: 201, data: task, msg: 'Task created successfully' }, 201);

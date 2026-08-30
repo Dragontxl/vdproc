@@ -28,6 +28,7 @@ export interface Task {
   started_at?: string;
   completed_at?: string;
   expires_at?: string;
+  scheduled_at?: string | null;
   error_msg?: string;
   error_stack?: string;
   tags: string;

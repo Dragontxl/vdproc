@@ -64,12 +64,9 @@ async function processPendingTasks(
   accountService: AccountService
 ) {
   const maxConcurrent = await configService.getMaxConcurrentTasks();
-  
-  const pendingTasks = await taskService.listTasks({
-    status: 'PENDING',
-    page: 1,
-    limit: maxConcurrent,
-  });
+
+  // 仅查询可启动的任务：无定时时间或定时时间已到（未到时间的定时任务被跳过）
+  const pendingTasks = await taskService.listStartablePendingTasks(maxConcurrent);
 
   for (const task of pendingTasks) {
     const ghAccount = await accountService.selectAvailableGitHubAccount();

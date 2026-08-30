@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, Table, Tag, Button, Modal, Form, Input, Select, InputNumber, Space, message, Popconfirm } from 'antd';
+import { Card, Table, Tag, Button, Modal, Form, Input, Select, InputNumber, Space, message, Popconfirm, Radio, DatePicker } from 'antd';
 import {
   PlusOutlined,
   PlayCircleOutlined,
@@ -57,6 +57,7 @@ export default function Tasks() {
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
+      const isScheduled = values.runMode === 'scheduled';
       await taskApi.create({
         title: values.title,
         video_path: values.videoPath,
@@ -66,8 +67,9 @@ export default function Tasks() {
         priority: values.priority,
         analyze_dialogue_language: values.analyzeDialogueLanguage || null,
         analyze_dialogue_style: values.analyzeDialogueStyle || null,
+        scheduled_at: isScheduled ? dayjs(values.scheduledTime).utc().format('YYYY-MM-DD HH:mm:ss') : undefined,
       });
-      message.success('任务创建成功');
+      message.success(isScheduled ? '任务创建成功，将到达设定时间后自动启动' : '任务创建成功');
       setIsModalOpen(false);
       form.resetFields();
       loadTasks();
@@ -217,6 +219,13 @@ export default function Tasks() {
       width: 120,
     },
     {
+      title: '计划时间',
+      dataIndex: 'scheduled_at',
+      key: 'scheduled_at',
+      render: (time: string) => (time ? dayjsUtc(time).format('MM-DD HH:mm:ss') : '-'),
+      width: 130,
+    },
+    {
       title: '操作',
       key: 'action',
       render: (_: any, record: any) => {
@@ -329,6 +338,38 @@ export default function Tasks() {
               <Option value="gentle">温婉细腻</Option>
               <Option value="restrained">冷峻克制</Option>
             </Select>
+          </Form.Item>
+          <Form.Item name="runMode" label="运行方式" initialValue="immediate">
+            <Radio.Group>
+              <Radio value="immediate">立即运行</Radio>
+              <Radio value="scheduled">定时运行</Radio>
+            </Radio.Group>
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.runMode !== cur.runMode}>
+            {({ getFieldValue }) =>
+              getFieldValue('runMode') === 'scheduled' ? (
+                <Form.Item
+                  name="scheduledTime"
+                  label="计划启动时间（本地时间）"
+                  rules={[
+                    { required: true, message: '请选择计划启动时间' },
+                    {
+                      validator: (_, value) =>
+                        !value || dayjs(value).isAfter(dayjs())
+                          ? Promise.resolve()
+                          : Promise.reject(new Error('计划启动时间必须晚于当前时间')),
+                    },
+                  ]}
+                >
+                  <DatePicker
+                    showTime={{ format: 'HH:mm:ss' }}
+                    format="YYYY-MM-DD HH:mm:ss"
+                    placeholder="如 2026-08-26 17:30:00"
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+              ) : null
+            }
           </Form.Item>
           <Form.Item name="fps" label="抽帧帧率" initialValue={24}>
             <InputNumber min={1} max={120} />
