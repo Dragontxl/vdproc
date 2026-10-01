@@ -167,6 +167,13 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
     ffmpeg -ss "$START_TIME" -to "$END_TIME" -i ./input_video.mp4 -c:v libx264 -crf 20 -pix_fmt yuv420p "./shot_videos/shot_${i}.mp4"
 done
 
+echo "Measuring faces and backfilling measured coordinates..."
+if python3 /scripts/face_measure.py; then
+    echo "Face measurement complete, analysis_result.json updated"
+else
+    echo "Warning: face measurement failed, keeping analysis_result.json unchanged"
+fi
+
 echo "Uploading shot frames..."
 aws s3 cp ./shot_frames/ \
     "s3://$R2_BUCKET_NAME/${TASK_ID}/shot_frames/" \
@@ -180,6 +187,12 @@ aws s3 cp ./shot_videos/ \
     --endpoint-url "$R2_ENDPOINT_URL" \
     --recursive \
     --content-type video/mp4
+
+echo "Uploading measured analysis result..."
+aws s3 cp ./analysis_result.json \
+    "s3://$R2_BUCKET_NAME/${TASK_ID}/analysis_result.json" \
+    --endpoint-url "$R2_ENDPOINT_URL" \
+    --content-type application/json
 
 echo "Phase 3 completed: $SHOT_COUNT shots processed"
 

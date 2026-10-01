@@ -1,0 +1,385 @@
+#!/usr/bin/env python3
+import os
+import sys
+import json
+import time
+import subprocess
+
+try:
+    import cv2
+    import numpy as np
+    from insightface.app import FaceAnalysis
+
+    def make_app():
+        app = FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider'])
+        app.prepare(ctx_id=-1, det_size=(640, 640))
+        return app
+
+    FACE_SDK_OK = True
+except Exception:
+    FACE_SDK_OK = False
+    import traceback
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] insightface/cv2/numpy import failed: {traceback.format_exc()}", flush=True)
+
+TASK_ID = os.environ.get('TASK_ID', '')
+WORK_DIR = f"/tmp/{TASK_ID}"
+ANALYSIS_PATH = os.path.join(WORK_DIR, 'analysis_result.json')
+VIDEO_PATH = os.path.join(WORK_DIR, 'input_video.mp4')
+FRAMES_DIR = os.path.join(WORK_DIR, 'shot_frames')
+OUT_PATH = os.path.join(WORK_DIR, 'analysis_result.json.measured')
+
+MATCH_SIM = 0.35
+TRACK_SIM = 0.50
+MIN_DET_SCORE = 0.5
+MIN_FACE_W = 24
+
+
+def log(msg):
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
+
+
+def parse_tc(tc):
+    parts = tc.split(':')
+    h = int(parts[0])
+    m = int(parts[1])
+    s = float(parts[2])
+    return h * 3600 + m * 60 + s
+
+
+def sec_to_tc(sec):
+    h = int(sec // 3600)
+    m = int((sec % 3600) // 60)
+    s = sec % 60
+    return f"{h:02d}:{m:02d}:{s:06.3f}"
+
+
+def frame_times(start_sec, end_sec):
+    dur = end_sec - start_sec
+    times = {'first': start_sec + 0.150 if start_sec + 0.150 < end_sec - 0.150 else start_sec}
+    for n in range(1, 10):
+        t = start_sec + dur * n / 10.0
+        times[str(n)] = min(max(t, start_sec), end_sec)
+    times['last'] = end_sec - 0.150 if end_sec - 0.150 > start_sec + 0.150 else end_sec
+    return times
+
+
+def frame_name(i, key):
+    if key == 'first':
+        return f"shot_{i}_first.jpg"
+    if key == 'last':
+        return f"shot_{i}_last.jpg"
+    return f"shot_{i}_1-{key}.jpg"
+
+
+def ffmpeg_extract(time_sec, out_path):
+    try:
+        subprocess.run(
+            ['ffmpeg', '-y', '-v', 'error', '-ss', sec_to_tc(time_sec),
+             '-i', VIDEO_PATH, '-frames:v', '1', '-q:v', '2', out_path],
+            check=True, capture_output=True, timeout=60)
+        return os.path.exists(out_path) and os.path.getsize(out_path) > 0
+    except Exception as e:
+        log(f"ffmpeg extraction failed at {sec_to_tc(time_sec)}: {e}")
+        return False
+
+
+def detect_faces(app, image):
+    if image is None:
+        return []
+    h, w = image.shape[:2]
+    faces = []
+    try:
+        dets = app.get(image)
+    except Exception as e:
+        log(f"Face detection error: {e}")
+        return []
+    for f in dets:
+        x1, y1, x2, y2 = [int(v) for v in f.bbox]
+        bw = x2 - x1
+        bh = y2 - y1
+        if bw < MIN_FACE_W:
+            continue
+        score = float(f.det_score)
+        if score < MIN_DET_SCORE:
+            continue
+        emb = np.asarray(f.embedding, dtype=np.float64) if getattr(f, 'embedding', None) is not None else None
+        faces.append({
+            'bbox': [x1, y1, x2, y2],
+            'score': score,
+            'emb': emb,
+            'cx': (x1 + x2) / 2.0 / w,
+            'cy': (y1 + y2) / 2.0 / h,
+            'area': float(bw * bh),
+        })
+    return faces
+
+
+def iou(a, b):
+    ax1, ay1, ax2, ay2 = a['bbox']
+    bx1, by1, bx2, by2 = b['bbox']
+    ix1, iy1 = max(ax1, bx1), max(ay1, by1)
+    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+    inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+    aa = (ax2 - ax1) * (ay2 - ay1)
+    ba = (bx2 - bx1) * (by2 - by1)
+    union = aa + ba - inter
+    return inter / union if union > 0 else 0.0
+
+
+def cos_sim(a, b):
+    if a is None or b is None:
+        return 0.0
+    na = np.linalg.norm(a)
+    nb = np.linalg.norm(b)
+    if na == 0 or nb == 0:
+        return 0.0
+    return float(np.dot(a, b) / (na * nb))
+
+
+def mean_emb(refs):
+    if not refs:
+        return None
+    return np.mean(refs, axis=0)
+
+
+def build_tracks(frame_faces):
+    tracks = []
+    for fi, faces in enumerate(frame_faces):
+        for face in faces:
+            best_tr = None
+            best_score = 0.0
+            for tr in tracks:
+                last_idx = tr['faces'][-1]['frame_idx']
+                if last_idx < fi - 2:
+                    continue
+                prev = tr['faces'][-1]['face']
+                iou_v = iou(prev, face)
+                sim = cos_sim(prev['emb'], face['emb'])
+                if iou_v >= 0.2:
+                    s = iou_v
+                elif sim >= TRACK_SIM:
+                    s = 0.5 + sim * 0.5
+                else:
+                    continue
+                if s > best_score:
+                    best_score = s
+                    best_tr = tr
+            if best_tr is not None:
+                best_tr['faces'].append({'frame_idx': fi, 'face': face})
+            else:
+                tracks.append({'faces': [{'frame_idx': fi, 'face': face}], 'role': None})
+    for tr in tracks:
+        best = max(tr['faces'], key=lambda x: x['face']['score'] * x['face']['area'])
+        tr['best'] = best
+        tr['quality'] = best['face']['score'] * best['face']['area']
+    return tracks
+
+
+def assign_tracks(present, tracks, role_refs):
+    assignments = {}
+    unassigned_roles = list(present)
+
+    if len(present) == 1 and len(tracks) >= 1:
+        best = max(tracks, key=lambda t: t['quality'])
+        assignments[present[0]] = best
+        best['role'] = present[0]
+        role_refs.setdefault(present[0], []).append(best['best']['face']['emb'])
+        return assignments
+
+    for track in sorted([t for t in tracks if t['role'] is None], key=lambda t: t['quality'], reverse=True):
+        if track['role'] is not None:
+            continue
+        best_role = None
+        best_sim = MATCH_SIM
+        track_emb = track['best']['face']['emb']
+        for role in unassigned_roles:
+            refs = role_refs.get(role)
+            if not refs:
+                continue
+            sim = cos_sim(track_emb, mean_emb(refs))
+            if sim > best_sim:
+                best_sim = sim
+                best_role = role
+        if best_role is not None:
+            assignments[best_role] = track
+            track['role'] = best_role
+            unassigned_roles.remove(best_role)
+            role_refs[best_role].append(track_emb)
+
+    remaining = [t for t in tracks if t['role'] is None]
+    if len(unassigned_roles) == 1 and len(remaining) == 1:
+        role = unassigned_roles[0]
+        tr = remaining[0]
+        assignments[role] = tr
+        tr['role'] = role
+        role_refs.setdefault(role, []).append(tr['best']['face']['emb'])
+
+    return assignments
+
+
+def refine_best(app, role, t0, start_sec, end_sec, role_refs):
+    step = (end_sec - start_sec) / 10.0
+    if step <= 0:
+        return None, None, None
+    candidates = []
+    tmp_path = os.path.join(WORK_DIR, f"_refine_{role}.jpg")
+    for off in (-step, 0.0, step):
+        t = max(start_sec + 0.1, min(end_sec - 0.1, t0 + off))
+        if not ffmpeg_extract(t, tmp_path):
+            continue
+        img = cv2.imread(tmp_path)
+        faces = detect_faces(app, img)
+        chosen = None
+        if len(faces) == 1:
+            chosen = faces[0]
+        else:
+            refs = role_refs.get(role)
+            if refs:
+                m = mean_emb(refs)
+                best = max(faces, key=lambda f: cos_sim(f['emb'], m))
+                if cos_sim(best['emb'], m) >= MATCH_SIM:
+                    chosen = best
+        if chosen is not None:
+            candidates.append((chosen['score'] * chosen['area'], t, chosen['cx'], chosen['cy']))
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+    if candidates:
+        _, t, cx, cy = max(candidates)
+        return t, cx, cy
+    return None, None, None
+
+
+def main():
+    if not TASK_ID:
+        log("TASK_ID not set, skipping face measurement")
+        return 0
+
+    if not os.path.exists(ANALYSIS_PATH):
+        log(f"analysis_result.json not found at {ANALYSIS_PATH}, skipping")
+        return 0
+
+    if not os.path.exists(FRAMES_DIR):
+        log(f"shot_frames dir not found at {FRAMES_DIR}, skipping")
+        return 0
+
+    if not FACE_SDK_OK:
+        log("insightface SDK unavailable, skipping face measurement")
+        return 0
+
+    app = make_app()
+
+    log("Face measurement started")
+    with open(ANALYSIS_PATH, 'r', encoding='utf-8') as f:
+        result = json.load(f)
+
+    storyboards = result.get('storyboards', [])
+    characters = result.get('characters', [])
+    if not storyboards:
+        log("No storyboards, skipping")
+        return 0
+
+    role_refs = {}
+    role_best = {}
+    measured_shots = 0
+    missing_roles = {}
+
+    sample_keys = ['first'] + [str(n) for n in range(1, 10)] + ['last']
+
+    for i, shot in enumerate(storyboards):
+        start_sec = parse_tc(shot.get('start_time', '00:00:00.000'))
+        end_sec = parse_tc(shot.get('end_time', '00:00:00.000'))
+        if end_sec <= start_sec:
+            log(f"  Shot {i}: invalid time range, skipping")
+            continue
+
+        present = []
+        for role in (shot.get('characters_present') or []):
+            if role and role != 'NARRATOR' and role not in present:
+                present.append(role)
+        for d in (shot.get('dialogues') or []):
+            sp = d.get('speaker')
+            if sp and sp != 'NARRATOR' and sp != 'null' and sp not in present:
+                present.append(sp)
+        if not present:
+            continue
+
+        times = frame_times(start_sec, end_sec)
+        frame_faces = []
+        for key in sample_keys:
+            path = os.path.join(FRAMES_DIR, frame_name(i, key))
+            img = cv2.imread(path) if os.path.exists(path) else None
+            frame_faces.append(detect_faces(app, img))
+
+        tracks = build_tracks(frame_faces)
+        assignments = assign_tracks(present, tracks, role_refs)
+        if not assignments:
+            log(f"  Shot {i}: no face assignment for roles {present}")
+            continue
+
+        for role, tr in assignments.items():
+            best_face = tr['best']['face']
+            bf_time = times[sample_keys[tr['best']['frame_idx']]]
+            quality = tr['quality']
+            refined_t, rx, ry = refine_best(app, role, bf_time, start_sec, end_sec, role_refs)
+            cur = role_best.get(role)
+            if refined_t is not None and rx is not None:
+                if cur is None or quality >= cur['quality']:
+                    role_best[role] = {'time': refined_t, 'cx': rx, 'cy': ry, 'quality': quality}
+            else:
+                if cur is None or quality > cur['quality']:
+                    role_best[role] = {'time': bf_time, 'cx': best_face['cx'], 'cy': best_face['cy'], 'quality': quality}
+
+        for key in ('first', 'last'):
+            idx = sample_keys.index(key)
+            dets = frame_faces[idx]
+            measured = []
+            for role in present:
+                face = None
+                for tr in tracks:
+                    if tr.get('role') == role:
+                        for entry in tr['faces']:
+                            if sample_keys[entry['frame_idx']] == key:
+                                face = entry['face']
+                                break
+                        if face is not None:
+                            break
+                if face is None and len(present) == 1 and len(dets) == 1:
+                    face = dets[0]
+                if face is not None:
+                    measured.append({'role_id': role, 'x': round(float(face['cx']), 4), 'y': round(float(face['cy']), 4)})
+            shot['first_keyframe_characters' if key == 'first' else 'last_keyframe_characters'] = measured
+
+        measured_shots += 1
+        log(f"  Shot {i}: roles={present}, tracks={len(tracks)}, assigned={len(assignments)}")
+
+    log("Backfilling measured values into characters")
+    for ch in characters:
+        role = ch.get('role_id')
+        info = role_best.get(role)
+        if info:
+            ch['best_face_time'] = sec_to_tc(info['time'])
+            ch['face_position_x'] = round(float(info['cx']), 4)
+            ch['face_position_y'] = round(float(info['cy']), 4)
+        else:
+            missing_roles[role] = ch.get('name', role)
+            ch['best_face_time'] = None
+            ch['face_position_x'] = None
+            ch['face_position_y'] = None
+
+    with open(OUT_PATH, 'w', encoding='utf-8') as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+    os.replace(OUT_PATH, ANALYSIS_PATH)
+    log(f"Face measurement complete: {measured_shots}/{len(storyboards)} shots measured")
+    if missing_roles:
+        log(f"Roles without measured faces: {missing_roles}")
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except Exception as e:
+        import traceback
+        log(f"Face measurement failed: {e}")
+        log(traceback.format_exc())
+        sys.exit(1)

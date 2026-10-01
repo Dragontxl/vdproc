@@ -858,9 +858,6 @@ def main():
    - 性别、体型、身高特征
    - 永久固定特征（跨画风有效识别特征，如发型、面部特征）
    - 人物差异化标签（不记录临时服装、光线、镜头角度）
-   - best_face_time（该人物最佳人脸帧的时间戳，格式为HH:MM:SS.mmm，选择人物面部最清晰、正面、完整的帧）
-   - face_position_x（人脸在画面中的水平位置，归一化0-1，0为最左侧，1为最右侧）
-   - face_position_y（人脸在画面中的垂直位置，归一化0-1，0为最顶部，1为最底部）
 5. 每段分镜输出：
    - 精确起止时间（必须与对应场景的起始时间和结束时间完全一致，不得修改）
    - 本段所有出场人物role_id
@@ -870,8 +867,6 @@ def main():
    - 运镜描述
    - 正向prompt（用于AI生成）
    - 反向prompt（用于排除不想要的元素）
-   - first_keyframe_characters：首帧（start_time+0.150s）中关键人物的坐标，数组形式，每个元素包含 role_id、x、y，x和y为归一化0-1值，0为最左侧/最顶部，1为最右侧/最底部
-   - last_keyframe_characters：尾帧（end_time-0.150s）中关键人物的坐标，数组形式，每个元素包含 role_id、x、y，x和y为归一化0-1值，0为最左侧/最顶部，1为最右侧/最底部
 
 请严格按照以下JSON格式输出，必须包含 video_summary、characters 和 storyboards 三个顶层键。
 
@@ -897,10 +892,7 @@ JSON格式如下：
       "body_type": "中等身形",
       "height": "中等偏高",
       "permanent_features": "描述（不包含任何颜色词汇，如红色、绿色、蓝色、青色、黄色、紫色、橙色、黑色、白色、灰色、棕色、粉色、金色、银色等）",
-      "differentiation_labels": ["标签1", "标签2"],
-      "best_face_time": "00:00:02.500",
-      "face_position_x": 0.5,
-      "face_position_y": 0.3
+      "differentiation_labels": ["标签1", "标签2"]
     }}
   ],
   "storyboards": [
@@ -918,31 +910,16 @@ JSON格式如下：
       "lighting_description": "光影描述",
       "camera_movement": "运镜描述",
       "positive_prompt": "AI生成正向prompt",
-      "negative_prompt": "AI生成反向prompt",
-      "first_keyframe_characters": [
-        {{
-          "role_id": "R1",
-          "x": 0.5,
-          "y": 0.3
-        }}
-      ],
-      "last_keyframe_characters": [
-        {{
-          "role_id": "R1",
-          "x": 0.5,
-          "y": 0.3
-        }}
-      ]
+      "negative_prompt": "AI生成反向prompt"
     }}
   ]
 }}
 
 注意：
-- start_time、end_time 和 best_face_time 必须使用 HH:MM:SS.mmm 格式
+- start_time、end_time 必须使用 HH:MM:SS.mmm 格式
 - storyboards 数组不能为空，必须至少包含一个分镜
 - characters_present 和 differentiation_labels 必须是数组
 - dialogues 是数组，每个元素包含 speaker（角色ID）和 text（台词内容），无对话时可以为空数组
-- best_face_time 必须选择该人物面部最清晰、正面、完整的帧，确保后续可以准确提取人脸
 - 不要添加任何额外的顶层键"""
         
         video_file = upload_video_to_gemini(video_local_path)
