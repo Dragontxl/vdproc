@@ -9,6 +9,7 @@ import { shotConfigRoutes } from './routes/public/shot-config';
 import { i2iConfigRoutes } from './routes/public/i2i-config';
 import { adminRoutes } from './routes/admin';
 import { authMiddleware } from './middleware/auth';
+import { callbackAuthMiddleware } from './middleware/auth';
 import { loggerMiddleware } from './middleware/logger';
 import { errorHandler } from './middleware/error';
 import { scheduled } from './scheduled';
@@ -57,6 +58,7 @@ app.get('/health', (c) => {
 });
 
 app.route('/api/v1/tasks', taskRoutes);
+app.use('/api/v1/callback/*', callbackAuthMiddleware);
 app.route('/api/v1/callback', callbackRoutes);
 app.route('/api/v1/auth', authRoutes);
 app.route('/api/v1/files', publicFileRoutes);

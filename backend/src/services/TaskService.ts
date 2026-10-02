@@ -756,11 +756,8 @@ export class TaskService {
       WHERE id = ?
     `).bind('COMPLETED', phase || 'COMPOSE', taskId).run();
     
-    await this.env.DB.prepare(`
-      UPDATE ai_accounts SET cooldown_until = NULL 
-      WHERE cooldown_until IS NOT NULL
-    `).run();
-    console.log('handleTaskComplete: Released all locked AI accounts');
+    await this.releaseTaskAIAccount(taskId);
+    console.log('handleTaskComplete: Released task AI account');
     
     await this.logTask(taskId, phase, 'INFO', `Task completed: ${JSON.stringify(data)}`);
     console.log('handleTaskComplete: Task marked as completed:', taskId);
@@ -777,11 +774,8 @@ export class TaskService {
       WHERE id = ?
     `).bind('FAILED', taskId).run();
     
-    await this.env.DB.prepare(`
-      UPDATE ai_accounts SET cooldown_until = NULL 
-      WHERE cooldown_until IS NOT NULL
-    `).run();
-    console.log('handleTaskError: Released all locked AI accounts');
+    await this.releaseTaskAIAccount(taskId);
+    console.log('handleTaskError: Released task AI account');
     
     await this.logTask(taskId, phase, 'ERROR', `Task error: ${error}`);
     console.log('handleTaskError: Task marked as failed:', taskId);
@@ -860,11 +854,6 @@ export class TaskService {
             UPDATE tasks SET status = ?, completed_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE id = ?
           `).bind('COMPLETED', taskId).run();
-          await this.env.DB.prepare(`
-            UPDATE ai_accounts SET cooldown_until = NULL 
-            WHERE cooldown_until IS NOT NULL
-          `).run();
-          console.log('handleGitHubCallback: Released all locked AI accounts for range execution');
           await this.logTask(taskId, phase, 'INFO', `Range execution completed: ${startPhase} to ${endPhase}`);
         } else if (startPhase && endPhase && startPhase === endPhase) {
           // 单阶段执行完成（startPhase 和 endPhase 相同），触发 advancePhase 推进到下一阶段
@@ -887,12 +876,6 @@ export class TaskService {
         UPDATE tasks SET status = ?, failed_frames = failed_frames + 1, error_msg = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?
       `).bind('FAILED', `Phase ${phase} failed in GitHub Actions run ${runId}`, taskId).run();
-
-      await this.env.DB.prepare(`
-        UPDATE ai_accounts SET cooldown_until = NULL 
-        WHERE cooldown_until IS NOT NULL
-      `).run();
-      console.log('handleGitHubCallback: Released all locked AI accounts after failure');
 
       await this.logTask(taskId, phase, 'ERROR', `Phase ${phase} failed`);
     }
@@ -933,12 +916,8 @@ export class TaskService {
     `).bind(doneStatus, nextPhase, taskId).run();
     console.log('advancePhase: Task status updated to:', { status: doneStatus, currentPhase: nextPhase });
 
-    // 释放上一阶段锁定的 AI 账户，确保下一阶段可以正常获取账户
-    await this.env.DB.prepare(`
-      UPDATE ai_accounts SET cooldown_until = NULL 
-      WHERE cooldown_until IS NOT NULL
-    `).run();
-    console.log('advancePhase: Released all locked AI accounts before next phase');
+    // 释放本任务上一阶段占用的 AI 账户，确保下一阶段可以正常获取账户
+    await this.releaseTaskAIAccount(taskId);
 
     await this.triggerPhase(taskId, nextPhase);
   }
@@ -1379,15 +1358,20 @@ export class TaskService {
     `).bind(status, outputPath || '', errorMsg || '', taskId, phase, subtaskIndex).run();
 
     if (status === 'COMPLETED' || status === 'FAILED') {
-      await this.env.DB.prepare(`
-        UPDATE ai_accounts SET cooldown_until = NULL 
-        WHERE cooldown_until IS NOT NULL
-      `).run();
-      console.log('updatePhaseSubtaskStatus: Released all locked AI accounts');
+      await this.releaseTaskAIAccount(taskId);
 
       // 检查该任务的当前阶段所有子任务是否都已终止
       // 如果全部完成则推进阶段；如果有失败则标记任务失败
       await this.checkPhaseCompletion(taskId, phase);
+    }
+  }
+
+  private async releaseTaskAIAccount(taskId: string): Promise<void> {
+    const task = await this.getTask(taskId);
+    if (task?.ai_account_id) {
+      const accountService = new (await import('./AccountService')).AccountService(this.env);
+      await accountService.releaseAIAccount(task.ai_account_id);
+      console.log(`releaseTaskAIAccount: Released AI account ${task.ai_account_id} for task ${taskId}`);
     }
   }
 
@@ -1857,9 +1841,9 @@ export class TaskService {
 
       await this.env.DB.prepare(`
         UPDATE ai_accounts SET cooldown_until = NULL
-        WHERE cooldown_until IS NOT NULL
+        WHERE cooldown_until IS NOT NULL AND cooldown_until < DATETIME('now')
       `).run();
-      console.log('cleanupTimedOutSubtasks: Released all locked AI accounts');
+      console.log('cleanupTimedOutSubtasks: Cleared expired AI account locks');
     }
 
     return changedRows;
@@ -1904,9 +1888,9 @@ export class TaskService {
 
       await this.env.DB.prepare(`
         UPDATE ai_accounts SET cooldown_until = NULL
-        WHERE cooldown_until IS NOT NULL
+        WHERE cooldown_until IS NOT NULL AND cooldown_until < DATETIME('now')
       `).run();
-      console.log('cleanupStaleSubtasks: Released all locked AI accounts');
+      console.log('cleanupStaleSubtasks: Cleared expired AI account locks');
     }
 
     return changedRows;
