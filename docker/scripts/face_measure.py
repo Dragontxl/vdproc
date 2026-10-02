@@ -142,6 +142,80 @@ def mean_emb(refs):
     return np.mean(refs, axis=0)
 
 
+def face_sharpness(img, face):
+    if img is None:
+        return 0.0
+    x1, y1, x2, y2 = face['bbox']
+    x1 = max(0, x1)
+    y1 = max(0, y1)
+    x2 = min(img.shape[1], x2)
+    y2 = min(img.shape[0], y2)
+    if x2 - x1 < 8 or y2 - y1 < 8:
+        return 0.0
+    region = img[y1:y2, x1:x2]
+    gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+    return float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+
+def role_face_at_idx(present, tracks, frame_faces, sample_keys, idx):
+    key = sample_keys[idx]
+    dets = frame_faces[idx]
+    role_face = {}
+    for role in present:
+        for tr in tracks:
+            if tr.get('role') != role:
+                continue
+            for entry in tr['faces']:
+                if sample_keys[entry['frame_idx']] == key:
+                    role_face[role] = entry['face']
+                    break
+            if role in role_face:
+                break
+        if role not in role_face and len(present) == 1 and len(dets) == 1:
+            role_face[role] = dets[0]
+    return role_face
+
+
+def choose_keyframe_sources(shot_index, present, sample_keys, times, frame_faces, tracks, anchor_roles):
+    # 首/尾帧锚点化：在靠近首/尾的候选帧里，优先选「本镜关键角色脸在且最清晰」的帧，
+    # 避免固定 ±0.150s 抽到模糊/闭眼/缺脸帧导致动画形象崩坏。
+    # 距离惩罚让同分时尽量贴近边界，保持镜头首尾语义。
+    def score(idx):
+        img_path = os.path.join(FRAMES_DIR, frame_name(shot_index, sample_keys[idx]))
+        img = cv2.imread(img_path) if os.path.exists(img_path) else None
+        if img is None:
+            return None, -1.0
+        role_face = role_face_at_idx(present, tracks, frame_faces, sample_keys, idx)
+        anchor_count = sum(1 for r in anchor_roles if r in role_face)
+        if anchor_count == 0:
+            return role_face, -1.0
+        sharp = []
+        for r in anchor_roles:
+            f = role_face.get(r)
+            if f is not None:
+                sharp.append(face_sharpness(img, f))
+        mean_sh = sum(sharp) / len(sharp) if sharp else 0.0
+        boundary = 0 if idx <= 4 else 10
+        dist = abs(times[sample_keys[idx]] - times[sample_keys[boundary]])
+        return role_face, anchor_count * 10.0 + mean_sh / 500.0 - dist * 8.0
+
+    out = {}
+    for label, cands, boundary in (('first', [0, 1, 2, 3, 4], 0), ('last', [6, 7, 8, 9, 10], 10)):
+        best_idx = boundary
+        best_score = -1.0
+        best_role_face = {}
+        for idx in cands:
+            role_face, sc = score(idx)
+            if role_face is None:
+                continue
+            if sc > best_score:
+                best_score = sc
+                best_idx = idx
+                best_role_face = role_face
+        out[label] = (best_idx, best_role_face)
+    return out
+
+
 def build_tracks(frame_faces):
     tracks = []
     for fi, faces in enumerate(frame_faces):
@@ -329,28 +403,31 @@ def main():
                 if cur is None or quality > cur['quality']:
                     role_best[role] = {'time': bf_time, 'cx': best_face['cx'], 'cy': best_face['cy'], 'quality': quality}
 
-        for key in ('first', 'last'):
-            idx = sample_keys.index(key)
-            dets = frame_faces[idx]
+        # 关键帧锚点化：为每个分镜选定首/尾帧的最佳候选源帧
+        speaking_roles = []
+        for d in (shot.get('dialogues') or []):
+            sp = d.get('speaker')
+            if sp and sp != 'NARRATOR' and sp != 'null' and sp not in speaking_roles:
+                speaking_roles.append(sp)
+        anchor_roles = speaking_roles if speaking_roles else present
+
+        sources = choose_keyframe_sources(i, present, sample_keys, times, frame_faces, tracks, anchor_roles)
+        first_idx, _ = sources['first']
+        last_idx, _ = sources['last']
+        shot['first_keyframe_source'] = first_idx
+        shot['last_keyframe_source'] = last_idx
+
+        for key, idx in (('first', first_idx), ('last', last_idx)):
+            role_face = role_face_at_idx(present, tracks, frame_faces, sample_keys, idx)
             measured = []
             for role in present:
-                face = None
-                for tr in tracks:
-                    if tr.get('role') == role:
-                        for entry in tr['faces']:
-                            if sample_keys[entry['frame_idx']] == key:
-                                face = entry['face']
-                                break
-                        if face is not None:
-                            break
-                if face is None and len(present) == 1 and len(dets) == 1:
-                    face = dets[0]
+                face = role_face.get(role)
                 if face is not None:
                     measured.append({'role_id': role, 'x': round(float(face['cx']), 4), 'y': round(float(face['cy']), 4)})
             shot['first_keyframe_characters' if key == 'first' else 'last_keyframe_characters'] = measured
 
         measured_shots += 1
-        log(f"  Shot {i}: roles={present}, tracks={len(tracks)}, assigned={len(assignments)}")
+        log(f"  Shot {i}: roles={present}, anchors={anchor_roles}, first_src={first_idx}, last_src={last_idx}, assigned={len(assignments)}")
 
     log("Backfilling measured values into characters")
     for ch in characters:

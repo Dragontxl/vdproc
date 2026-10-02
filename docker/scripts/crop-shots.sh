@@ -174,6 +174,22 @@ else
     echo "Warning: face measurement failed, keeping analysis_result.json unchanged"
 fi
 
+RESULT=$(cat ./analysis_result.json)
+
+echo "Applying measured keyframe source selection..."
+for i in $(seq 0 $((SHOT_COUNT - 1))); do
+    FIRST_SRC=$(echo "$RESULT" | jq -r ".storyboards[$i].first_keyframe_source // 0")
+    LAST_SRC=$(echo "$RESULT" | jq -r ".storyboards[$i].last_keyframe_source // 10")
+    if [ "$FIRST_SRC" != "null" ] && [ "$FIRST_SRC" != "0" ] && [ -f "./shot_frames/shot_${i}_1-${FIRST_SRC}.jpg" ]; then
+        echo "  Shot $i: first keyframe <- ${FIRST_SRC}0% frame"
+        cp "./shot_frames/shot_${i}_1-${FIRST_SRC}.jpg" "./shot_frames/shot_${i}_first.jpg"
+    fi
+    if [ "$LAST_SRC" != "null" ] && [ "$LAST_SRC" != "10" ] && [ -f "./shot_frames/shot_${i}_1-${LAST_SRC}.jpg" ]; then
+        echo "  Shot $i: last keyframe <- ${LAST_SRC}0% frame"
+        cp "./shot_frames/shot_${i}_1-${LAST_SRC}.jpg" "./shot_frames/shot_${i}_last.jpg"
+    fi
+done
+
 echo "Uploading shot frames..."
 aws s3 cp ./shot_frames/ \
     "s3://$R2_BUCKET_NAME/${TASK_ID}/shot_frames/" \

@@ -107,7 +107,7 @@ acquire_ai_account() {
     
     cd "$work_dir"
     
-    local target_index=$(( (shot_index * 2 + (frame_type == "first" ? 0 : 1)) % ACCOUNT_COUNT ))
+    local target_index=$(( shot_index % ACCOUNT_COUNT ))
     local max_attempts=$((ACQUIRE_ACCOUNT_TIMEOUT / ACQUIRE_ACCOUNT_INTERVAL))
     local attempts=0
     

@@ -300,6 +300,21 @@ def allocate_dialogues_from_srt(result_json, srt_path):
                 return shot_chars[0]
         return None
 
+    # 第一遍：每条字幕只解析一次说话人，归属依据是「该条起始时刻所在的镜头」。
+    # 之后所有覆盖到该条的镜头都沿用同一说话人，续句不再按新镜头的角色重新猜测，
+    # 避免"A 的台词跨切点后安到 B 头上"。
+    entry_speaker = {}
+    for entry in srt_entries:
+        owner = None
+        for shot in storyboards:
+            ss = parse_time_to_seconds(shot.get('start_time', '00:00:00.000'))
+            se = parse_time_to_seconds(shot.get('end_time', '00:00:00.000'))
+            if ss is not None and se is not None and ss <= entry['start_seconds'] < se:
+                owner = shot
+                break
+        speaker_name, _ = extract_speaker_and_text(entry['text'])
+        entry_speaker[id(entry)] = resolve_speaker(speaker_name, owner.get('characters_present', []) if owner else [])
+
     allocated_count = 0
     MIN_OVERLAP = 0.05
 
@@ -312,7 +327,6 @@ def allocate_dialogues_from_srt(result_json, srt_path):
             shot['dialogues'] = []
             continue
 
-        shot_chars = shot.get('characters_present', [])
         shot_dialogues = []
 
         # 用区间交集而非仅起点判定：一句话跨切点时它同时挂到前后两个分镜，
@@ -327,8 +341,8 @@ def allocate_dialogues_from_srt(result_json, srt_path):
             if overlap_end - overlap_start < MIN_OVERLAP:
                 continue
 
-            speaker_name, dialogue_text = extract_speaker_and_text(entry_text)
-            speaker = resolve_speaker(speaker_name, shot_chars)
+            speaker = entry_speaker.get(id(entry))
+            _, dialogue_text = extract_speaker_and_text(entry_text)
 
             dialogue_entry = {
                 'speaker': speaker or 'NARRATOR',
