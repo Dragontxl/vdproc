@@ -26,6 +26,9 @@ MODEL_PRIORITY_LIST = [
 ]
 MAX_RETRIES_PER_MODEL = 3
 
+# 分析结果 schema 版本号：下游 crop-shots/convert-frames/generate-shots 消费前可据此判断字段契约。
+ANALYSIS_SCHEMA_VERSION = 2
+
 LANG_CN_MAP = {
     'chinese': '中文',
     'english': '英文',
@@ -224,6 +227,7 @@ def parse_srt_file(srt_path):
                     'start_time': start_time,
                     'end_time': end_time,
                     'start_seconds': parse_time_to_seconds(start_time),
+                    'end_seconds': parse_time_to_seconds(end_time),
                     'text': text
                 })
         else:
@@ -285,58 +289,67 @@ def allocate_dialogues_from_srt(result_json, srt_path):
             return None, srt_text
         return None, srt_text
     
+    def resolve_speaker(speaker_name, shot_chars):
+        if speaker_name and speaker_name in name_to_role:
+            return name_to_role[speaker_name]
+        if speaker_name == 'NARRATOR':
+            return 'NARRATOR'
+        if speaker_name:
+            # 未知说话人：仅当该分镜只有一个角色时才归给他，否则不猜
+            if len(shot_chars) == 1:
+                return shot_chars[0]
+        return None
+
     allocated_count = 0
-    
+    MIN_OVERLAP = 0.05
+
     for shot_idx, shot in enumerate(storyboards):
         shot_start = parse_time_to_seconds(shot.get('start_time', '00:00:00.000'))
         shot_end = parse_time_to_seconds(shot.get('end_time', '00:00:00.000'))
-        
+
         if shot_start is None or shot_end is None:
             log(f"  Shot {shot_idx}: Invalid time range, skipping")
             shot['dialogues'] = []
             continue
-        
+
+        shot_chars = shot.get('characters_present', [])
         shot_dialogues = []
-        
-        # Find all SRT entries that fall within this shot's time range
+
+        # 用区间交集而非仅起点判定：一句话跨切点时它同时挂到前后两个分镜，
+        # 并用 continues_* 标记，避免整句被错挂到口型并不出现的分镜。
         for entry in srt_entries:
             entry_start = entry.get('start_seconds', 0)
+            entry_end = entry.get('end_seconds', entry_start)
             entry_text = entry.get('text', '')
-            
-            # Check if entry falls within shot's time range
-            # Use entry start time as the reference point
-            if shot_start <= entry_start < shot_end:
-                speaker_name, dialogue_text = extract_speaker_and_text(entry_text)
-                
-                dialogue_entry = {
-                    'speaker': 'NARRATOR',
-                    'text': dialogue_text
-                }
-                
-                if speaker_name and speaker_name in name_to_role:
-                    dialogue_entry['speaker'] = name_to_role[speaker_name]
-                elif speaker_name == 'NARRATOR':
-                    dialogue_entry['speaker'] = 'NARRATOR'
-                elif speaker_name:
-                    # Unknown speaker, try to match by character_present
-                    shot_chars = shot.get('characters_present', [])
-                    if len(shot_chars) == 1:
-                        dialogue_entry['speaker'] = shot_chars[0]
-                    # If multiple characters or unknown, leave as NARRATOR
-                
-                shot_dialogues.append(dialogue_entry)
-                allocated_count += 1
-        
-        # Update shot dialogues
+
+            overlap_start = max(entry_start, shot_start)
+            overlap_end = min(entry_end, shot_end)
+            if overlap_end - overlap_start < MIN_OVERLAP:
+                continue
+
+            speaker_name, dialogue_text = extract_speaker_and_text(entry_text)
+            speaker = resolve_speaker(speaker_name, shot_chars)
+
+            dialogue_entry = {
+                'speaker': speaker or 'NARRATOR',
+                'text': dialogue_text,
+                'start_time': seconds_to_time_str(overlap_start),
+                'end_time': seconds_to_time_str(overlap_end),
+                'continues_from_prev': entry_start < shot_start,
+                'continues_next': entry_end > shot_end,
+            }
+
+            shot_dialogues.append(dialogue_entry)
+            allocated_count += 1
+
+        shot['dialogues'] = shot_dialogues
         if shot_dialogues:
             log(f"  Shot {shot_idx} ({shot['start_time']}-{shot['end_time']}): allocated {len(shot_dialogues)} dialogues")
         else:
             log(f"  Shot {shot_idx} ({shot['start_time']}-{shot['end_time']}): no dialogues in SRT range")
-        
-        shot['dialogues'] = shot_dialogues
-    
+
     log(f"Dialogue allocation complete: {allocated_count} dialogues allocated across {len(storyboards)} shots")
-    
+
     return result_json
 
 def parse_time_to_seconds(time_str):
@@ -944,6 +957,7 @@ JSON格式如下：
         
         log("Parsing analysis result...")
         result_json = parse_json_response(result_text)
+        result_json['schema_version'] = ANALYSIS_SCHEMA_VERSION
         
         log("Getting video duration for validation...")
         video_duration = get_video_duration(video_local_path)

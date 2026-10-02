@@ -34,6 +34,12 @@ echo "Found $SHOT_COUNT shots to generate"
 
 mkdir -p ./generated_shots
 
+echo "Syncing existing generated shots from R2 (reuse across retries/cancellations)..."
+aws s3 sync "s3://$R2_BUCKET_NAME/${TASK_ID}/generated_shots" "./generated_shots" \
+    --endpoint-url "$R2_ENDPOINT_URL" || true
+REUSE_EXISTING_SHOTS=${REUSE_EXISTING_SHOTS:-true}
+echo "REUSE_EXISTING_SHOTS=$REUSE_EXISTING_SHOTS"
+
 echo "DEBUG: AI_ACCOUNTS raw value: ${AI_ACCOUNTS:0:200}"
 echo "DEBUG: AI_ACCOUNTS length: ${#AI_ACCOUNTS}"
 
@@ -521,9 +527,16 @@ def process_shot(shot_index):
                 char_info = char_map.get(speaker)
                 if char_info and char_info.get('name'):
                     speaker_name = char_info.get('name')
-                dialogue_parts.append(f"{speaker_name}：{text}")
+                line = f"{speaker_name}：{text}"
             elif text and text != 'null':
-                dialogue_parts.append(text)
+                line = text
+            else:
+                continue
+            if d.get('continues_from_prev'):
+                line = "（承接上一分镜，本句在片段开始时已在进行中，口型需保持）" + line
+            if d.get('continues_next'):
+                line = line + "（本句持续到片段结束仍未说完）"
+            dialogue_parts.append(line)
         if dialogue_parts:
             subtitles_part = "，" + "；".join(dialogue_parts)
 
@@ -548,7 +561,16 @@ def process_shot(shot_index):
     print(f"Shot {shot_index}: Duration: {duration:.3f}s, Target frames: {int(duration * output_fps)}")
 
     notify_subtask_python("update", shot_index, "PROCESSING")
-    
+
+    existing_file = f'./generated_shots/shot_{shot_index}.mp4'
+    reuse_existing = os.environ.get('REUSE_EXISTING_SHOTS', 'true').lower() != 'false'
+    if reuse_existing and os.path.exists(existing_file) and os.path.getsize(existing_file) > 0:
+        output_path = f"{task_id}/generated_shots/shot_{shot_index}.mp4"
+        if upload_to_r2(existing_file, shot_index):
+            print(f"Shot {shot_index}: Reusing existing generated video (already in R2), skipping regeneration")
+            notify_subtask_python("update", shot_index, "COMPLETED", output_path)
+            return (shot_index, True)
+
     video_url = generate_video(accounts if accounts else None, account_index, [first_frame_url, last_frame_url], main_prompt, shot_index, duration, output_fps)
 
     if video_url:
