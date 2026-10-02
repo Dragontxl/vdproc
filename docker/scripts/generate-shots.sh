@@ -424,6 +424,32 @@ def notify_subtask_python(action, shot_index, status='', output_path='', error_m
     except Exception as e:
         print(f"  Shot {shot_index}: Failed to notify subtask: {str(e)}")
 
+def upload_to_r2(local_path, shot_index):
+    import subprocess
+    bucket = os.environ.get('R2_BUCKET_NAME', '')
+    endpoint = os.environ.get('R2_ENDPOINT_URL', '')
+    if not bucket or not endpoint:
+        print(f"  Shot {shot_index}: Error: R2_BUCKET_NAME/R2_ENDPOINT_URL not set")
+        return False
+
+    key = f"s3://{bucket}/{task_id}/generated_shots/shot_{shot_index}.mp4"
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        try:
+            result = subprocess.run(
+                ['aws', 's3', 'cp', local_path, key, '--endpoint-url', endpoint],
+                capture_output=True, text=True
+            )
+            if result.returncode == 0:
+                print(f"  Shot {shot_index}: Uploaded to R2: {key}")
+                return True
+            print(f"  Shot {shot_index}: R2 upload attempt {attempt}/{max_attempts} failed: {result.stderr.strip()}")
+        except Exception as e:
+            print(f"  Shot {shot_index}: R2 upload attempt {attempt}/{max_attempts} error: {str(e)}")
+        if attempt < max_attempts:
+            time.sleep(5)
+    return False
+
 def process_shot(shot_index):
     shot = storyboards[shot_index]
     start_time = shot.get('start_time', '00:00:00.000')
@@ -527,16 +553,23 @@ def process_shot(shot_index):
 
     if video_url:
         print(f"Downloading generated video for shot {shot_index}...")
+        local_path = f'./generated_shots/shot_{shot_index}.mp4'
         try:
-            urllib.request.urlretrieve(video_url, f'./generated_shots/shot_{shot_index}.mp4')
-            print(f"Successfully generated shot {shot_index}")
-            output_path = f"{task_id}/generated_shots/shot_{shot_index}.mp4"
-            notify_subtask_python("update", shot_index, "COMPLETED", output_path)
-            return (shot_index, True)
+            urllib.request.urlretrieve(video_url, local_path)
         except Exception as e:
             print(f"Error downloading video for shot {shot_index}: {str(e)}")
             notify_subtask_python("update", shot_index, "FAILED", "", str(e))
             return (shot_index, False)
+
+        output_path = f"{task_id}/generated_shots/shot_{shot_index}.mp4"
+        if not upload_to_r2(local_path, shot_index):
+            print(f"Error: Failed to upload shot {shot_index} to R2")
+            notify_subtask_python("update", shot_index, "FAILED", "", "Failed to upload to R2")
+            return (shot_index, False)
+
+        print(f"Successfully generated shot {shot_index}")
+        notify_subtask_python("update", shot_index, "COMPLETED", output_path)
+        return (shot_index, True)
     else:
         print(f"Error: Failed to generate shot {shot_index}")
         notify_subtask_python("update", shot_index, "FAILED", "", "Failed to generate video")
