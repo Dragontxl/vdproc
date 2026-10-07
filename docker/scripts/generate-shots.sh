@@ -493,24 +493,47 @@ def process_shot(shot_index):
     first_positions = {c.get('role_id'): (c.get('x', 0.5), c.get('y', 0.3)) for c in first_keyframe_chars}
     last_positions = {c.get('role_id'): (c.get('x', 0.5), c.get('y', 0.3)) for c in last_keyframe_chars}
 
+    # 角色描述以"关键帧实测可见角色"为准：模型只看得到首尾帧，描述画面里不存在的人
+    # 会导致它凭空生成多余人物，或把台词安到不该出现的人身上。
+    measured_roles = set()
+    for kc in first_keyframe_chars + last_keyframe_chars:
+        r = kc.get('role_id')
+        if r:
+            measured_roles.add(r)
+    measured_any = bool(first_keyframe_chars or last_keyframe_chars)
+    description_roles = []
+    if measured_any:
+        for role_id in characters_present:
+            if role_id in measured_roles:
+                description_roles.append(role_id)
+        for role_id in sorted(measured_roles):
+            if role_id not in description_roles:
+                description_roles.append(role_id)
+    else:
+        description_roles = list(characters_present)
+
     character_descriptions = []
-    for role_id in characters_present:
+    for role_id in description_roles:
         char = char_map.get(role_id)
         if char:
             char_name = char.get('name', '')
             if char_name:
+                label = char_name
+                voice = (char.get('voice_timbre') or '').strip()
+                if voice:
+                    label = f"{char_name}（音色：{voice}）"
                 if role_id in first_positions:
                     x, y = first_positions[role_id]
                     x_desc = "左侧" if x < 0.3 else ("右侧" if x > 0.7 else "中央")
                     y_desc = "上方" if y < 0.3 else ("下方" if y > 0.7 else "中间")
-                    character_descriptions.append(f"{char_name}在首帧位于画面{x_desc}{y_desc}")
+                    character_descriptions.append(f"{label}位于首帧画面{x_desc}{y_desc}")
                 elif role_id in last_positions:
                     x, y = last_positions[role_id]
                     x_desc = "左侧" if x < 0.3 else ("右侧" if x > 0.7 else "中央")
                     y_desc = "上方" if y < 0.3 else ("下方" if y > 0.7 else "中间")
-                    character_descriptions.append(f"{char_name}在尾帧位于画面{x_desc}{y_desc}")
+                    character_descriptions.append(f"{label}位于尾帧画面{x_desc}{y_desc}")
                 else:
-                    character_descriptions.append(char_name)
+                    character_descriptions.append(label)
             else:
                 character_descriptions.append(role_id)
         else:
@@ -563,7 +586,7 @@ def process_shot(shot_index):
             print(f"    {speaker_name}: {'画外音' if off_screen else '画面内'}{'（' + reason + '）' if reason else ''}")
 
             if off_screen:
-                line = f"（画外音，{speaker_name}在画面外说话）{speaker_name}：{text}"
+                line = f"{speaker_name}（画外音）：{text}"
             else:
                 line = f"{speaker_name}：{text}"
 
@@ -574,17 +597,18 @@ def process_shot(shot_index):
             dialogue_parts.append(line)
 
         if dialogue_parts:
-            subtitles_part = "，" + "；".join(dialogue_parts)
+            subtitles_part = "；".join(dialogue_parts)
 
     main_prompt = f"""场景背景：{video_summary}，本片段是其中的一个分镜。
 角色描述：{'；'.join(character_descriptions)}
-镜头运动：固定机位，从首帧到尾帧平滑过渡，禁止任何推拉摇移运镜（禁止放大、拉远景、推近景、旋转、平移等镜头变化）。
+镜头运动：固定机位。从首帧到尾帧的机位、拍摄角度、焦距、景别与构图必须完全保持一致，只允许人物自身的动作、表情和口型在两帧之间自然过渡，绝对禁止任何推拉摇移、镜头缩放、镜头旋转、镜头平移或拍摄距离变化。
 场景描述：{scene_desc}
 人物对话：{subtitles_part}
-关键帧要求：第1张图片为起始帧，第2张图片为结束帧；画面中只允许出现两帧内已有的内容和人物，绝对不要自行生成两帧之外多余的人物、物体或背景元素
-字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕
+关键帧要求：第1张图片为起始帧，第2张图片为结束帧；画面中只允许出现这两帧内已经存在的人物、物体和背景，绝对不要自行生成两帧之外多余的人物、物体或背景元素，也不要改变景别；背景与人物外观必须与首尾帧保持一致，只实现首帧到尾帧之间的平滑过渡。
+字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕。
 语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容、语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物必须与对话文本精确匹配，人物的口型必须与对话内容精确匹配。
-画外音要求：标注为「画外音」的台词来自画面外的角色，画面内出现的任何角色都绝对不得对画外音台词对口型，画面内角色只能保持倾听或表情反应。
+画外音要求：对话中标注为「（画外音）」的台词由画面外的角色说出，必须使用该角色本人的音色与语调，画面内出现的任何角色都绝对不得对其对口型，只能保持倾听或表情反应。
+说话人标注要求：人物对话里每个「说话人：台词」中冒号前面的部分是说话人标注，绝对不能朗读出来，只能朗读冒号后面的台词文本。
 对话要求：当人物对话为空时不要生成任何对话，也不要有对话的口型。"""
 
     print(f"=== Shot {shot_index} Full Prompt ===")

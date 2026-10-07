@@ -303,6 +303,10 @@ def refine_best(app, role, t0, start_sec, end_sec, role_refs):
             continue
         img = cv2.imread(tmp_path)
         faces = detect_faces(app, img)
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        if not faces:
+            continue
         chosen = None
         if len(faces) == 1:
             chosen = faces[0]
@@ -315,8 +319,6 @@ def refine_best(app, role, t0, start_sec, end_sec, role_refs):
                     chosen = best
         if chosen is not None:
             candidates.append((chosen['score'] * chosen['area'], t, chosen['cx'], chosen['cy']))
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
     if candidates:
         _, t, cx, cy = max(candidates)
         return t, cx, cy
@@ -384,8 +386,14 @@ def main():
             img = cv2.imread(path) if os.path.exists(path) else None
             frame_faces.append(detect_faces(app, img))
 
-        tracks = build_tracks(frame_faces)
-        assignments = assign_tracks(present, tracks, role_refs)
+        tracks = []
+        assignments = {}
+        try:
+            tracks = build_tracks(frame_faces)
+            assignments = assign_tracks(present, tracks, role_refs)
+        except Exception as e:
+            log(f"  Shot {i}: face tracking failed: {e}")
+            continue
         if not assignments:
             log(f"  Shot {i}: no face assignment for roles {present}")
             continue
@@ -394,7 +402,11 @@ def main():
             best_face = tr['best']['face']
             bf_time = times[sample_keys[tr['best']['frame_idx']]]
             quality = tr['quality']
-            refined_t, rx, ry = refine_best(app, role, bf_time, start_sec, end_sec, role_refs)
+            try:
+                refined_t, rx, ry = refine_best(app, role, bf_time, start_sec, end_sec, role_refs)
+            except Exception as e:
+                log(f"  Shot {i}: refine_best failed for {role}: {e}")
+                refined_t, rx, ry = None, None, None
             cur = role_best.get(role)
             if refined_t is not None and rx is not None:
                 if cur is None or quality >= cur['quality']:
@@ -411,20 +423,27 @@ def main():
                 speaking_roles.append(sp)
         anchor_roles = speaking_roles if speaking_roles else present
 
-        sources = choose_keyframe_sources(i, present, sample_keys, times, frame_faces, tracks, anchor_roles)
-        first_idx, _ = sources['first']
-        last_idx, _ = sources['last']
+        try:
+            sources = choose_keyframe_sources(i, present, sample_keys, times, frame_faces, tracks, anchor_roles)
+            first_idx, _ = sources['first']
+            last_idx, _ = sources['last']
+        except Exception as e:
+            log(f"  Shot {i}: choose_keyframe_sources failed, keeping boundary frames: {e}")
+            first_idx, last_idx = 0, 10
         shot['first_keyframe_source'] = first_idx
         shot['last_keyframe_source'] = last_idx
 
-        for key, idx in (('first', first_idx), ('last', last_idx)):
-            role_face = role_face_at_idx(present, tracks, frame_faces, sample_keys, idx)
-            measured = []
-            for role in present:
-                face = role_face.get(role)
-                if face is not None:
-                    measured.append({'role_id': role, 'x': round(float(face['cx']), 4), 'y': round(float(face['cy']), 4)})
-            shot['first_keyframe_characters' if key == 'first' else 'last_keyframe_characters'] = measured
+        try:
+            for key, idx in (('first', first_idx), ('last', last_idx)):
+                role_face = role_face_at_idx(present, tracks, frame_faces, sample_keys, idx)
+                measured = []
+                for role in present:
+                    face = role_face.get(role)
+                    if face is not None:
+                        measured.append({'role_id': role, 'x': round(float(face['cx']), 4), 'y': round(float(face['cy']), 4)})
+                shot['first_keyframe_characters' if key == 'first' else 'last_keyframe_characters'] = measured
+        except Exception as e:
+            log(f"  Shot {i}: keyframe coordinate backfill failed: {e}")
 
         measured_shots += 1
         log(f"  Shot {i}: roles={present}, anchors={anchor_roles}, first_src={first_idx}, last_src={last_idx}, assigned={len(assignments)}")
