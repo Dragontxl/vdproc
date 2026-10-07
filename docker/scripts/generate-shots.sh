@@ -224,7 +224,7 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
     last_frame_url = image_urls[1] if len(image_urls) > 1 else ''
 
     request_body = {
-        'model': 'agnes-video-2.5',
+        'model': 'agnes-video-2.5-flash',
         'prompt': full_prompt,
         'mode': 'keyframe',
         'seconds': str(seconds),
@@ -264,7 +264,7 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
                 api_key = account.get('api_key_encrypted', '').strip()
                 base_url = account.get('base_url', '').strip()
                 model_override = os.environ.get('VIDEO_MODEL', '').strip()
-                model_name = (model_override or account.get('model_name') or 'agnes-video-2.5').strip()
+                model_name = (model_override or account.get('model_name') or 'agnes-video-2.5-flash').strip()
                 account_alias = account.get('account_alias', '')
                 
                 if not base_url:
