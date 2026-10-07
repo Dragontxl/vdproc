@@ -163,6 +163,7 @@ import urllib.request
 import urllib.error
 import ssl
 import threading
+import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse, quote
 
@@ -206,6 +207,8 @@ else:
     account_locks = [threading.Lock()]
 last_create_ts = [0.0] * len(account_locks)
 CREATE_MIN_INTERVAL = float(os.environ.get('ACCOUNT_CREATE_INTERVAL', '60'))
+SERVER_BACKOFF_BASE = float(os.environ.get('SERVER_BACKOFF_BASE', '30'))
+SERVER_BACKOFF_MAX = float(os.environ.get('SERVER_BACKOFF_MAX', '300'))
 
 def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, duration_seconds, output_fps):
     custom_prompt = os.environ.get('CUSTOM_PROMPT', '').strip()
@@ -330,14 +333,15 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
                     if e.code == 401:
                         auth_failed = True
                         break
-                    if e.code == 503:
-                        backoff = retry_delay * (attempt + 2)
-                        print(f"  Shot {shot_index}: 503 queue full, waiting {backoff}s before retry...")
-                        time.sleep(backoff)
-                    elif e.code == 429:
-                        # 限流，使用指数退避（Agnes限制2请求/分钟）
+                    if e.code == 429:
+                        # 限流，指数退避
                         backoff = 30 * (attempt + 1)
                         print(f"  Shot {shot_index}: 429 rate limited, waiting {backoff}s before retry...")
+                        time.sleep(backoff)
+                    elif 500 <= e.code < 600:
+                        # 上游过载（503/502/504 等）：更长指数退避 + 抖动，减少无效打点
+                        backoff = min(SERVER_BACKOFF_MAX, SERVER_BACKOFF_BASE * (2 ** attempt)) + random.uniform(0, 15)
+                        print(f"  Shot {shot_index}: server error {e.code}, waiting {backoff:.0f}s before retry...")
                         time.sleep(backoff)
                     elif attempt < max_retries - 1:
                         time.sleep(retry_delay)
