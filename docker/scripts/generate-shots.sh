@@ -204,6 +204,8 @@ if accounts:
     account_locks = [threading.Lock() for _ in range(len(accounts))]
 else:
     account_locks = [threading.Lock()]
+last_create_ts = [0.0] * len(account_locks)
+CREATE_MIN_INTERVAL = float(os.environ.get('ACCOUNT_CREATE_INTERVAL', '60'))
 
 def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, duration_seconds, output_fps):
     custom_prompt = os.environ.get('CUSTOM_PROMPT', '').strip()
@@ -297,6 +299,14 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
             for attempt in range(max_retries):
                 try:
                     print(f"  Shot {shot_index}: Attempt {attempt+1}/{max_retries} - URL: {base_url}")
+                    if accounts_list:
+                        # 按账号限速：距该账号上一次 create 不足 ACCOUNT_CREATE_INTERVAL 秒则等待
+                        elapsed = time.time() - last_create_ts[cand_idx]
+                        if elapsed < CREATE_MIN_INTERVAL:
+                            wait = CREATE_MIN_INTERVAL - elapsed
+                            print(f"  Shot {shot_index}: account idx {cand_idx} 限速冷却中，等待 {wait:.0f}s")
+                            time.sleep(wait)
+                        last_create_ts[cand_idx] = time.time()
                     req = urllib.request.Request(base_url, data=json_data, headers=headers, method='POST')
                     resp = urllib.request.urlopen(req, timeout=300)
                     resp_body = resp.read().decode('utf-8')
