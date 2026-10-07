@@ -164,7 +164,7 @@ import urllib.error
 import ssl
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
@@ -213,36 +213,32 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
     else:
         full_prompt = prompt
 
-    target_frames = int(duration_seconds * output_fps)
-    if target_frames < 9:
-        num_frames = 9
-    else:
-        n = (target_frames - 1) // 8
-        num_frames = n * 8 + 1
-        if num_frames < 9:
-            num_frames = 9
+    # Agnes Video 2.5：按 seconds（4-12 秒字符串）生成，keyframe 模式用 first_frame/last_frame，不能再传 num_frames/width/height
+    seconds = max(4, round(duration_seconds))
+    if seconds > 12:
+        seconds = 12
+
+    first_frame_url = image_urls[0] if len(image_urls) > 0 else ''
+    last_frame_url = image_urls[1] if len(image_urls) > 1 else ''
 
     request_body = {
-        'model': 'agnes-video-v2.0',
+        'model': 'agnes-video-2.5',
         'prompt': full_prompt,
-        'mode': 'keyframes',
-        'num_frames': num_frames,
-        'frame_rate': output_fps,
-        'width': 832,
-        'height': 448,
-        'extra_body': {
-            'image': image_urls,
-            'mode': 'keyframes'
-        }
+        'mode': 'keyframe',
+        'seconds': str(seconds),
+        'size': os.environ.get('VIDEO_SIZE', '720P'),
+        'aspect_ratio': os.environ.get('ASPECT_RATIO', '16:9'),
     }
+    if first_frame_url:
+        request_body['first_frame'] = first_frame_url
+    if last_frame_url:
+        request_body['last_frame'] = last_frame_url
 
-    print(f"  Shot {shot_index}: Duration: {duration_seconds:.3f}s, FPS: {output_fps}, Target frames: {num_frames}")
-    print(f"  Shot {shot_index}: Request body num_frames: {num_frames}, frame_rate: {output_fps}, expected duration: {num_frames/output_fps:.2f}s")
+    print(f"  Shot {shot_index}: Duration: {duration_seconds:.3f}s -> requested seconds: {seconds}")
     print(f"  Shot {shot_index}: Prompt length: {len(full_prompt)} characters")
     print(f"  Shot {shot_index}: Prompt preview (first 500 chars): {full_prompt[:500]}...")
     print(f"  Shot {shot_index}: Request body keys: {list(request_body.keys())}")
-    print(f"  Shot {shot_index}: extra_body keys: {list(request_body.get('extra_body', {}).keys())}")
-    print(f"  Shot {shot_index}: Image URLs count: {len(request_body.get('extra_body', {}).get('image', []))}")
+    print(f"  Shot {shot_index}: first_frame set: {bool(first_frame_url)}, last_frame set: {bool(last_frame_url)}")
 
     max_retries = 3
     retry_delay = 10
@@ -265,7 +261,8 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
                 account = accounts_list[cand_idx]
                 api_key = account.get('api_key_encrypted', '').strip()
                 base_url = account.get('base_url', '').strip()
-                model_name = account.get('model_name', 'agnes-video-v2.0').strip()
+                model_override = os.environ.get('VIDEO_MODEL', '').strip()
+                model_name = (model_override or account.get('model_name') or 'agnes-video-2.5').strip()
                 account_alias = account.get('account_alias', '')
                 
                 if not base_url:
@@ -380,7 +377,7 @@ def generate_video(accounts_list, start_index, image_urls, prompt, shot_index, d
             for poll_attempt in range(max_polls):
                 time.sleep(poll_interval)
                 try:
-                    poll_url = f"{poll_base}/agnesapi?video_id={query_id}"
+                    poll_url = f"{poll_base}/agnesapi?video_id={quote(query_id)}&model_name={quote(model_name)}"
                     req = urllib.request.Request(poll_url, headers={'Authorization': 'Bearer ' + api_key}, method='GET')
                     resp = urllib.request.urlopen(req, timeout=30)
                     resp_body = resp.read().decode('utf-8')
