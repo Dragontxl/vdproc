@@ -28,6 +28,12 @@ RUN curl -sL https://github.com/deepinsight/insightface/releases/download/v0.7/b
     && unzip /tmp/buffalo_l.zip -d /root/.insightface/models/ \
     && rm /tmp/buffalo_l.zip
 
+# EAST 文本检测模型（用于去字幕；下载失败则去字幕回退固定底部条带）
+RUN mkdir -p /opt/east \
+    && (curl -sL --retry 3 --max-time 600 https://github.com/oyyd/frozen_east_text_detection.pb/raw/master/frozen_east_text_detection.pb -o /opt/east/frozen_east_text_detection.pb \
+        && [ -s /opt/east/frozen_east_text_detection.pb ] \
+        || (echo "WARN: EAST model download failed; subtitle removal will fall back to fixed band" && rm -f /opt/east/frozen_east_text_detection.pb))
+
 WORKDIR /scripts
 
 COPY scripts/ /scripts/

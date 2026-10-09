@@ -552,8 +552,6 @@ def process_shot(shot_index):
 
     subtitles_part = ""
     if dialogues and isinstance(dialogues, list):
-        dialogue_parts = []
-
         visible_roles = set()
         for kc in (shot.get('first_keyframe_characters') or []) + (shot.get('last_keyframe_characters') or []):
             r = kc.get('role_id')
@@ -561,54 +559,60 @@ def process_shot(shot_index):
                 visible_roles.add(r)
         measured_any = bool(shot.get('first_keyframe_characters') or shot.get('last_keyframe_characters'))
         present_roles = set(shot.get('characters_present') or [])
-        print(f"  Shot {shot_index}: 画外音判定[present={sorted(present_roles)}, visible={sorted(visible_roles)}, measured={measured_any}]")
+        use_source_audio = bool(shot.get('use_source_audio'))
+        print(f"  Shot {shot_index}: 画外音判定[present={sorted(present_roles)}, visible={sorted(visible_roles)}, measured={measured_any}, use_source_audio={use_source_audio}]")
 
-        for d in dialogues:
-            speaker = d.get('speaker', '')
-            text = d.get('text', '')
-            if not text or text == 'null':
-                continue
+        if use_source_audio:
+            # 纯画外音镜头：台词置空，模型不生成口型/说话；原声由合成阶段叠加
+            print(f"  Shot {shot_index}: 画外音镜头，人物对话置空（合成阶段叠加原声）")
+            subtitles_part = ""
+        else:
+            dialogue_parts = []
+            for d in dialogues:
+                speaker = d.get('speaker', '')
+                text = d.get('text', '')
+                if not text or text == 'null':
+                    continue
 
-            role_id = speaker if speaker in char_map else None
-            if role_id is None and speaker and speaker != 'NARRATOR' and speaker != 'null':
-                for c in char_map.values():
-                    if c.get('name') == speaker:
-                        role_id = c.get('role_id')
-                        break
+                role_id = speaker if speaker in char_map else None
+                if role_id is None and speaker and speaker != 'NARRATOR' and speaker != 'null':
+                    for c in char_map.values():
+                        if c.get('name') == speaker:
+                            role_id = c.get('role_id')
+                            break
 
-            speaker_name = speaker
-            if role_id and char_map.get(role_id) and char_map[role_id].get('name'):
-                speaker_name = char_map[role_id]['name']
+                speaker_name = speaker
+                if role_id and char_map.get(role_id) and char_map[role_id].get('name'):
+                    speaker_name = char_map[role_id]['name']
 
-            is_narrator = speaker == 'NARRATOR' or role_id == 'NARRATOR'
-            off_screen = False
-            reason = ''
-            if is_narrator:
-                off_screen = True
-                reason = '旁白'
-            elif role_id and role_id != 'NARRATOR':
-                if measured_any and role_id in present_roles and role_id not in visible_roles:
-                    # A 在说话但镜头给到 B：说话人不在关键帧画面内 → 画外音
+                is_narrator = speaker == 'NARRATOR' or role_id == 'NARRATOR'
+                off_screen = False
+                reason = ''
+                if is_narrator:
                     off_screen = True
-                    reason = '在场但不在关键帧画面内'
-                elif role_id not in present_roles:
-                    off_screen = True
-                    reason = '不在本镜在场角色列表'
-            print(f"    {speaker_name}: {'画外音' if off_screen else '画面内'}{'（' + reason + '）' if reason else ''}")
+                    reason = '旁白'
+                elif role_id and role_id != 'NARRATOR':
+                    if measured_any and role_id in present_roles and role_id not in visible_roles:
+                        off_screen = True
+                        reason = '在场但不在关键帧画面内'
+                    elif role_id not in present_roles:
+                        off_screen = True
+                        reason = '不在本镜在场角色列表'
+                print(f"    {speaker_name}: {'画外音(跳过，不交模型)' if off_screen else '画面内'}{'（' + reason + '）' if reason else ''}")
 
-            if off_screen:
-                line = f"{speaker_name}（画外音）：{text}"
-            else:
+                if off_screen:
+                    # 说话人不在画面内：不交给模型对口型，跳过（该镜整体由 use_source_audio 处理或留待后续）
+                    continue
+
                 line = f"{speaker_name}：{text}"
+                if d.get('continues_from_prev'):
+                    line = "（承接上一分镜，本句在片段开始时已在进行中）" + line
+                if d.get('continues_next'):
+                    line = line + "（本句持续到片段结束仍未说完）"
+                dialogue_parts.append(line)
 
-            if d.get('continues_from_prev'):
-                line = "（承接上一分镜，本句在片段开始时已在进行中）" + line
-            if d.get('continues_next'):
-                line = line + "（本句持续到片段结束仍未说完）"
-            dialogue_parts.append(line)
-
-        if dialogue_parts:
-            subtitles_part = "；".join(dialogue_parts)
+            if dialogue_parts:
+                subtitles_part = "；".join(dialogue_parts)
 
     main_prompt = f"""场景背景：{video_summary}，本片段是其中的一个分镜。
 角色描述：{'；'.join(character_descriptions)}

@@ -445,8 +445,26 @@ def main():
         except Exception as e:
             log(f"  Shot {i}: keyframe coordinate backfill failed: {e}")
 
+        # 判定本镜是否为"纯画外音镜头"：说话人（含旁白）都不在关键帧可见角色里。
+        # 这类镜头台词置空、不生成口型，改由合成阶段叠加原视频原声。
+        first_kc = shot.get('first_keyframe_characters') or []
+        last_kc = shot.get('last_keyframe_characters') or []
+        measured_visible = set()
+        for kc in first_kc + last_kc:
+            r = kc.get('role_id')
+            if r:
+                measured_visible.add(r)
+        speakers = []
+        for d in (shot.get('dialogues') or []):
+            sp = d.get('speaker')
+            if sp and sp != 'null':
+                speakers.append(sp)
+        on_screen = [s for s in speakers if s in measured_visible]
+        use_source_audio = bool(first_kc or last_kc) and bool(speakers) and len(on_screen) == 0
+        shot['use_source_audio'] = use_source_audio
+
         measured_shots += 1
-        log(f"  Shot {i}: roles={present}, anchors={anchor_roles}, first_src={first_idx}, last_src={last_idx}, assigned={len(assignments)}")
+        log(f"  Shot {i}: roles={present}, anchors={anchor_roles}, first_src={first_idx}, last_src={last_idx}, assigned={len(assignments)}, visible={sorted(measured_visible)}, speakers={speakers}, use_source_audio={use_source_audio}")
 
     log("Backfilling measured values into characters")
     for ch in characters:

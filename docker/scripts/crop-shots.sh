@@ -167,6 +167,13 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
     ffmpeg -ss "$START_TIME" -to "$END_TIME" -i ./input_video.mp4 -c:v libx264 -crf 20 -pix_fmt yuv420p "./shot_videos/shot_${i}.mp4"
 done
 
+echo "Removing subtitles from shot frames (bottom band inpaint)..."
+if python3 /scripts/remove_subtitles.py; then
+    echo "Subtitle removal complete"
+else
+    echo "Warning: subtitle removal failed, keeping frames unchanged"
+fi
+
 echo "Measuring faces and backfilling measured coordinates..."
 if python3 /scripts/face_measure.py; then
     echo "Face measurement complete, analysis_result.json updated"
