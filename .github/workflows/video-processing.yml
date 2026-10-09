@@ -101,7 +101,7 @@ jobs:
           PARSED_FPS: ${{ fromJSON(inputs.config || github.event.client_payload.config || '{}').fps || inputs.fps || github.event.client_payload.fps || 30 }}
           PARSED_PROMPT: ${{ fromJSON(inputs.config || github.event.client_payload.config || '{}').prompt || inputs.prompt || github.event.client_payload.prompt || '' }}
           PARSED_OUTPUT_FPS: ${{ fromJSON(inputs.config || github.event.client_payload.config || '{}').output_fps || inputs.output_fps || github.event.client_payload.output_fps || 24 }}
-          PARSED_MAX_CONCURRENT: ${{ fromJSON(inputs.config || github.event.client_payload.config || '{}').max_concurrent || inputs.max_concurrent || github.event.client_payload.max_concurrent || 2 }}
+          PARSED_MAX_CONCURRENT: ${{ fromJSON(inputs.config || github.event.client_payload.config || '{}').max_concurrent || inputs.max_concurrent || github.event.client_payload.max_concurrent || 6 }}
           PARSED_ANALYZE_DIALOGUE_LANGUAGE: ${{ fromJSON(inputs.config || github.event.client_payload.config || '{}').analyze_dialogue_language || inputs.analyze_dialogue_language || github.event.client_payload.analyze_dialogue_language || '' }}
           PARSED_ANALYZE_DIALOGUE_STYLE: ${{ fromJSON(inputs.config || github.event.client_payload.config || '{}').analyze_dialogue_style || inputs.analyze_dialogue_style || github.event.client_payload.analyze_dialogue_style || '' }}
         run: |

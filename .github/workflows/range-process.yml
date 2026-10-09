@@ -77,7 +77,7 @@ jobs:
           FPS=$(echo "$CONFIG_JSON" | jq -r '.fps // 30')
           PROMPT=$(echo "$CONFIG_JSON" | jq -r '.prompt // ""')
           OUTPUT_FPS=$(echo "$CONFIG_JSON" | jq -r '.output_fps // 24')
-          MAX_CONCURRENT=$(echo "$CONFIG_JSON" | jq -r '.max_concurrent // 2')
+          MAX_CONCURRENT=$(echo "$CONFIG_JSON" | jq -r '.max_concurrent // 6')
           ANALYZE_DIALOGUE_LANGUAGE=$(echo "$CONFIG_JSON" | jq -r '.analyze_dialogue_language // ""')
           ANALYZE_DIALOGUE_STYLE=$(echo "$CONFIG_JSON" | jq -r '.analyze_dialogue_style // ""')
           echo "VIDEO_PATH=$VIDEO_PATH" >> $GITHUB_OUTPUT

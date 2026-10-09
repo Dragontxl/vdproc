@@ -812,12 +812,13 @@ export class TaskService {
     }
     
     await this.env.DB.prepare(`
-      UPDATE tasks SET status = ?, error_msg = ? WHERE id = ?
-    `).bind('FAILED', `AI账户失效且无可用备用账户: ${errorType}`, taskId).run();
-    
-    await this.logTask(taskId, 'ACCOUNT', 'ERROR', `AI账户失效且无可用备用账户: ${errorType}`);
-    
-    return { success: false, message: 'No available AI accounts' };
+      UPDATE tasks SET error_msg = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE id = ?
+    `).bind(`AI账户 ${accountId} 失效且暂无可用备用账号，任务继续按剩余账号运行: ${errorType}`, taskId).run();
+
+    await this.logTask(taskId, 'ACCOUNT', 'WARNING', `AI账户 ${accountId} 失效且暂无可用备用账号，任务继续按剩余账号运行: ${errorType}`);
+
+    return { success: false, message: 'No available AI accounts, task continues with remaining accounts' };
   }
 
   async handleGitHubCallback(body: any) {

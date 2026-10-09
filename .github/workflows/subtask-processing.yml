@@ -78,7 +78,7 @@ jobs:
             PROMPT=$(echo "$CONFIG_JSON" | jq -r '.prompt // ""')
             CUSTOM_PROMPT=$(echo "$CONFIG_JSON" | jq -r '.custom_prompt // ""')
             OUTPUT_FPS=$(echo "$CONFIG_JSON" | jq -r '.output_fps // 24')
-            MAX_CONCURRENT=$(echo "$CONFIG_JSON" | jq -r '.max_concurrent // 3')
+            MAX_CONCURRENT=$(echo "$CONFIG_JSON" | jq -r '.max_concurrent // 6')
             SUBTASK_TYPE=$(echo "$CONFIG_JSON" | jq -r '.subtask_type // ""')
             INPUT_PATH=$(echo "$CONFIG_JSON" | jq -r '.input_path // ""')
             METADATA=$(echo "$CONFIG_JSON" | jq -r '.metadata // ""')
@@ -127,7 +127,7 @@ jobs:
           FPS=$(echo "$CONFIG_JSON" | jq -r '.fps // 30')
           PROMPT=$(echo "$CONFIG_JSON" | jq -r '.prompt // ""')
           OUTPUT_FPS=$(echo "$CONFIG_JSON" | jq -r '.output_fps // 24')
-          MAX_CONCURRENT=$(echo "$CONFIG_JSON" | jq -r '.max_concurrent // 3')
+          MAX_CONCURRENT=$(echo "$CONFIG_JSON" | jq -r '.max_concurrent // 6')
 
           SUBTASK_COUNT=$(echo "$SUBTASKS_JSON" | jq 'length')
           
