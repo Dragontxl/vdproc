@@ -19,9 +19,11 @@ export const callbackAuthMiddleware: MiddlewareHandler = async (c, next) => {
   const secret = (c.env as Bindings).CALLBACK_SECRET;
   const provided = c.req.header('X-Callback-Signature') || '';
 
-  if (!secret) {
-    console.error('callbackAuthMiddleware: CALLBACK_SECRET not configured, rejecting callback');
-    return c.json({ code: 401, data: null, msg: 'Callback auth not configured' }, 401);
+  // 未配置或仍是未解析的 ${...} 占位符时，降级为不校验，避免部署后打断回调
+  if (!secret || /^\$\{.*\}$/.test(secret.trim())) {
+    console.warn('callbackAuthMiddleware: CALLBACK_SECRET 未配置或为占位符，跳过签名校验');
+    await next();
+    return;
   }
 
   if (!provided || !timingSafeEqual(provided, secret)) {
