@@ -60,3 +60,10 @@ __pycache__/
 # Misc
 *.local
 *.log
+
+# 本地文档与临时产物（不推送）
+版本说明.txt
+0_range-process.txt
+0_process.txt
+analysis_result.json
+backend/wl10202607260502r52gta/

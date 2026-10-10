@@ -859,7 +859,7 @@ export class TaskService {
         } else if (startPhase && endPhase && startPhase === endPhase) {
           // 单阶段执行完成（startPhase 和 endPhase 相同），触发 advancePhase 推进到下一阶段
           console.log('handleGitHubCallback: Single phase execution completed, advancing to next phase');
-          await this.advancePhase(taskId);
+          await this.advancePhase(taskId, phase);
         } else {
           // startPhase 和 endPhase 都不存在，属于异常情况，记录警告但不触发 advancePhase
           console.warn('handleGitHubCallback: Missing startPhase/endPhase, skipping advancePhase:', { startPhase, endPhase });
@@ -882,16 +882,23 @@ export class TaskService {
     }
   }
 
-  async advancePhase(taskId: string) {
+  async advancePhase(taskId: string, completedPhase?: string) {
     const task = await this.getTask(taskId);
     if (!task) {
       console.log('advancePhase: Task not found, taskId:', taskId);
       return;
     }
 
-    console.log('advancePhase: Current task state:', { taskId, currentPhase: task.current_phase, status: task.status });
+    console.log('advancePhase: Current task state:', { taskId, currentPhase: task.current_phase, status: task.status, completedPhase });
 
     const currentPhase = task.current_phase as TaskPhase || 'DETECT';
+
+    // 幂等：调用方指明了刚完成的阶段，但当前阶段已不是它，说明已被其他完成信号推进过 → 跳过，避免重复派发下游/提前 compose
+    if (completedPhase && currentPhase !== completedPhase) {
+      console.log(`advancePhase: skip, completed=${completedPhase} but current=${currentPhase} (already advanced)`);
+      return;
+    }
+
     const currentIndex = phaseOrder.indexOf(currentPhase);
     const nextPhase = phaseOrder[currentIndex + 1];
 
@@ -900,21 +907,28 @@ export class TaskService {
     if (!nextPhase) {
       console.log('advancePhase: No next phase found for:', currentPhase);
       if (currentPhase === 'COMPOSE') {
+        // 原子：仅在仍处于 COMPOSE 时标记完成，避免重复完成信号
         await this.env.DB.prepare(`
           UPDATE tasks SET status = ?, completed_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-          WHERE id = ?
-        `).bind('COMPLETED', taskId).run();
+          WHERE id = ? AND current_phase = ?
+        `).bind('COMPLETED', taskId, currentPhase).run();
         console.log('advancePhase: Task marked as completed:', taskId);
       }
       return;
     }
 
     const doneStatus = phaseStatusMap[currentPhase].done;
-    
-    await this.env.DB.prepare(`
+
+    // 原子推进：仅当任务仍处于 completedPhase（currentPhase）时才推进；否则说明已被并发信号推进过
+    const advanceResult = await this.env.DB.prepare(`
       UPDATE tasks SET status = ?, current_phase = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-      WHERE id = ?
-    `).bind(doneStatus, nextPhase, taskId).run();
+      WHERE id = ? AND current_phase = ?
+    `).bind(doneStatus, nextPhase, taskId, currentPhase).run() as { meta?: { changes?: number } };
+    const changed = advanceResult.meta?.changes ?? 0;
+    if (changed === 0) {
+      console.log('advancePhase: skip trigger, phase already advanced by another signal');
+      return;
+    }
     console.log('advancePhase: Task status updated to:', { status: doneStatus, currentPhase: nextPhase });
 
     // 释放本任务上一阶段占用的 AI 账户，确保下一阶段可以正常获取账户
@@ -1428,7 +1442,7 @@ export class TaskService {
     } else {
       // 所有子任务都成功了，推进到下一阶段
       console.log(`checkPhaseCompletion: Task ${taskId} phase ${phase} all completed, advancing...`);
-      await this.advancePhase(taskId);
+      await this.advancePhase(taskId, phase);
     }
   }
 
