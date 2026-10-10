@@ -33,9 +33,13 @@ SHOT_COUNT=$(echo "$RESULT" | jq -r '.storyboards | length')
 echo "Found $SHOT_COUNT shots to generate"
 
 mkdir -p ./generated_shots
+mkdir -p ./voice-over
 
 echo "Syncing existing generated shots from R2 (reuse across retries/cancellations)..."
 aws s3 sync "s3://$R2_BUCKET_NAME/${TASK_ID}/generated_shots" "./generated_shots" \
+    --endpoint-url "$R2_ENDPOINT_URL" || true
+echo "Syncing existing voice-over clips from R2..."
+aws s3 sync "s3://$R2_BUCKET_NAME/${TASK_ID}/voice-over" "./voice-over" \
     --endpoint-url "$R2_ENDPOINT_URL" || true
 REUSE_EXISTING_SHOTS=${REUSE_EXISTING_SHOTS:-true}
 echo "REUSE_EXISTING_SHOTS=$REUSE_EXISTING_SHOTS"
@@ -441,7 +445,7 @@ def notify_subtask_python(action, shot_index, status='', output_path='', error_m
     except Exception as e:
         print(f"  Shot {shot_index}: Failed to notify subtask: {str(e)}")
 
-def upload_to_r2(local_path, shot_index):
+def upload_to_r2(local_path, shot_index, subdir='generated_shots'):
     import subprocess
     bucket = os.environ.get('R2_BUCKET_NAME', '')
     endpoint = os.environ.get('R2_ENDPOINT_URL', '')
@@ -449,7 +453,7 @@ def upload_to_r2(local_path, shot_index):
         print(f"  Shot {shot_index}: Error: R2_BUCKET_NAME/R2_ENDPOINT_URL not set")
         return False
 
-    key = f"s3://{bucket}/{task_id}/generated_shots/shot_{shot_index}.mp4"
+    key = f"s3://{bucket}/{task_id}/{subdir}/shot_{shot_index}.mp4"
     max_attempts = 3
     for attempt in range(1, max_attempts + 1):
         try:
@@ -550,85 +554,70 @@ def process_shot(shot_index):
         else:
             character_descriptions.append(role_id)
 
-    subtitles_part = ""
+    visible_roles = set()
+    for kc in (shot.get('first_keyframe_characters') or []) + (shot.get('last_keyframe_characters') or []):
+        r = kc.get('role_id')
+        if r:
+            visible_roles.add(r)
+    measured_any = bool(shot.get('first_keyframe_characters') or shot.get('last_keyframe_characters'))
+    present_roles = set(shot.get('characters_present') or [])
+    use_source_audio = bool(shot.get('use_source_audio'))
+    print(f"  Shot {shot_index}: 画外音判定[present={sorted(present_roles)}, visible={sorted(visible_roles)}, measured={measured_any}, use_source_audio={use_source_audio}]")
+
+    def resolve_line(d):
+        speaker = d.get('speaker', '')
+        text = d.get('text', '')
+        if not text or text == 'null':
+            return None
+        role_id = speaker if speaker in char_map else None
+        if role_id is None and speaker and speaker != 'NARRATOR' and speaker != 'null':
+            for c in char_map.values():
+                if c.get('name') == speaker:
+                    role_id = c.get('role_id')
+                    break
+        speaker_name = speaker
+        if role_id and char_map.get(role_id) and char_map[role_id].get('name'):
+            speaker_name = char_map[role_id]['name']
+        is_narrator = speaker == 'NARRATOR' or role_id == 'NARRATOR'
+        off_screen = is_narrator
+        if not is_narrator and role_id:
+            if measured_any and role_id in present_roles and role_id not in visible_roles:
+                off_screen = True
+            elif role_id not in present_roles:
+                off_screen = True
+        return speaker_name, text, off_screen
+
+    on_lines, all_lines = [], []
     if dialogues and isinstance(dialogues, list):
-        visible_roles = set()
-        for kc in (shot.get('first_keyframe_characters') or []) + (shot.get('last_keyframe_characters') or []):
-            r = kc.get('role_id')
-            if r:
-                visible_roles.add(r)
-        measured_any = bool(shot.get('first_keyframe_characters') or shot.get('last_keyframe_characters'))
-        present_roles = set(shot.get('characters_present') or [])
-        use_source_audio = bool(shot.get('use_source_audio'))
-        print(f"  Shot {shot_index}: 画外音判定[present={sorted(present_roles)}, visible={sorted(visible_roles)}, measured={measured_any}, use_source_audio={use_source_audio}]")
+        for d in dialogues:
+            res = resolve_line(d)
+            if not res:
+                continue
+            speaker_name, text, off_screen = res
+            line = f"{speaker_name}：{text}"
+            if d.get('continues_from_prev'):
+                line = "（承接上一分镜，本句在片段开始时已在进行中）" + line
+            if d.get('continues_next'):
+                line = line + "（本句持续到片段结束仍未说完）"
+            all_lines.append(line)
+            if not off_screen:
+                on_lines.append(line)
+            print(f"    {speaker_name}: {'画外音' if off_screen else '画面内'}")
 
-        if use_source_audio:
-            # 纯画外音镜头：台词置空，模型不生成口型/说话；原声由合成阶段叠加
-            print(f"  Shot {shot_index}: 画外音镜头，人物对话置空（合成阶段叠加原声）")
-            subtitles_part = ""
-        else:
-            dialogue_parts = []
-            for d in dialogues:
-                speaker = d.get('speaker', '')
-                text = d.get('text', '')
-                if not text or text == 'null':
-                    continue
+    subtitles_on = "；".join(on_lines)
+    subtitles_all = "；".join(all_lines)
 
-                role_id = speaker if speaker in char_map else None
-                if role_id is None and speaker and speaker != 'NARRATOR' and speaker != 'null':
-                    for c in char_map.values():
-                        if c.get('name') == speaker:
-                            role_id = c.get('role_id')
-                            break
-
-                speaker_name = speaker
-                if role_id and char_map.get(role_id) and char_map[role_id].get('name'):
-                    speaker_name = char_map[role_id]['name']
-
-                is_narrator = speaker == 'NARRATOR' or role_id == 'NARRATOR'
-                off_screen = False
-                reason = ''
-                if is_narrator:
-                    off_screen = True
-                    reason = '旁白'
-                elif role_id and role_id != 'NARRATOR':
-                    if measured_any and role_id in present_roles and role_id not in visible_roles:
-                        off_screen = True
-                        reason = '在场但不在关键帧画面内'
-                    elif role_id not in present_roles:
-                        off_screen = True
-                        reason = '不在本镜在场角色列表'
-                print(f"    {speaker_name}: {'画外音(跳过，不交模型)' if off_screen else '画面内'}{'（' + reason + '）' if reason else ''}")
-
-                if off_screen:
-                    # 说话人不在画面内：不交给模型对口型，跳过（该镜整体由 use_source_audio 处理或留待后续）
-                    continue
-
-                line = f"{speaker_name}：{text}"
-                if d.get('continues_from_prev'):
-                    line = "（承接上一分镜，本句在片段开始时已在进行中）" + line
-                if d.get('continues_next'):
-                    line = line + "（本句持续到片段结束仍未说完）"
-                dialogue_parts.append(line)
-
-            if dialogue_parts:
-                subtitles_part = "；".join(dialogue_parts)
-
-    main_prompt = f"""场景背景：{video_summary}，本片段是其中的一个分镜。
+    def build_main_prompt(subtitles_str):
+        return f"""场景背景：{video_summary}，本片段是其中的一个分镜。
 角色描述：{'；'.join(character_descriptions)}
 镜头运动：固定机位。从首帧到尾帧的机位、拍摄角度、焦距、景别与构图必须完全保持一致，只允许人物自身的动作、表情和口型在两帧之间自然过渡，绝对禁止任何推拉摇移、镜头缩放、镜头旋转、镜头平移或拍摄距离变化。
 场景描述：{scene_desc}
-人物对话：{subtitles_part}
+人物对话：{subtitles_str}
 关键帧要求：第1张图片为起始帧，第2张图片为结束帧；画面中只允许出现这两帧内已经存在的人物、物体和背景，绝对不要自行生成两帧之外多余的人物、物体或背景元素，也不要改变景别；背景与人物外观必须与首尾帧保持一致，只实现首帧到尾帧之间的平滑过渡。
 字幕要求：不要显示任何字幕，如果关键帧含有字幕，在生成片段时要去掉字幕。
 语言要求：人物对话必须严格按照提供的对话文本生成，包括文本内容、语种。如果对话文本是中文，则使用中文对话；如果对话文本是英文，则使用英文对话。人物必须与对话文本精确匹配，人物的口型必须与对话内容精确匹配。
-画外音要求：对话中标注为「（画外音）」的台词由画面外的角色说出，必须使用该角色本人的音色与语调，画面内出现的任何角色都绝对不得对其对口型，只能保持倾听或表情反应。
 说话人标注要求：人物对话里每个「说话人：台词」中冒号前面的部分是说话人标注，绝对不能朗读出来，只能朗读冒号后面的台词文本。
 对话要求：当人物对话为空时不要生成任何对话，也不要有对话的口型。"""
-
-    print(f"=== Shot {shot_index} Full Prompt ===")
-    print(main_prompt)
-    print(f"=== End Shot {shot_index} Prompt ===")
 
     account_index = shot_index % len(accounts) if accounts else 0
     output_fps = int(os.environ.get('OUTPUT_FPS', 24))
@@ -638,40 +627,64 @@ def process_shot(shot_index):
 
     notify_subtask_python("update", shot_index, "PROCESSING")
 
-    existing_file = f'./generated_shots/shot_{shot_index}.mp4'
     reuse_existing = os.environ.get('REUSE_EXISTING_SHOTS', 'true').lower() != 'false'
-    if reuse_existing and os.path.exists(existing_file) and os.path.getsize(existing_file) > 0:
-        output_path = f"{task_id}/generated_shots/shot_{shot_index}.mp4"
-        if upload_to_r2(existing_file, shot_index):
-            print(f"Shot {shot_index}: Reusing existing generated video (already in R2), skipping regeneration")
-            notify_subtask_python("update", shot_index, "COMPLETED", output_path)
-            return (shot_index, True)
+    existing_gen = f'./generated_shots/shot_{shot_index}.mp4'
+    existing_vo = f'./voice-over/shot_{shot_index}.mp4'
 
-    video_url = generate_video(accounts if accounts else None, account_index, [first_frame_url, last_frame_url], main_prompt, shot_index, duration, output_fps)
+    if reuse_existing and os.path.exists(existing_gen) and os.path.getsize(existing_gen) > 0:
+        have_vo = (not use_source_audio) or (os.path.exists(existing_vo) and os.path.getsize(existing_vo) > 0)
+        if have_vo:
+            if use_source_audio:
+                upload_to_r2(existing_vo, shot_index, 'voice-over')
+            if upload_to_r2(existing_gen, shot_index, 'generated_shots'):
+                print(f"Shot {shot_index}: Reusing existing generated video (already in R2), skipping regeneration")
+                notify_subtask_python("update", shot_index, "COMPLETED", f"{task_id}/generated_shots/shot_{shot_index}.mp4")
+                return (shot_index, True)
 
-    if video_url:
-        print(f"Downloading generated video for shot {shot_index}...")
-        local_path = f'./generated_shots/shot_{shot_index}.mp4'
+    def gen_and_save(prompt_text, subdir):
+        url = generate_video(accounts if accounts else None, account_index, [first_frame_url, last_frame_url], prompt_text, shot_index, duration, output_fps)
+        if not url:
+            return False
+        local = f'./{subdir}/shot_{shot_index}.mp4'
+        os.makedirs(os.path.dirname(local), exist_ok=True)
         try:
-            urllib.request.urlretrieve(video_url, local_path)
+            urllib.request.urlretrieve(url, local)
         except Exception as e:
-            print(f"Error downloading video for shot {shot_index}: {str(e)}")
-            notify_subtask_python("update", shot_index, "FAILED", "", str(e))
-            return (shot_index, False)
+            print(f"Error downloading shot {shot_index} ({subdir}): {str(e)}")
+            return False
+        if not upload_to_r2(local, shot_index, subdir):
+            print(f"Error: upload to R2 failed for shot {shot_index} ({subdir})")
+            return False
+        return True
 
-        output_path = f"{task_id}/generated_shots/shot_{shot_index}.mp4"
-        if not upload_to_r2(local_path, shot_index):
-            print(f"Error: Failed to upload shot {shot_index} to R2")
-            notify_subtask_python("update", shot_index, "FAILED", "", "Failed to upload to R2")
-            return (shot_index, False)
+    output_path = f"{task_id}/generated_shots/shot_{shot_index}.mp4"
 
-        print(f"Successfully generated shot {shot_index}")
+    if use_source_audio:
+        # 画外音镜头：两遍生成——pass1 带台词取音轨，pass2 台词置空取无口型画面
+        print(f"Shot {shot_index}: 画外音镜头，两遍生成（pass1=音轨, pass2=无口型画面）")
+        p1 = build_main_prompt(subtitles_all)
+        print(f"=== Shot {shot_index} Pass1(voice) Prompt ==="); print(p1); print(f"=== End Pass1 ===")
+        if not gen_and_save(p1, 'voice-over'):
+            notify_subtask_python("update", shot_index, "FAILED", "", "pass1(voice) generation failed")
+            return (shot_index, False)
+        p2 = build_main_prompt("")
+        print(f"=== Shot {shot_index} Pass2(video) Prompt ==="); print(p2); print(f"=== End Pass2 ===")
+        if not gen_and_save(p2, 'generated_shots'):
+            notify_subtask_python("update", shot_index, "FAILED", "", "pass2(video) generation failed")
+            return (shot_index, False)
+        print(f"Successfully generated shot {shot_index} (voice-over two-pass)")
         notify_subtask_python("update", shot_index, "COMPLETED", output_path)
         return (shot_index, True)
     else:
-        print(f"Error: Failed to generate shot {shot_index}")
-        notify_subtask_python("update", shot_index, "FAILED", "", "Failed to generate video")
-        return (shot_index, False)
+        main_prompt = build_main_prompt(subtitles_on)
+        print(f"=== Shot {shot_index} Full Prompt ==="); print(main_prompt); print(f"=== End Shot {shot_index} Prompt ===")
+        if not gen_and_save(main_prompt, 'generated_shots'):
+            print(f"Error: Failed to generate shot {shot_index}")
+            notify_subtask_python("update", shot_index, "FAILED", "", "Failed to generate video")
+            return (shot_index, False)
+        print(f"Successfully generated shot {shot_index}")
+        notify_subtask_python("update", shot_index, "COMPLETED", output_path)
+        return (shot_index, True)
 
 effective_concurrency = int(os.environ.get('EFFECTIVE_CONCURRENCY', '2'))
 max_workers = min(len(accounts) if accounts else 1, effective_concurrency)

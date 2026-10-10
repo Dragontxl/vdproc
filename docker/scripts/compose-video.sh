@@ -67,8 +67,8 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
     USE_SOURCE=$(echo "$RESULT" | jq -r ".storyboards[$i].use_source_audio // false")
 
     if [ "$USE_SOURCE" = "true" ]; then
-        echo "  Shot $i: use_source_audio=true, overlaying original audio"
-        aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/shot_videos/shot_${i}.mp4" "./orig_${i}.mp4" \
+        echo "  Shot $i: use_source_audio=true, overlaying model voice-over audio"
+        aws s3 cp "s3://$R2_BUCKET_NAME/${TASK_ID}/voice-over/shot_${i}.mp4" "./orig_${i}.mp4" \
             --endpoint-url "$R2_ENDPOINT_URL" || true
         ORIG="./orig_${i}.mp4"
         GDUR=$(media_duration "$GEN" || true)
@@ -83,7 +83,7 @@ for i in $(seq 0 $((SHOT_COUNT - 1))); do
                     -c:v copy -c:a aac -ar 48000 -ac 2 -shortest "$OUT"
             fi
         else
-            echo "  Warning: shot $i original clip/audio unavailable, keeping generated audio"
+            echo "  Warning: shot $i voice-over audio unavailable, keeping generated audio"
             normalize_clip "$GEN" "$OUT"
         fi
         rm -f "$ORIG"
