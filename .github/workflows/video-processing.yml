@@ -235,6 +235,7 @@ jobs:
           COOLDOWN_SECONDS: ${{ inputs.cooldown_seconds || github.event.client_payload.cooldown_seconds || 1 }}
           MAX_CONCURRENT: ${{ steps.parse_config.outputs.MAX_CONCURRENT }}
           PROMPT: ${{ steps.parse_config.outputs.PROMPT }}
+          REUSE_EXISTING_FRAMES: ${{ inputs.reuse_existing_frames || github.event.client_payload.reuse_existing_frames || 'true' }}
         run: |
           docker run --rm \
             -e TASK_ID="$TASK_ID" \
@@ -253,6 +254,7 @@ jobs:
             -e COOLDOWN_SECONDS="$COOLDOWN_SECONDS" \
             -e MAX_CONCURRENT="$MAX_CONCURRENT" \
             -e PROMPT="$PROMPT" \
+            -e REUSE_EXISTING_FRAMES="$REUSE_EXISTING_FRAMES" \
             ai-video-processor \
             bash /scripts/convert-frames.sh
 
