@@ -4,6 +4,8 @@ import App from './App';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 
+// deploy trigger: 2026-10-10 (子任务状态轮询修复)
+
 dayjs.extend(utc);
 
 const root = ReactDOM.createRoot(
