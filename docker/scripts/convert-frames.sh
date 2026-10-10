@@ -39,6 +39,9 @@ fi
 TOTAL_FRAMES=$((SHOT_COUNT * 2))
 
 mkdir -p ./ai_shot_frames
+echo "Syncing existing converted frames from R2 (reuse across retries/cancellations)..."
+aws s3 sync "s3://$R2_BUCKET_NAME/${TASK_ID}/ai_shot_frames" "./ai_shot_frames" \
+    --endpoint-url "$R2_ENDPOINT_URL" || true
 rm -rf ./locks
 mkdir -p ./locks
 rm -f ./bad_accounts.txt
