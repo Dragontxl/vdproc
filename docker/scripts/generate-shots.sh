@@ -445,6 +445,24 @@ def notify_subtask_python(action, shot_index, status='', output_path='', error_m
     except Exception as e:
         print(f"  Shot {shot_index}: Failed to notify subtask: {str(e)}")
 
+def _align_mtime_to_r2(local_path, bucket, key, endpoint):
+    # 上传成功后把本地 mtime 对齐到 R2 的 LastModified，
+    # 让收尾的 aws s3 sync 判定为"无变更"而跳过重复上传。
+    import subprocess
+    try:
+        r = subprocess.run(
+            ['aws', 's3api', 'head-object', '--bucket', bucket, '--key', key,
+             '--endpoint-url', endpoint, '--output', 'text', '--query', 'LastModified'],
+            capture_output=True, text=True
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            import datetime
+            dt = datetime.datetime.fromisoformat(r.stdout.strip().replace('Z', '+00:00'))
+            ts = dt.timestamp()
+            os.utime(local_path, (ts, ts))
+    except Exception:
+        pass
+
 def upload_to_r2(local_path, shot_index, subdir='generated_shots'):
     import subprocess
     bucket = os.environ.get('R2_BUCKET_NAME', '')
@@ -454,6 +472,7 @@ def upload_to_r2(local_path, shot_index, subdir='generated_shots'):
         return False
 
     key = f"s3://{bucket}/{task_id}/{subdir}/shot_{shot_index}.mp4"
+    key_without_scheme = f"{task_id}/{subdir}/shot_{shot_index}.mp4"
     max_attempts = 3
     for attempt in range(1, max_attempts + 1):
         try:
@@ -463,6 +482,7 @@ def upload_to_r2(local_path, shot_index, subdir='generated_shots'):
             )
             if result.returncode == 0:
                 print(f"  Shot {shot_index}: Uploaded to R2: {key}")
+                _align_mtime_to_r2(local_path, bucket, key_without_scheme, endpoint)
                 return True
             print(f"  Shot {shot_index}: R2 upload attempt {attempt}/{max_attempts} failed: {result.stderr.strip()}")
         except Exception as e:
@@ -470,6 +490,24 @@ def upload_to_r2(local_path, shot_index, subdir='generated_shots'):
         if attempt < max_attempts:
             time.sleep(5)
     return False
+
+def exists_in_r2(shot_index, subdir):
+    import subprocess
+    bucket = os.environ.get('R2_BUCKET_NAME', '')
+    endpoint = os.environ.get('R2_ENDPOINT_URL', '')
+    if not bucket or not endpoint:
+        return False
+
+    key = f"{task_id}/{subdir}/shot_{shot_index}.mp4"
+    try:
+        result = subprocess.run(
+            ['aws', 's3api', 'head-object', '--bucket', bucket, '--key', key, '--endpoint-url', endpoint],
+            capture_output=True, text=True
+        )
+        return result.returncode == 0
+    except Exception as e:
+        print(f"  Shot {shot_index}: R2 head-object check failed for {key}: {str(e)}")
+        return False
 
 def process_shot(shot_index):
     shot = storyboards[shot_index]
@@ -634,10 +672,20 @@ def process_shot(shot_index):
     if reuse_existing and os.path.exists(existing_gen) and os.path.getsize(existing_gen) > 0:
         have_vo = (not use_source_audio) or (os.path.exists(existing_vo) and os.path.getsize(existing_vo) > 0)
         if have_vo:
-            if use_source_audio:
+            # 本地文件是从 R2 sync 下来的，先确认 R2 上确实存在，存在就直接复用，不回传
+            gen_in_r2 = exists_in_r2(shot_index, 'generated_shots')
+            vo_in_r2 = (not use_source_audio) or exists_in_r2(shot_index, 'voice-over')
+            if gen_in_r2 and vo_in_r2:
+                print(f"Shot {shot_index}: Reusing existing generated video (already in R2, no re-upload), skipping regeneration")
+                notify_subtask_python("update", shot_index, "COMPLETED", f"{task_id}/generated_shots/shot_{shot_index}.mp4")
+                return (shot_index, True)
+
+            # 本地有文件但 R2 缺（上一轮上传失败/被中断），补传后再复用
+            print(f"Shot {shot_index}: Local copy exists but missing in R2 (gen={gen_in_r2}, voice-over={vo_in_r2}), re-uploading")
+            if use_source_audio and not vo_in_r2:
                 upload_to_r2(existing_vo, shot_index, 'voice-over')
-            if upload_to_r2(existing_gen, shot_index, 'generated_shots'):
-                print(f"Shot {shot_index}: Reusing existing generated video (already in R2), skipping regeneration")
+            if gen_in_r2 or upload_to_r2(existing_gen, shot_index, 'generated_shots'):
+                print(f"Shot {shot_index}: Reusing existing generated video (re-upload done), skipping regeneration")
                 notify_subtask_python("update", shot_index, "COMPLETED", f"{task_id}/generated_shots/shot_{shot_index}.mp4")
                 return (shot_index, True)
 
