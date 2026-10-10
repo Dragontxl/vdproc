@@ -1748,13 +1748,13 @@ export class TaskService {
 
     await this.env.DB.prepare(`
       UPDATE ai_accounts SET cooldown_until = NULL
-      WHERE cooldown_until IS NOT NULL AND cooldown_until < DATETIME('now')
+      WHERE cooldown_until IS NOT NULL AND julianday(cooldown_until) < julianday('now')
     `).run();
 
     const countQuery = `
       SELECT COUNT(*) AS n FROM ai_accounts
       WHERE is_active = TRUE AND is_healthy = TRUE
-        AND (cooldown_until IS NULL OR cooldown_until < DATETIME('now'))
+        AND (cooldown_until IS NULL OR julianday(cooldown_until) < julianday('now'))
         ${typeCondition}
         AND EXISTS (SELECT 1 FROM github_ai_bindings gab WHERE gab.ai_account_id = ai_accounts.id AND gab.is_active = TRUE)
     `;
@@ -1769,7 +1769,7 @@ export class TaskService {
       SET cooldown_until = ?
       WHERE is_active = TRUE 
         AND is_healthy = TRUE
-        AND (cooldown_until IS NULL OR cooldown_until < DATETIME('now'))
+        AND (cooldown_until IS NULL OR julianday(cooldown_until) < julianday('now'))
         ${typeCondition}
         AND EXISTS (
           SELECT 1 FROM github_ai_bindings gab 
@@ -1891,7 +1891,7 @@ export class TaskService {
 
       await this.env.DB.prepare(`
         UPDATE ai_accounts SET cooldown_until = NULL
-        WHERE cooldown_until IS NOT NULL AND cooldown_until < DATETIME('now')
+        WHERE cooldown_until IS NOT NULL AND julianday(cooldown_until) < julianday('now')
       `).run();
       console.log('cleanupTimedOutSubtasks: Cleared expired AI account locks');
     }
@@ -1938,7 +1938,7 @@ export class TaskService {
 
       await this.env.DB.prepare(`
         UPDATE ai_accounts SET cooldown_until = NULL
-        WHERE cooldown_until IS NOT NULL AND cooldown_until < DATETIME('now')
+        WHERE cooldown_until IS NOT NULL AND julianday(cooldown_until) < julianday('now')
       `).run();
       console.log('cleanupStaleSubtasks: Cleared expired AI account locks');
     }

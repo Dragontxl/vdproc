@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     output_fps INTEGER DEFAULT 30,
     github_account_id INTEGER,
     ai_account_id INTEGER,
+    ai_accounts_locked TEXT,
     current_run_id TEXT,
     current_phase TEXT,
     origin_frames_path TEXT,

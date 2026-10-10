@@ -39,9 +39,15 @@ fi
 TOTAL_FRAMES=$((SHOT_COUNT * 2))
 
 mkdir -p ./ai_shot_frames
-echo "Syncing existing converted frames from R2 (reuse across retries/cancellations)..."
-aws s3 sync "s3://$R2_BUCKET_NAME/${TASK_ID}/ai_shot_frames" "./ai_shot_frames" \
-    --endpoint-url "$R2_ENDPOINT_URL" || true
+REUSE_EXISTING_FRAMES=${REUSE_EXISTING_FRAMES:-true}
+echo "REUSE_EXISTING_FRAMES=$REUSE_EXISTING_FRAMES"
+if [ "$REUSE_EXISTING_FRAMES" != "false" ]; then
+    echo "Syncing existing converted frames from R2 (reuse across retries/cancellations)..."
+    aws s3 sync "s3://$R2_BUCKET_NAME/${TASK_ID}/ai_shot_frames" "./ai_shot_frames" \
+        --endpoint-url "$R2_ENDPOINT_URL" || true
+else
+    echo "REUSE_EXISTING_FRAMES=false -> 跳过 R2 复用，全部重新转换（用于字幕/风格修复后强制刷新）"
+fi
 rm -rf ./locks
 mkdir -p ./locks
 rm -f ./bad_accounts.txt
