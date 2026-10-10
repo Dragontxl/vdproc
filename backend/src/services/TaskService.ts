@@ -466,7 +466,7 @@ export class TaskService {
 
     const requiredApiType = phasesRequiringAI[phase];
     if (requiredApiType) {
-      const result = await this.getDecryptedAIAccounts(requiredApiType, maxConcurrent, ghAccountId);
+      const result = await this.getDecryptedAIAccounts(requiredApiType, maxConcurrent, ghAccountId, taskId);
       aiAccountsJson = result.aiAccountsJson;
     }
 
@@ -600,7 +600,7 @@ export class TaskService {
       const requiredApiType = phasesRequiringAI[currentPhase];
       if (requiredApiType && !seenApiTypes.has(requiredApiType)) {
         seenApiTypes.add(requiredApiType);
-        const result = await this.getDecryptedAIAccounts(requiredApiType, maxConcurrent, ghAccountId);
+        const result = await this.getDecryptedAIAccounts(requiredApiType, maxConcurrent, ghAccountId, taskId);
         if (result.aiAccountsJson) {
           const newAccounts = JSON.parse(result.aiAccountsJson);
           const existingAccounts = aiAccountsJson ? JSON.parse(aiAccountsJson) : [];
@@ -828,11 +828,7 @@ export class TaskService {
 
     const task = await this.getTask(taskId);
     if (task) {
-      if (task.ai_account_id) {
-        const accountService = new (await import('./AccountService')).AccountService(this.env);
-        await accountService.releaseAIAccount(task.ai_account_id);
-        console.log('handleGitHubCallback: Released AI account', task.ai_account_id);
-      }
+      await this.releaseTaskAIAccount(taskId);
       if (task.github_account_id) {
         await this.env.DB.prepare(`
           UPDATE github_accounts SET monthly_used_minutes = monthly_used_minutes + 1
@@ -1383,11 +1379,25 @@ export class TaskService {
 
   private async releaseTaskAIAccount(taskId: string): Promise<void> {
     const task = await this.getTask(taskId);
-    if (task?.ai_account_id) {
-      const accountService = new (await import('./AccountService')).AccountService(this.env);
-      await accountService.releaseAIAccount(task.ai_account_id);
-      console.log(`releaseTaskAIAccount: Released AI account ${task.ai_account_id} for task ${taskId}`);
+    if (!task) return;
+    const accountService = new (await import('./AccountService')).AccountService(this.env);
+    const ids = new Set<number>();
+    const lockedRaw = (task as any).ai_accounts_locked;
+    if (lockedRaw) {
+      try {
+        for (const id of JSON.parse(lockedRaw)) {
+          if (typeof id === 'number') ids.add(id);
+        }
+      } catch (e) {
+        console.error('releaseTaskAIAccount: parse ai_accounts_locked failed:', (e as Error).message);
+      }
     }
+    if ((task as any).ai_account_id) ids.add((task as any).ai_account_id);
+    for (const id of ids) {
+      await accountService.releaseAIAccount(id);
+    }
+    await this.env.DB.prepare(`UPDATE tasks SET ai_accounts_locked = NULL WHERE id = ?`).bind(taskId).run();
+    console.log(`releaseTaskAIAccount: released [${[...ids].join(',')}] for task ${taskId}`);
   }
 
   private async checkPhaseCompletion(taskId: string, phase: string) {
@@ -1484,7 +1494,7 @@ export class TaskService {
     
     const requiredApiType = phasesRequiringAI[phase as TaskPhase];
     if (requiredApiType) {
-      const result = await this.getDecryptedAIAccounts(requiredApiType, maxConcurrent, ghAccountId);
+      const result = await this.getDecryptedAIAccounts(requiredApiType, maxConcurrent, ghAccountId, taskId);
       aiAccountsJson = result.aiAccountsJson;
       aiApiKey = result.aiApiKey;
       aiBaseUrl = result.aiBaseUrl;
@@ -1649,7 +1659,7 @@ export class TaskService {
     let aiAccountsJson = '';
 
     if (requiredApiType) {
-      const result = await this.getDecryptedAIAccounts(requiredApiType, maxConcurrent, ghAccountId);
+      const result = await this.getDecryptedAIAccounts(requiredApiType, maxConcurrent, ghAccountId, taskId);
       aiAccountsJson = result.aiAccountsJson;
       aiApiKey = result.aiApiKey;
       aiBaseUrl = result.aiBaseUrl;
@@ -1740,7 +1750,20 @@ export class TaskService {
       UPDATE ai_accounts SET cooldown_until = NULL
       WHERE cooldown_until IS NOT NULL AND cooldown_until < DATETIME('now')
     `).run();
-    
+
+    const countQuery = `
+      SELECT COUNT(*) AS n FROM ai_accounts
+      WHERE is_active = TRUE AND is_healthy = TRUE
+        AND (cooldown_until IS NULL OR cooldown_until < DATETIME('now'))
+        ${typeCondition}
+        AND EXISTS (SELECT 1 FROM github_ai_bindings gab WHERE gab.ai_account_id = ai_accounts.id AND gab.is_active = TRUE)
+    `;
+    const countParams: (string | number)[] = apiType ? [apiType] : [];
+    const countRes = await this.env.DB.prepare(countQuery).bind(...countParams).first();
+    const eligible = (countRes as { n?: number } | null)?.n ?? 0;
+    const desired = limit && limit > 0 ? limit : 1;
+    const effectiveLimit = eligible > 1 ? Math.min(desired, eligible - 1) : desired;
+
     const lockQuery = `
       UPDATE ai_accounts
       SET cooldown_until = ?
@@ -1762,7 +1785,7 @@ export class TaskService {
     params.push(lockTime.toISOString());
     if (apiType) params.push(apiType);
     if (ghAccountId) params.push(ghAccountId);
-    params.push(limit || 1);
+    params.push(effectiveLimit);
     
     await this.env.DB.prepare(lockQuery).bind(...params).run();
     
@@ -1780,12 +1803,24 @@ export class TaskService {
     return result.results || [];
   }
 
-  private async getDecryptedAIAccounts(apiType: string, maxConcurrent: number, ghAccountId: number): Promise<{
+  private async getDecryptedAIAccounts(apiType: string, maxConcurrent: number, ghAccountId: number, taskId?: string): Promise<{
     aiAccountsJson: string;
     aiApiKey: string;
     aiBaseUrl: string;
   }> {
     const lockedAccounts = await this.lockAIAccounts(apiType, maxConcurrent, ghAccountId !== undefined ? String(ghAccountId) : undefined);
+
+    // 记录本阶段锁定的账号 id，阶段完成时按此释放，避免长期占用导致账号饥饿
+    if (taskId && lockedAccounts.length > 0) {
+      try {
+        const ids = (lockedAccounts as any[]).map(a => a.id).filter(x => x !== undefined && x !== null);
+        await this.env.DB.prepare(`UPDATE tasks SET ai_accounts_locked = ? WHERE id = ?`)
+          .bind(JSON.stringify(ids), taskId).run();
+      } catch (e) {
+        console.error('getDecryptedAIAccounts: store ai_accounts_locked failed:', (e as Error).message);
+      }
+    }
+
     if (lockedAccounts.length === 0) {
       return { aiAccountsJson: '', aiApiKey: '', aiBaseUrl: '' };
     }
