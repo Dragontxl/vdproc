@@ -218,8 +218,8 @@ export default function TaskDetail() {
     }
   };
 
-  const loadSubtasks = async (phase?: TaskPhase) => {
-    setSubtaskLoading(true);
+  const loadSubtasks = async (phase?: TaskPhase, silent = false) => {
+    if (!silent) setSubtaskLoading(true);
     try {
       const result = await taskApi.getSubtasks(id!, phase);
       const list = result.data || [];
@@ -245,9 +245,18 @@ export default function TaskDetail() {
       const msg = error.response?.data?.msg || '加载子任务失败';
       message.error(msg);
     } finally {
-      setSubtaskLoading(false);
+      if (!silent) setSubtaskLoading(false);
     }
   };
+
+  // 子任务状态自动轮询：选中某阶段时每 30s 静默刷新，避免"已完成仍显示处理中"
+  useEffect(() => {
+    if (!id || !selectedSubtaskPhase) return;
+    const t = setInterval(() => {
+      loadSubtasks(selectedSubtaskPhase as TaskPhase, true);
+    }, 30000);
+    return () => clearInterval(t);
+  }, [id, selectedSubtaskPhase]);
 
   const handleRefreshSubtasks = async () => {
     setSubtaskLoading(true);
