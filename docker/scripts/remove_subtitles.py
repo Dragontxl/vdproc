@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """去除抽帧图字幕：
-  1) 底部 SUBTITLE_BAND_RATIO 区域内用 OpenCV EAST (cv2.dnn) 检测文字 bbox；
-  2) 只对检测到的字幕框做 cv2.inpaint；
-  3) 该帧底部无检测到文字 -> 跳过不修（避免误伤）；
-  4) EAST 模型缺失/不可用时，回退为"固定底部条带 inpaint"。
+  1) 始终把底部 SUBTITLE_BAND_RATIO 条带作为 mask（保证硬字幕被去除）；
+  2) 若 EAST (cv2.dnn) 在底部条带内检测到文字框，则一并纳入 mask（覆盖更高的字幕）；
+  3) 对 mask 区域做 cv2.inpaint。
 
 运行于 CROP_SHOTS 抽帧后、face_measure 之前。
 """
@@ -39,13 +38,13 @@ def load_net():
         return _net
     _net_tried = True
     if not (CV_OK and os.path.exists(EAST_PATH)):
-        print(f"[remove_subtitles] EAST 模型不存在（{EAST_PATH}），将回退固定条带", flush=True)
+        print(f"[remove_subtitles] EAST 模型不存在（{EAST_PATH}），仅擦固定底部条带", flush=True)
         return None
     try:
         _net = cv2.dnn.readNet(EAST_PATH)
         print(f"[remove_subtitles] EAST 模型已加载: {EAST_PATH}", flush=True)
     except Exception as e:  # noqa: BLE001
-        print(f"[remove_subtitles] EAST 模型加载失败，回退固定条带: {e}", flush=True)
+        print(f"[remove_subtitles] EAST 模型加载失败，仅擦固定底部条带: {e}", flush=True)
         _net = None
     return _net
 
@@ -126,11 +125,10 @@ def main():
         radius = 3
 
     east_on = load_net() is not None
-    print(f"[remove_subtitles] EAST={'on' if east_on else 'off(固定条带回退)'}, band={band:.2f}, radius={radius}")
+    print(f"[remove_subtitles] EAST={'on' if east_on else 'off'}, band={band:.2f}, radius={radius}（始终擦底部条带，叠加 EAST 框）")
 
     files = sorted(glob.glob(os.path.join(FRAMES_DIR, '*.jpg')))
     done = 0
-    skipped = 0
     for path in files:
         img = cv2.imread(path)
         if img is None:
@@ -141,29 +139,27 @@ def main():
             continue
         mask = np.zeros((h, w), np.uint8)
 
+        # 始终把底部条带作为 mask（硬字幕可靠去除）
+        mask[y0:h, :] = 255
+
+        # EAST 若检测到文本框，则一并纳入 mask（覆盖条带上方、更高的字幕）
         if east_on:
             roi = img[y0:h, :]
             boxes = detect_boxes(roi)
-            if not boxes:
-                skipped += 1
-                continue
             for (bx, by, bw, bh) in boxes:
                 x1 = max(0, bx - PAD)
                 y1 = max(0, y0 + by - PAD)
                 x2 = min(w, bx + bw + PAD)
                 y2 = min(h, y0 + by + bh + PAD)
                 mask[y1:y2, x1:x2] = 255
-        else:
-            mask[y0:h, :] = 255
 
         if mask.max() == 0:
-            skipped += 1
             continue
         out = cv2.inpaint(img, mask, radius, cv2.INPAINT_TELEA)
         cv2.imwrite(path, out, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
         done += 1
 
-    print(f"[remove_subtitles] 完成：修复 {done} 帧，跳过 {skipped} 帧（无字幕/无cv2）")
+    print(f"[remove_subtitles] 完成：修复 {done} 帧")
     return 0
 
 
