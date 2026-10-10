@@ -422,7 +422,7 @@ export class AccountService {
         AND aa.is_active = TRUE
         AND aa.is_healthy = TRUE
         AND aa.daily_usage < aa.daily_limit
-        AND (aa.cooldown_until IS NULL OR aa.julianday(cooldown_until) < julianday('now'))
+        AND (aa.cooldown_until IS NULL OR julianday(aa.cooldown_until) < julianday('now'))
         ${typeCondition}
       ORDER BY aa.last_used_at ASC NULLS FIRST, aa.total_usage ASC, gab.priority ASC
       LIMIT 1
@@ -458,7 +458,7 @@ export class AccountService {
         AND aa.is_active = TRUE
         AND aa.is_healthy = TRUE
         AND aa.daily_usage < aa.daily_limit
-        AND (aa.cooldown_until IS NULL OR aa.julianday(cooldown_until) < julianday('now'))
+        AND (aa.cooldown_until IS NULL OR julianday(aa.cooldown_until) < julianday('now'))
         ${typeCondition}
       ORDER BY aa.last_used_at ASC NULLS FIRST, aa.total_usage ASC
       LIMIT 1
