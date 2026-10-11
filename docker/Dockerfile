@@ -34,11 +34,11 @@ RUN mkdir -p /opt/east \
         && [ -s /opt/east/frozen_east_text_detection.pb ] \
         || (echo "WARN: EAST model download failed; subtitle removal will fall back to fixed band" && rm -f /opt/east/frozen_east_text_detection.pb))
 
-# faster-whisper small 模型（用于无 SRT 时生成字幕；构建期烘焙，运行时不再联网）
+# faster-whisper medium 模型（用于跨镜台词切分的词级时间；构建期烘焙，运行时不再联网）
 ENV WHISPER_MODEL_DIR=/opt/whisper
 RUN mkdir -p /opt/whisper \
-    && (python3 -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8', download_root='/opt/whisper')" \
-        && echo "whisper small model prefetched" \
+    && (python3 -c "from faster_whisper import WhisperModel; WhisperModel('medium', device='cpu', compute_type='int8', download_root='/opt/whisper')" \
+        && echo "whisper medium model prefetched" \
         || echo "WARN: whisper model prefetch failed; will attempt download at runtime")
 
 WORKDIR /scripts

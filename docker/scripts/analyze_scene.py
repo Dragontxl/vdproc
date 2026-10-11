@@ -267,6 +267,19 @@ def allocate_dialogues_from_srt(result_json, srt_path):
             if char.get('aliases'):
                 for alias in char['aliases']:
                     name_to_role[alias] = char['role_id']
+
+    # 若 SRT 没有说话人标签（自动转写/纯文本字幕），不覆盖 Gemini 的对话（文本+说话人）
+    has_labels = False
+    for entry in srt_entries:
+        m = re.match(r'^([^:：]{1,20})[:：]\s*(.+)', (entry.get('text') or '').strip())
+        if m:
+            name = m.group(1).strip()
+            if name in name_to_role or name in ('旁白', '解说', 'Narrator') or name.upper() == 'NARRATOR':
+                has_labels = True
+                break
+    if not has_labels:
+        log("SRT has no speaker labels; keeping Gemini dialogues")
+        return result_json
     
     def extract_speaker_and_text(srt_text):
         """
@@ -824,33 +837,14 @@ def parse_json_response(text):
     error_msg = str(e) if e else "Unknown error"
     raise Exception(f"Failed to parse JSON after all repair attempts: {error_msg}")
 
-def generate_srt_from_video(video_path, out_srt_path):
-    """无 SRT 时生成字幕：优先抽取内嵌软字幕，否则用 faster-whisper(small)+VAD 生成（无说话人标注）。"""
-    # 1) 内嵌软字幕优先
-    try:
-        import subprocess
-        probe = subprocess.run(
-            ['ffprobe', '-v', 'error', '-select_streams', 's', '-show_entries', 'stream=index',
-             '-of', 'csv=p=0', video_path],
-            capture_output=True, text=True, timeout=30)
-        if probe.stdout.strip():
-            subprocess.run(
-                ['ffmpeg', '-y', '-v', 'error', '-i', video_path, '-map', '0:s:0', out_srt_path],
-                check=True, timeout=600)
-            if os.path.exists(out_srt_path) and os.path.getsize(out_srt_path) > 0:
-                log("SRT generated from embedded subtitle stream")
-                return True
-    except Exception as e:
-        log(f"Embedded subtitle extraction failed: {str(e)[:200]}")
-
-    # 2) faster-whisper
+def transcribe_words(video_path):
+    """返回 whisper 词级时间戳列表 [{w,start,end}]，仅作时间权威；不写 SRT、不覆盖 Gemini 文本。"""
     try:
         from faster_whisper import WhisperModel
     except Exception as e:
-        log(f"faster-whisper unavailable, cannot generate SRT: {str(e)[:200]}")
-        return False
-
-    model_size = os.environ.get('WHISPER_MODEL', 'small')
+        log(f"faster-whisper unavailable: {str(e)[:200]}")
+        return []
+    model_size = os.environ.get('WHISPER_MODEL', 'medium')
     model_dir = os.environ.get('WHISPER_MODEL_DIR', '/opt/whisper')
     lang = os.environ.get('WHISPER_LANGUAGE', '').strip() or None
     try:
@@ -863,36 +857,150 @@ def generate_srt_from_video(video_path, out_srt_path):
         segments, _info = model.transcribe(
             video_path, vad_filter=True, vad_parameters=vad_params,
             word_timestamps=True, language=lang)
-
-        def _fmt(t):
-            h = int(t // 3600)
-            m = int((t % 3600) // 60)
-            s = int(t % 60)
-            ms = int(round((t - int(t)) * 1000))
-            if ms == 1000:
-                ms = 0
-                s += 1
-            return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
-
-        lines = []
-        idx = 1
+        words = []
         for seg in segments:
-            txt = (seg.text or '').strip()
-            if not txt:
-                continue
-            lines.append(str(idx))
-            lines.append(f"{_fmt(seg.start)} --> {_fmt(seg.end)}")
-            lines.append(txt)
-            lines.append("")
-            idx += 1
-        with open(out_srt_path, 'w', encoding='utf-8') as f:
-            f.write("\n".join(lines))
-        ok = os.path.exists(out_srt_path) and os.path.getsize(out_srt_path) > 0
-        log(f"SRT generated via faster-whisper({model_size}): {idx - 1} segments, ok={ok}")
-        return ok
+            for w in (seg.words or []):
+                txt = (w.word or '').strip()
+                if not txt:
+                    continue
+                words.append({'w': txt, 'start': float(w.start), 'end': float(w.end)})
+        log(f"transcribe_words({model_size}): {len(words)} words")
+        return words
     except Exception as e:
-        log(f"faster-whisper SRT generation failed: {str(e)[:300]}")
-        return False
+        log(f"transcribe_words failed: {str(e)[:300]}")
+        return []
+
+
+def split_gemini_dialogues_by_words(result_json, words):
+    """按 whisper 词级时间切分跨镜重复的 Gemini 台词：
+    - 仅当相邻镜头出现相同 (speaker,text)，且 whisper 显示同一连续发声单元跨越切点（无静音间隙）
+      时才按词时间把文本切分到各镜头；
+    - 真实重复（两次独立发声/有停顿）不合并。
+    文本与说话人仍以 Gemini 为准，whisper 只提供时间与词边界。"""
+    if not words:
+        return result_json
+    storyboards = result_json.get('storyboards', [])
+    if not storyboards:
+        return result_json
+
+    gap = float(os.environ.get('WHISPER_UTT_GAP_MS', '500')) / 1000.0
+
+    # 1) 按静音间隙把词聚成"连续发声单元" utterance
+    sorted_words = sorted(words, key=lambda x: x['start'])
+    utterances = []
+    cur = []
+    prev_end = None
+    for w in sorted_words:
+        if prev_end is not None and w['start'] - prev_end > gap:
+            if cur:
+                utterances.append(cur)
+            cur = []
+        cur.append(w)
+        prev_end = max(prev_end or 0.0, w['end'])
+    if cur:
+        utterances.append(cur)
+
+    def utt_dur_in(utt, ss, se):
+        total = 0.0
+        for w in utt:
+            total += max(0.0, min(w['end'], se) - max(w['start'], ss))
+        return total
+
+    def tc_sec(s):
+        v = parse_time_to_seconds(s)
+        return v if v is not None else 0.0
+
+    # 2) 找跨镜候选：相同 (speaker,text) 出现在哪些镜头
+    key2shots = {}
+    for idx, sb in enumerate(storyboards):
+        for d in (sb.get('dialogues') or []):
+            key = (d.get('speaker'), d.get('text'))
+            key2shots.setdefault(key, []).append(idx)
+
+    processed = set()
+    for key, shot_idx in key2shots.items():
+        if len(shot_idx) < 2 or key in processed:
+            continue
+        # 找连续镜头段
+        runs = []
+        run = [shot_idx[0]]
+        for a, b in zip(shot_idx, shot_idx[1:]):
+            if b == a + 1:
+                run.append(b)
+            else:
+                runs.append(run)
+                run = [b]
+        runs.append(run)
+        for run in runs:
+            if len(run) < 2:
+                continue
+            s0 = storyboards[run[0]]
+            slast = storyboards[run[-1]]
+            t_start = tc_sec(s0.get('start_time', ''))
+            t_end = tc_sec(slast.get('end_time', ''))
+            if t_end <= t_start:
+                continue
+            # 找与 run 时间窗重叠最长的 utterance
+            best_utt = None
+            best_ov = 0.0
+            for utt in utterances:
+                u0 = utt[0]['start']
+                u1 = utt[-1]['end']
+                ov = min(u1, t_end) - max(u0, t_start)
+                if ov > best_ov:
+                    best_ov = ov
+                    best_utt = utt
+            if best_utt is None or best_ov <= 0:
+                continue
+            cover_frac = best_ov / max(t_end - t_start, 1e-6)
+            if cover_frac < 0.5:
+                continue
+            total = utt_dur_in(best_utt, t_start, t_end)
+            if total <= 0:
+                continue
+            text = key[1] or ''
+            n = len(text)
+            if n == 0:
+                continue
+            # 每个镜头内该 utterance 的语音时长占比
+            durs = []
+            for si in run:
+                sb = storyboards[si]
+                durs.append(utt_dur_in(best_utt, tc_sec(sb.get('start_time', '')), tc_sec(sb.get('end_time', ''))))
+            total_durs = sum(durs)
+            if total_durs <= 0:
+                continue
+            cuts = [0.0]
+            fractions = [d / total_durs for d in durs]
+            for f in fractions[:-1]:
+                cuts.append(cuts[-1] + f)
+            cuts.append(1.0)
+            slices = []
+            for j, si in enumerate(run):
+                c0 = max(0, min(n, int(round(cuts[j] * n))))
+                c1 = max(0, min(n, int(round(cuts[j + 1] * n))))
+                frag = text[c0:c1].strip()
+                slices.append((si, frag, j))
+            if sum(1 for _s, fr, _j in slices if fr) < 2:
+                continue
+            # 重写这些镜头的 dialogues：文本=切片，speaker 保留，加 continues 标记
+            for si, frag, j in slices:
+                sb = storyboards[si]
+                nd = []
+                for d in (sb.get('dialogues') or []):
+                    if (d.get('speaker'), d.get('text')) == key:
+                        if frag:
+                            ndd = dict(d)
+                            ndd['text'] = frag
+                            ndd['continues_from_prev'] = j > 0
+                            ndd['continues_next'] = j < len(slices) - 1 and bool(slices[j + 1][1])
+                            nd.append(ndd)
+                    else:
+                        nd.append(d)
+                sb['dialogues'] = nd
+            processed.add(key)
+            log(f"split cross-shot dialogue [{key[0]}] '{key[1][:30]}' across shots {run}")
+    return result_json
 
 
 def main():
@@ -935,20 +1043,18 @@ def main():
         
         srt_path = VIDEO_PATH.rsplit('.', 1)[0] + '.srt'
         srt_local_path = "./input_video.srt"
+        has_user_srt = False
         log(f"Downloading SRT: {srt_path} -> {srt_local_path}")
         try:
             download_from_r2(srt_path, srt_local_path)
-            log(f"SRT downloaded successfully")
+            has_user_srt = True
+            log("SRT downloaded successfully")
         except Exception as e:
-            log(f"SRT not found, trying to generate: {str(e)[:200]}")
-            if generate_srt_from_video(video_local_path, srt_local_path):
-                try:
-                    upload_to_r2(srt_local_path, srt_path, "text/plain")
-                    log(f"Generated SRT uploaded to R2: {srt_path}")
-                except Exception as ue:
-                    log(f"Failed to upload generated SRT: {str(ue)[:200]}")
-            else:
-                log("SRT generation unavailable/failed, proceeding without subtitles")
+            log(f"No user SRT: {str(e)[:200]}")
+        # 无用户 SRT 时：保留 Gemini 对话，仅用 whisper 词级时间做跨镜切分
+        whisper_words = []
+        if not has_user_srt:
+            whisper_words = transcribe_words(video_local_path)
         
         scenes_json_path = f"{TASK_ID}/scenes/scenes.json"
         scenes_local_path = "./scenes.json"
@@ -1121,24 +1227,30 @@ JSON格式如下：
         log("Force aligning storyboards with scenes...")
         result_json = force_align_storyboards_with_scenes(result_json, scenes_data)
 
-        # Post-processing: allocate dialogues from SRT based on timestamps
-        if srt_local_path and os.path.exists(srt_local_path):
+        # 对话归属：
+        #  - 有用户 SRT（且带说话人标签）→ allocate（SRT 权威）
+        #  - 无 SRT → 保留 Gemini 对话，再用 whisper 词级时间切分跨镜重复台词
+        if has_user_srt and os.path.exists(srt_local_path):
             log("Allocating dialogues from SRT to storyboards...")
             result_json = allocate_dialogues_from_srt(result_json, srt_local_path)
-            
-            # Validation: verify dialogue allocation
-            storyboards = result_json.get('storyboards', [])
-            total_dialogues = sum(len(s.get('dialogues', [])) for s in storyboards)
-            log(f"Validation: {len(storyboards)} storyboards, {total_dialogues} dialogues allocated")
-            for idx, shot in enumerate(storyboards):
-                dialogues = shot.get('dialogues', [])
+        else:
+            log("No user SRT; keeping Gemini dialogues")
+        if whisper_words:
+            log("Splitting cross-shot Gemini dialogues by whisper word timestamps...")
+            result_json = split_gemini_dialogues_by_words(result_json, whisper_words)
+
+        # Validation
+        storyboards = result_json.get('storyboards', [])
+        total_dialogues = sum(len(s.get('dialogues', [])) for s in storyboards)
+        log(f"Validation: {len(storyboards)} storyboards, {total_dialogues} dialogues")
+        for idx, shot in enumerate(storyboards):
+            dialogues = shot.get('dialogues', [])
+            if dialogues:
                 log(f"  Shot {idx} ({shot.get('start_time', '?')}-{shot.get('end_time', '?')}): {len(dialogues)} dialogues")
-                for d in dialogues[:3]:  # Show first 3 dialogues per shot
+                for d in dialogues[:3]:
                     log(f"    [{d.get('speaker', '?')}]: {d.get('text', '?')[:60]}")
                 if len(dialogues) > 3:
                     log(f"    ... and {len(dialogues) - 3} more")
-        else:
-            log("No SRT file found, keeping AI-extracted dialogues")
         
         output_path = "./analysis_result.json"
         with open(output_path, 'w', encoding='utf-8') as f:
