@@ -151,10 +151,15 @@ taskRoutes.post('/:id/restart-phase', async (c) => {
 
 taskRoutes.post('/:id/advance', async (c) => {
   const service = new TaskService(c.env as Bindings);
-  await service.advancePhase(c.req.param('id'));
-  
   const task = await service.getTask(c.req.param('id'));
-  return c.json({ code: 200, data: task, msg: 'Phase advanced' });
+  if (!task) {
+    return c.json({ code: 404, data: null, msg: 'Task not found' }, 404);
+  }
+  // 传 completedPhase=当前阶段，使幂等护栏生效，避免与其它完成信号重复推进/重复派发下游
+  await service.advancePhase(c.req.param('id'), task.current_phase as string);
+
+  const updatedTask = await service.getTask(c.req.param('id'));
+  return c.json({ code: 200, data: updatedTask, msg: 'Phase advanced' });
 });
 
 export { taskRoutes };
