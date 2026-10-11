@@ -294,10 +294,9 @@ def allocate_dialogues_from_srt(result_json, srt_path):
             return name_to_role[speaker_name]
         if speaker_name == 'NARRATOR':
             return 'NARRATOR'
-        if speaker_name:
-            # 未知说话人：仅当该分镜只有一个角色时才归给他，否则不猜
-            if len(shot_chars) == 1:
-                return shot_chars[0]
+        # 无标签或未知说话人：仅当该分镜只有一个角色时才归给他，否则不猜（自动生成的无标签 SRT 也走这里）
+        if len(shot_chars) == 1:
+            return shot_chars[0]
         return None
 
     # 第一遍：每条字幕只解析一次说话人，归属依据是「该条起始时刻所在的镜头」。
@@ -344,9 +343,21 @@ def allocate_dialogues_from_srt(result_json, srt_path):
             speaker = entry_speaker.get(id(entry))
             _, dialogue_text = extract_speaker_and_text(entry_text)
 
+            # 按重叠比例切分文本：一句话跨多镜时，每镜只保留落在其时间窗内的那一段，避免整句在多镜重复
+            full = dialogue_text or ''
+            n = len(full)
+            span = max(entry_end - entry_start, 1e-6)
+            f0 = (overlap_start - entry_start) / span
+            f1 = (overlap_end - entry_start) / span
+            i0 = max(0, min(n, int(round(f0 * n))))
+            i1 = max(0, min(n, int(round(f1 * n))))
+            frag = full[i0:i1].strip()
+            if not frag:
+                continue
+
             dialogue_entry = {
                 'speaker': speaker or 'NARRATOR',
-                'text': dialogue_text,
+                'text': frag,
                 'start_time': seconds_to_time_str(overlap_start),
                 'end_time': seconds_to_time_str(overlap_end),
                 'continues_from_prev': entry_start < shot_start,
@@ -813,6 +824,77 @@ def parse_json_response(text):
     error_msg = str(e) if e else "Unknown error"
     raise Exception(f"Failed to parse JSON after all repair attempts: {error_msg}")
 
+def generate_srt_from_video(video_path, out_srt_path):
+    """无 SRT 时生成字幕：优先抽取内嵌软字幕，否则用 faster-whisper(small)+VAD 生成（无说话人标注）。"""
+    # 1) 内嵌软字幕优先
+    try:
+        import subprocess
+        probe = subprocess.run(
+            ['ffprobe', '-v', 'error', '-select_streams', 's', '-show_entries', 'stream=index',
+             '-of', 'csv=p=0', video_path],
+            capture_output=True, text=True, timeout=30)
+        if probe.stdout.strip():
+            subprocess.run(
+                ['ffmpeg', '-y', '-v', 'error', '-i', video_path, '-map', '0:s:0', out_srt_path],
+                check=True, timeout=600)
+            if os.path.exists(out_srt_path) and os.path.getsize(out_srt_path) > 0:
+                log("SRT generated from embedded subtitle stream")
+                return True
+    except Exception as e:
+        log(f"Embedded subtitle extraction failed: {str(e)[:200]}")
+
+    # 2) faster-whisper
+    try:
+        from faster_whisper import WhisperModel
+    except Exception as e:
+        log(f"faster-whisper unavailable, cannot generate SRT: {str(e)[:200]}")
+        return False
+
+    model_size = os.environ.get('WHISPER_MODEL', 'small')
+    model_dir = os.environ.get('WHISPER_MODEL_DIR', '/opt/whisper')
+    lang = os.environ.get('WHISPER_LANGUAGE', '').strip() or None
+    try:
+        model = WhisperModel(model_size, device='cpu', compute_type='int8', download_root=model_dir)
+        vad_params = {
+            'threshold': float(os.environ.get('VAD_THRESHOLD', '0.5')),
+            'min_speech_duration_ms': int(os.environ.get('VAD_MIN_SPEECH_MS', '200')),
+            'min_silence_duration_ms': int(os.environ.get('VAD_MIN_SILENCE_MS', '500')),
+        }
+        segments, _info = model.transcribe(
+            video_path, vad_filter=True, vad_parameters=vad_params,
+            word_timestamps=True, language=lang)
+
+        def _fmt(t):
+            h = int(t // 3600)
+            m = int((t % 3600) // 60)
+            s = int(t % 60)
+            ms = int(round((t - int(t)) * 1000))
+            if ms == 1000:
+                ms = 0
+                s += 1
+            return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+        lines = []
+        idx = 1
+        for seg in segments:
+            txt = (seg.text or '').strip()
+            if not txt:
+                continue
+            lines.append(str(idx))
+            lines.append(f"{_fmt(seg.start)} --> {_fmt(seg.end)}")
+            lines.append(txt)
+            lines.append("")
+            idx += 1
+        with open(out_srt_path, 'w', encoding='utf-8') as f:
+            f.write("\n".join(lines))
+        ok = os.path.exists(out_srt_path) and os.path.getsize(out_srt_path) > 0
+        log(f"SRT generated via faster-whisper({model_size}): {idx - 1} segments, ok={ok}")
+        return ok
+    except Exception as e:
+        log(f"faster-whisper SRT generation failed: {str(e)[:300]}")
+        return False
+
+
 def main():
     try:
         log("Starting scene analysis phase")
@@ -858,7 +940,15 @@ def main():
             download_from_r2(srt_path, srt_local_path)
             log(f"SRT downloaded successfully")
         except Exception as e:
-            log(f"SRT file not found, proceeding without subtitles: {str(e)[:200]}")
+            log(f"SRT not found, trying to generate: {str(e)[:200]}")
+            if generate_srt_from_video(video_local_path, srt_local_path):
+                try:
+                    upload_to_r2(srt_local_path, srt_path, "text/plain")
+                    log(f"Generated SRT uploaded to R2: {srt_path}")
+                except Exception as ue:
+                    log(f"Failed to upload generated SRT: {str(ue)[:200]}")
+            else:
+                log("SRT generation unavailable/failed, proceeding without subtitles")
         
         scenes_json_path = f"{TASK_ID}/scenes/scenes.json"
         scenes_local_path = "./scenes.json"
