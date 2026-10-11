@@ -206,10 +206,15 @@ process_frame() {
     local selected_url="${AI_BASE_URL:-https://apihub.agnes-ai.com}/v1/images/generations"
 
     local selected_alias=""
+    local selected_model="agnes-image-2.5-flash"
     if [ -n "$ai_accounts" ]; then
         selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
         selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
         selected_alias=$(echo "$ai_accounts" | jq -r ".[$account_index].account_alias")
+        selected_model=$(echo "$ai_accounts" | jq -r ".[$account_index].model_name // empty")
+        if [ -z "$selected_model" ] || [ "$selected_model" = "null" ]; then
+            selected_model="agnes-image-2.5-flash"
+        fi
         if [ "$selected_url" = "null" ] || [ -z "$selected_url" ]; then
             selected_url="https://apihub.agnes-ai.com/v1/images/generations"
         elif [[ "$selected_url" != */v1/images/generations ]]; then
@@ -219,6 +224,7 @@ process_frame() {
 
     echo "Shot $shot_index ${frame_type}: Using AI account index $account_index (alias: $selected_alias)"
     echo "  Shot $shot_index ${frame_type}: API URL: $selected_url"
+    echo "  Shot $shot_index ${frame_type}: Model: $selected_model"
 
     MAX_RETRIES=3
     RETRY_DELAY=10
@@ -239,7 +245,7 @@ process_frame() {
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $selected_key" \
             -d "{
-                \"model\": \"agnes-image-2.1-flash\",
+                \"model\": \"$selected_model\",
                 \"prompt\": \"$MAIN_PROMPT\",
                 \"size\": \"1024x768\",
                 \"extra_body\": {
