@@ -463,6 +463,17 @@ def main():
         use_source_audio = bool(first_kc or last_kc) and bool(speakers) and len(on_screen) == 0
         shot['use_source_audio'] = use_source_audio
 
+        # 一致性校验（只加字段，不改原字段，不影响画外音）：
+        # 排除"有画外音台词解释"的正常不可见角色，只有"在 present、不可见、又无台词解释"才算可疑。
+        present_roles = set(r for r in (shot.get('characters_present') or []) if r and r != 'NARRATOR')
+        dialogue_speakers = set(s for s in speakers if s and s != 'NARRATOR')
+        unexplained = [r for r in present_roles if r not in measured_visible and r not in dialogue_speakers]
+        suspect = bool(measured_visible) and len(unexplained) > 0
+        shot['measured_visible_characters'] = sorted(measured_visible)
+        shot['character_consistency'] = 'suspect' if suspect else 'ok'
+        if suspect:
+            shot['consistency_notes'] = f"present={sorted(present_roles)} measured_visible={sorted(measured_visible)} unexplained={unexplained}"
+
         measured_shots += 1
         log(f"  Shot {i}: roles={present}, anchors={anchor_roles}, first_src={first_idx}, last_src={last_idx}, assigned={len(assignments)}, visible={sorted(measured_visible)}, speakers={speakers}, use_source_audio={use_source_audio}")
 

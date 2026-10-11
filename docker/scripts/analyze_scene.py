@@ -569,61 +569,89 @@ def force_align_storyboards_with_scenes(result_json, scenes_data):
 
     storyboards = result_json.get('storyboards', [])
     scenes_count = len(scenes_data)
-    storyboards_count = len(storyboards)
+    sb_count = len(storyboards)
 
-    log(f"Force alignment: {storyboards_count} storyboards vs {scenes_count} scenes")
+    log(f"Force alignment: {sb_count} storyboards vs {scenes_count} scenes")
+    count_mismatch = (sb_count != scenes_count)
+    if count_mismatch:
+        log(f"WARNING: storyboards count ({sb_count}) != scenes count ({scenes_count}); use time-overlap binding")
 
-    if storyboards_count != scenes_count:
-        log(f"WARNING: storyboards count ({storyboards_count}) != scenes count ({scenes_count})!")
-        log(f"  This indicates Gemini skipped, merged, or split scenes despite instructions.")
-        log(f"  Storyboards will be aligned by index; mismatched descriptions may occur for affected shots.")
+    sb_times = []
+    for s0 in storyboards:
+        sb_times.append((parse_time_to_seconds(s0.get('start_time', '')), parse_time_to_seconds(s0.get('end_time', ''))))
 
+    def overlap(j, cs, ce):
+        st, en = sb_times[j]
+        if st is None or en is None:
+            return -1.0
+        return max(0.0, min(en, ce) - max(st, cs))
+
+    used = set()
+    shared = []
     aligned_storyboards = []
+
     for i, scene in enumerate(scenes_data):
         scene_start = scene.get('start_timecode', '')
         scene_end = scene.get('end_timecode', '')
-        scene_number = scene.get('scene_number', i)
+        cs = parse_time_to_seconds(scene_start)
+        ce = parse_time_to_seconds(scene_end)
+        cs = cs if cs is not None else 0.0
+        ce = ce if ce is not None else cs
 
-        if i < storyboards_count:
-            shot = storyboards[i]
-            original_start = shot.get('start_time', '')
-            original_end = shot.get('end_time', '')
-
-            # 强制覆盖时间范围，确保与scenes完全一致
-            shot['start_time'] = scene_start
-            shot['end_time'] = scene_end
-
-            if original_start != scene_start or original_end != scene_end:
-                log(f"  Scene {i} (scene_number={scene_number}): time overwritten [{original_start} -> {original_end}] => [{scene_start} -> {scene_end}]")
+        chosen = None
+        if not count_mismatch and i < sb_count:
+            chosen = i
+        elif sb_count > 0:
+            best_idx, best_ov = None, -1.0
+            for j in range(sb_count):
+                ov = overlap(j, cs, ce)
+                if ov > best_ov:
+                    best_ov, best_idx = ov, j
+            if best_idx is not None and best_ov > 0:
+                chosen = best_idx
             else:
-                log(f"  Scene {i} (scene_number={scene_number}): time already correct [{scene_start} -> {scene_end}]")
+                mid = (cs + ce) / 2.0
+                best_idx, best_d = None, None
+                for j in range(sb_count):
+                    st, en = sb_times[j]
+                    if st is None or en is None:
+                        continue
+                    d = abs(((st + en) / 2.0) - mid)
+                    if best_d is None or d < best_d:
+                        best_d, best_idx = d, j
+                chosen = best_idx
 
-            aligned_storyboards.append(shot)
-        else:
-            # storyboards比scenes少，创建空分镜
-            log(f"  Scene {i} (scene_number={scene_number}): no corresponding storyboard, creating empty one")
-            shot = {
-                'start_time': scene_start,
-                'end_time': scene_end,
-                'characters_present': [],
-                'dialogues': [],
+        if chosen is None:
+            log(f"  Scene {i + 1}: no storyboard available, creating empty one")
+            aligned_storyboards.append({
+                'start_time': scene_start, 'end_time': scene_end,
+                'characters_present': [], 'dialogues': [],
                 'scene_description': '（缺失描述：Gemini未生成此分镜）',
-                'lighting_description': '',
-                'camera_movement': '',
-                'positive_prompt': '',
-                'negative_prompt': '',
-                'first_keyframe_characters': [],
-                'last_keyframe_characters': []
-            }
-            aligned_storyboards.append(shot)
+                'lighting_description': '', 'camera_movement': '',
+                'positive_prompt': '', 'negative_prompt': '',
+                'first_keyframe_characters': [], 'last_keyframe_characters': []
+            })
+            continue
 
-    # 如果storyboards比scenes多，丢弃多余的分镜
-    if storyboards_count > scenes_count:
-        dropped_count = storyboards_count - scenes_count
-        log(f"  Dropping {dropped_count} extra storyboards (indices {scenes_count} to {storyboards_count - 1})")
+        shot = dict(storyboards[chosen])
+        ostart = shot.get('start_time', '')
+        oend = shot.get('end_time', '')
+        shot['start_time'] = scene_start
+        shot['end_time'] = scene_end
+        if chosen in used:
+            shared.append((i + 1, chosen))
+        used.add(chosen)
+        log(f"  Scene {i + 1} <- storyboard[{chosen}] (orig {ostart}->{oend}) => {scene_start}->{scene_end}")
+        aligned_storyboards.append(shot)
+
+    dropped = [j for j in range(sb_count) if j not in used]
+    if dropped:
+        log(f"  Dropped extra storyboards: {dropped}")
+    if shared:
+        log(f"  WARNING: {len(shared)} scenes share a storyboard (may duplicate): {shared}")
 
     result_json['storyboards'] = aligned_storyboards
-    log(f"Force alignment complete: {len(aligned_storyboards)} storyboards aligned to {scenes_count} scenes")
+    log(f"Force alignment complete: {len(aligned_storyboards)} storyboards aligned to {scenes_count} scenes (shared={len(shared)}, dropped={len(dropped)})")
 
     return result_json
 

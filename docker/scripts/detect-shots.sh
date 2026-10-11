@@ -41,6 +41,11 @@ fi
 echo "CSV file content:"
 cat "$SCENE_FILE"
 
+echo "Getting video duration for scene validation..."
+VIDEO_DURATION_SECONDS=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 ./input_video.mp4 2>/dev/null || echo "")
+export VIDEO_DURATION_SECONDS
+echo "VIDEO_DURATION_SECONDS=$VIDEO_DURATION_SECONDS"
+
 SHOT_COUNT=$(python3 << 'PYTHON_SCRIPT'
 import csv
 import json
@@ -50,6 +55,69 @@ import sys
 
 # 最大场景时长（秒），超过则均匀切分
 MAX_SCENE_DURATION = float(os.environ.get('MAX_SCENE_DURATION', '30'))
+# 最小场景时长（秒），低于则并入相邻场景（0=不启用）
+MIN_SCENE_DURATION = float(os.environ.get('MIN_SCENE_DURATION', '0') or 0)
+# 视频总时长（秒），用于 clamp 场景时间
+VIDEO_SECONDS = float(os.environ.get('VIDEO_DURATION_SECONDS', '0') or 0)
+
+
+def sec_to_tc(sec):
+    h = int(sec // 3600)
+    m = int((sec % 3600) // 60)
+    s = int(sec % 60)
+    ms = int(round((sec - int(sec)) * 1000))
+    if ms == 1000:
+        ms = 0
+        s += 1
+    if s == 60:
+        s = 0
+        m += 1
+    return f"{h:02d}:{m:02d}:{s:02d}.{ms:03d}"
+
+
+def normalize_scenes(scenes, video_seconds, min_dur):
+    """场景时间校验定稿：排序、clamp、单调不重叠、去零长、可选最短合并、重编号。"""
+    scenes = sorted(
+        [s for s in scenes if s.get('start_time_seconds') is not None and s.get('end_time_seconds') is not None],
+        key=lambda x: x['start_time_seconds'])
+    out = []
+    dropped = 0
+    merged = 0
+    for s in scenes:
+        st = float(s['start_time_seconds'])
+        en = float(s['end_time_seconds'])
+        if video_seconds > 0:
+            st = min(max(st, 0.0), video_seconds)
+            en = min(max(en, 0.0), video_seconds)
+        if out:
+            prev_end = out[-1]['end_time_seconds']
+            if st < prev_end:
+                st = prev_end
+        if en <= st:
+            dropped += 1
+            continue
+        if min_dur > 0 and (en - st) < min_dur and out:
+            out[-1]['end_time_seconds'] = round(en, 3)
+            out[-1]['end_timecode'] = sec_to_tc(en)
+            out[-1]['length_seconds'] = round(en - out[-1]['start_time_seconds'], 3)
+            merged += 1
+            continue
+        fps = (s.get('length_frames', 0) / s['length_seconds']) if s.get('length_seconds') else 30
+        s2 = dict(s)
+        s2['start_time_seconds'] = round(st, 3)
+        s2['end_time_seconds'] = round(en, 3)
+        s2['start_timecode'] = sec_to_tc(st)
+        s2['end_timecode'] = sec_to_tc(en)
+        s2['length_seconds'] = round(en - st, 3)
+        if fps:
+            s2['start_frame'] = int(round(st * fps))
+            s2['end_frame'] = int(round(en * fps))
+            s2['length_frames'] = s2['end_frame'] - s2['start_frame']
+        out.append(s2)
+    for i, s in enumerate(out):
+        s['scene_number'] = i + 1
+    sys.stderr.write(f'Normalized scenes: {len(out)} (dropped={dropped}, merged={merged}, video_seconds={video_seconds}, min_dur={min_dur})\n')
+    return out
 
 scene_data = []
 with open('./scenes/input_video-Scenes.csv', 'r') as f:
@@ -135,9 +203,8 @@ for scene in scene_data:
             })
             split_count += 1
 
-# 重新编号所有场景的 scene_number（从1开始连续）
-for idx, scene in enumerate(final_scenes):
-    scene['scene_number'] = idx + 1
+# 场景时间校验定稿（排序/clamp/单调/去零长/可选最短合并/重编号）
+final_scenes = normalize_scenes(final_scenes, VIDEO_SECONDS, MIN_SCENE_DURATION)
 
 sys.stderr.write(f'Split {split_count} sub-scenes from long scenes\n')
 sys.stderr.write(f'Final scenes: {len(final_scenes)}\n')
