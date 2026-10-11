@@ -557,11 +557,12 @@ def validate_and_fix_storyboards(result_json, video_duration=None, scenes_data=N
 
 def force_align_storyboards_with_scenes(result_json, scenes_data):
     """
-    强制将storyboards与scenes严格一一对应：
-    - storyboards[i]的start_time/end_time强制覆盖为scenes[i]的时间范围
-    - 如果storyboards数量与scenes数量不一致，记录详细警告
-    - 确保storyboards数量等于scenes数量（多余截断，不足补空）
-    这从根本上杜绝了Gemini跳过/合并/拆分场景导致的提示词与片段错位问题。
+    将 storyboards 与 scenes 对齐并统一时间（时间最终以 scenes 为准）：
+    - 数量一致：按序把 scenes[i] 的时间覆盖到 storyboards[i]（保持原行为）。
+    - 数量不一致：按「时间重叠就近绑定」——每个场景取时间重叠最大的 storyboard；
+      无重叠则取时间中点最近的；多余 storyboard 丢弃；多个场景共用同一条时告警（可能重复描述）。
+    - 仅当某场景无任何 storyboard 可用时，才补空分镜（并记录）。
+    这从根本上杜绝了 Gemini 跳过/合并/拆分场景导致的提示词与片段错位问题。
     """
     if not scenes_data:
         log("No scenes data available for force alignment, skipping")
