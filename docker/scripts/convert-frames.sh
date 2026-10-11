@@ -209,6 +209,8 @@ process_frame() {
     local selected_model="agnes-image-2.5-flash"
     if [ -n "$ai_accounts" ]; then
         selected_key=$(echo "$ai_accounts" | jq -r ".[$account_index].api_key_encrypted")
+        # 去除 key 中的换行/回车（后台粘贴常带换行，会导致 Bearer 头非法→401）
+        selected_key="$(printf '%s' "$selected_key" | tr -d '\r\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
         selected_url=$(echo "$ai_accounts" | jq -r ".[$account_index].base_url")
         selected_alias=$(echo "$ai_accounts" | jq -r ".[$account_index].account_alias")
         selected_model=$(echo "$ai_accounts" | jq -r ".[$account_index].model_name // empty")
