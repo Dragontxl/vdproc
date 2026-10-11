@@ -225,13 +225,21 @@ process_frame() {
     echo "Shot $shot_index ${frame_type}: Using AI account index $account_index (alias: $selected_alias)"
     echo "  Shot $shot_index ${frame_type}: API URL: $selected_url"
     echo "  Shot $shot_index ${frame_type}: Model: $selected_model"
+    echo "  Shot $shot_index ${frame_type}: key length: ${#selected_key}"
+
+    BAD_ACCOUNTS_FILE="./bad_accounts.txt"
+
+    if [ -z "$selected_key" ]; then
+        echo "  Shot $shot_index ${frame_type}: account has empty API key, marking bad (skip request)"
+        echo "$account_index" >> "$BAD_ACCOUNTS_FILE"
+        echo "${shot_index}_${frame_type}:FAILED" >> "./frame_results.txt"
+        return 1
+    fi
 
     MAX_RETRIES=3
     RETRY_DELAY=10
     API_SUCCESS=0
     RESPONSE=""
-
-    BAD_ACCOUNTS_FILE="./bad_accounts.txt"
 
     for attempt in $(seq 1 $MAX_RETRIES); do
         echo "  Shot $shot_index ${frame_type}: Attempt $attempt/$MAX_RETRIES..."
