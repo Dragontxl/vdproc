@@ -26,6 +26,11 @@ MODEL_PRIORITY_LIST = [
 ]
 MAX_RETRIES_PER_MODEL = 3
 
+# 分析采样温度：默认 0（贪心解码），让说话人/画外音判定可复现、稳定。
+# 此前未设 generation_config，用 Gemini 默认温度(≈1.0)，同一 prompt 两次结果差异极大
+# （实测同一输入一次 54 条台词全对、一次 27 条且说话人全错）。
+ANALYZE_TEMPERATURE = float(os.environ.get('ANALYZE_TEMPERATURE', '0'))
+
 # 分析结果 schema 版本号：下游 crop-shots/convert-frames/generate-shots 消费前可据此判断字段契约。
 ANALYSIS_SCHEMA_VERSION = 2
 
@@ -124,7 +129,13 @@ def call_gemini_api(video_file, prompt_text, model_index=0, retry_count=0):
     
     try:
         model = genai.GenerativeModel(model_name)
-        response = model.generate_content([prompt_text, video_file])
+        response = model.generate_content(
+            [prompt_text, video_file],
+            generation_config=genai.GenerationConfig(
+                temperature=ANALYZE_TEMPERATURE,
+                top_p=1.0,
+            ),
+        )
         
         if response.parts and len(response.parts) > 0:
             text = response.text
@@ -1028,6 +1039,7 @@ def main():
         log(f"  MODEL_PRIORITY_LIST: {MODEL_PRIORITY_LIST}")
         log(f"  ANALYZE_DIALOGUE_LANGUAGE: {ANALYZE_DIALOGUE_LANGUAGE!r}")
         log(f"  ANALYZE_DIALOGUE_STYLE: {ANALYZE_DIALOGUE_STYLE!r}")
+        log(f"  ANALYZE_TEMPERATURE: {ANALYZE_TEMPERATURE}")
         
         genai.configure(api_key=AI_API_KEY)
         log("Google GenerativeAI configured")
