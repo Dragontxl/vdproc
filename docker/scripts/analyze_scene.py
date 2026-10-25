@@ -656,6 +656,171 @@ def force_align_storyboards_with_scenes(result_json, scenes_data):
 
     return result_json
 
+def transcribe_words(video_path):
+    """返回 whisper 词级时间戳列表 [{w,start,end}]，仅作时间权威；不写 SRT、不覆盖 Gemini 文本。"""
+    try:
+        from faster_whisper import WhisperModel
+    except Exception as e:
+        log(f"faster-whisper unavailable: {str(e)[:200]}")
+        return []
+    model_size = os.environ.get('WHISPER_MODEL', 'medium')
+    model_dir = os.environ.get('WHISPER_MODEL_DIR', '/opt/whisper')
+    lang = os.environ.get('WHISPER_LANGUAGE', '').strip() or None
+    try:
+        model = WhisperModel(model_size, device='cpu', compute_type='int8', download_root=model_dir)
+        vad_params = {
+            'threshold': float(os.environ.get('VAD_THRESHOLD', '0.5')),
+            'min_speech_duration_ms': int(os.environ.get('VAD_MIN_SPEECH_MS', '200')),
+            'min_silence_duration_ms': int(os.environ.get('VAD_MIN_SILENCE_MS', '500')),
+        }
+        segments, _info = model.transcribe(
+            video_path, vad_filter=True, vad_parameters=vad_params,
+            word_timestamps=True, language=lang)
+        words = []
+        for seg in segments:
+            for w in (seg.words or []):
+                txt = (w.word or '').strip()
+                if not txt:
+                    continue
+                words.append({'w': txt, 'start': float(w.start), 'end': float(w.end)})
+        log(f"transcribe_words({model_size}): {len(words)} words")
+        return words
+    except Exception as e:
+        log(f"transcribe_words failed: {str(e)[:300]}")
+        return []
+
+
+def split_gemini_dialogues_by_words(result_json, words):
+    """按 whisper 词级时间切分跨镜重复的 Gemini 台词：
+    - 仅当相邻镜头出现相同 (speaker,text)，且 whisper 显示同一连续发声单元跨越切点（无静音间隙）
+      时才按词时间把文本切分到各镜头；
+    - 真实重复（两次独立发声/有停顿）不合并。
+    文本与说话人仍以 Gemini 为准，whisper 只提供时间与词边界。"""
+    if not words:
+        return result_json
+    storyboards = result_json.get('storyboards', [])
+    if not storyboards:
+        return result_json
+
+    gap = float(os.environ.get('WHISPER_UTT_GAP_MS', '500')) / 1000.0
+
+    # 1) 按静音间隙把词聚成"连续发声单元" utterance
+    sorted_words = sorted(words, key=lambda x: x['start'])
+    utterances = []
+    cur = []
+    prev_end = None
+    for w in sorted_words:
+        if prev_end is not None and w['start'] - prev_end > gap:
+            if cur:
+                utterances.append(cur)
+            cur = []
+        cur.append(w)
+        prev_end = max(prev_end or 0.0, w['end'])
+    if cur:
+        utterances.append(cur)
+
+    def utt_dur_in(utt, ss, se):
+        total = 0.0
+        for w in utt:
+            total += max(0.0, min(w['end'], se) - max(w['start'], ss))
+        return total
+
+    def tc_sec(s):
+        v = parse_time_to_seconds(s)
+        return v if v is not None else 0.0
+
+    # 2) 找跨镜候选：相同 (speaker,text) 出现在哪些镜头
+    key2shots = {}
+    for idx, sb in enumerate(storyboards):
+        for d in (sb.get('dialogues') or []):
+            key = (d.get('speaker'), d.get('text'))
+            key2shots.setdefault(key, []).append(idx)
+
+    processed = set()
+    for key, shot_idx in key2shots.items():
+        if len(shot_idx) < 2 or key in processed:
+            continue
+        # 找连续镜头段
+        runs = []
+        run = [shot_idx[0]]
+        for a, b in zip(shot_idx, shot_idx[1:]):
+            if b == a + 1:
+                run.append(b)
+            else:
+                runs.append(run)
+                run = [b]
+        runs.append(run)
+        for run in runs:
+            if len(run) < 2:
+                continue
+            s0 = storyboards[run[0]]
+            slast = storyboards[run[-1]]
+            t_start = tc_sec(s0.get('start_time', ''))
+            t_end = tc_sec(slast.get('end_time', ''))
+            if t_end <= t_start:
+                continue
+            # 找与 run 时间窗重叠最长的 utterance
+            best_utt = None
+            best_ov = 0.0
+            for utt in utterances:
+                u0 = utt[0]['start']
+                u1 = utt[-1]['end']
+                ov = min(u1, t_end) - max(u0, t_start)
+                if ov > best_ov:
+                    best_ov = ov
+                    best_utt = utt
+            if best_utt is None or best_ov <= 0:
+                continue
+            cover_frac = best_ov / max(t_end - t_start, 1e-6)
+            if cover_frac < 0.5:
+                continue
+            total = utt_dur_in(best_utt, t_start, t_end)
+            if total <= 0:
+                continue
+            text = key[1] or ''
+            n = len(text)
+            if n == 0:
+                continue
+            # 每个镜头内该 utterance 的语音时长占比
+            durs = []
+            for si in run:
+                sb = storyboards[si]
+                durs.append(utt_dur_in(best_utt, tc_sec(sb.get('start_time', '')), tc_sec(sb.get('end_time', ''))))
+            total_durs = sum(durs)
+            if total_durs <= 0:
+                continue
+            cuts = [0.0]
+            fractions = [d / total_durs for d in durs]
+            for f in fractions[:-1]:
+                cuts.append(cuts[-1] + f)
+            cuts.append(1.0)
+            slices = []
+            for j, si in enumerate(run):
+                c0 = max(0, min(n, int(round(cuts[j] * n))))
+                c1 = max(0, min(n, int(round(cuts[j + 1] * n))))
+                frag = text[c0:c1].strip()
+                slices.append((si, frag, j))
+            if sum(1 for _s, fr, _j in slices if fr) < 2:
+                continue
+            # 重写这些镜头的 dialogues：文本=切片，speaker 保留，加 continues 标记
+            for si, frag, j in slices:
+                sb = storyboards[si]
+                nd = []
+                for d in (sb.get('dialogues') or []):
+                    if (d.get('speaker'), d.get('text')) == key:
+                        if frag:
+                            ndd = dict(d)
+                            ndd['text'] = frag
+                            ndd['continues_from_prev'] = j > 0
+                            ndd['continues_next'] = j < len(slices) - 1 and bool(slices[j + 1][1])
+                            nd.append(ndd)
+                    else:
+                        nd.append(d)
+                sb['dialogues'] = nd
+            processed.add(key)
+            log(f"split cross-shot dialogue [{key[0]}] '{key[1][:30]}' across shots {run}")
+    return result_json
+
 def repair_json(text):
     """尝试修复常见的 JSON 格式错误"""
     import re
@@ -1049,7 +1214,18 @@ JSON格式如下：
                     log(f"    ... and {len(dialogues) - 3} more")
         else:
             log("No SRT file found, keeping AI-extracted dialogues")
-        
+
+        # 词级时间戳归属：用 faster-whisper 词级时间把跨镜重复的 Gemini 台词按真实发声时间切分到各镜头。
+        # 仅处理"相邻镜头出现相同 (speaker,text) 且 whisper 显示同一连续发声单元跨越切点"的情况，
+        # 真实重复（两次独立发声）不合并；文本/说话人仍以 Gemini 为准。
+        log("Transcribing video words for dialogue attribution...")
+        whisper_words = transcribe_words(video_local_path)
+        if whisper_words:
+            log("Splitting cross-shot Gemini dialogues by whisper word timestamps...")
+            result_json = split_gemini_dialogues_by_words(result_json, whisper_words)
+        else:
+            log("No whisper words available, skipping cross-shot dialogue split")
+
         output_path = "./analysis_result.json"
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(result_json, f, ensure_ascii=False, indent=2)

@@ -11,3 +11,4 @@ pydantic
 requests
 google-generativeai
 scikit-learn
+faster-whisper
